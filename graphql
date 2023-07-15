@@ -1,0 +1,92 @@
+@Scheduled(cron = "0 0 0 * * ?")  // runs every 24 hours
+public void updateMemberPrograms() {
+    String fetchQuery = "" +
+        "query {" +
+        "  mbrPgm(where: {creat_sys_ref_id: {_eq: 20685}, mbr_pgm_sts_ref_id: {_in: [3700, 3701]}}) {" +
+        "    mbr_pgm_id" +
+        "    creat_sys_ref_id" +
+        "    mbr_pgm_sts_ref_id" +
+        "    indv_key_val" +
+        "    mbr_cov_dtl" +
+        "  }" +
+        "}";
+    List<MemberProgram> memberPrograms = graphQLTemplate.executeQuery(fetchQuery, "mbrPgm");
+    // Rest of your code...
+}
+
+
+
+import org.springframework.http.*;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.*;
+
+@Service
+public class MemberProgramService {
+
+    private final RestTemplate restTemplate;
+    private final EligibilityApiClient eligibilityApiClient;
+    private final ContactApiClient contactApiClient;
+
+    // replace with your actual GraphQL API endpoint
+    private static final String GRAPHQL_ENDPOINT = "http://your-graphql-api-endpoint";
+
+    public MemberProgramService(RestTemplate restTemplate, EligibilityApiClient eligibilityApiClient,
+                                ContactApiClient contactApiClient) {
+        this.restTemplate = restTemplate;
+        this.eligibilityApiClient = eligibilityApiClient;
+        this.contactApiClient = contactApiClient;
+    }
+
+    @Scheduled(cron = "0 0 0 * * ?")  // runs every 24 hours
+    public void updateMemberPrograms() {
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        String fetchQuery = "{ \"query\": \"{ mbrPgm(where: {creat_sys_ref_id: {_eq: 20685}, mbr_pgm_sts_ref_id: {_in: [3700, 3701]}}) { mbr_pgm_id creat_sys_ref_id mbr_pgm_sts_ref_id indv_key_val mbr_cov_dtl } }\" }";
+
+        HttpEntity<String> entity = new HttpEntity<>(fetchQuery, headers);
+
+        ResponseEntity<Map> response = restTemplate.exchange(GRAPHQL_ENDPOINT, HttpMethod.POST, entity, Map.class);
+
+        List<Map<String, Object>> memberProgramsData = (List<Map<String, Object>>) response.getBody().get("data").get("mbrPgm");
+
+        for (Map<String, Object> memberProgramData : memberProgramsData) {
+            MemberProgram memberProgram = convertMapToMemberProgram(memberProgramData);
+            processMemberProgram(memberProgram);
+        }
+    }
+
+    private void processMemberProgram(MemberProgram memberProgram) {
+        try {
+            boolean updated = false;
+            EligibilityResponse eligibilityResponse = eligibilityApiClient.checkEligibility(memberProgram);
+            ContactResponse contactResponse = contactApiClient.getContactInfo(memberProgram);
+
+            // your existing logic to update the MemberProgram and save changes via GraphQL mutation...
+
+        } catch (Exception e) {
+            // handle exceptions
+            System.out.println("Error updating MemberProgram with ID: " + memberProgram.getMbrPgmId());
+            e.printStackTrace();
+        }
+    }
+
+    private MemberProgram convertMapToMemberProgram(Map<String, Object> map) {
+        MemberProgram memberProgram = new MemberProgram();
+
+        // assume that all the fields are of String type for simplicity. 
+        // you need to change this based on your actual types and structure
+        memberProgram.setMbrPgmId((String) map.get("mbr_pgm_id"));
+        memberProgram.setCreatSysRefId((String) map.get("creat_sys_ref_id"));
+        memberProgram.setMbrPgmStsRefId((String) map.get("mbr_pgm_sts_ref_id"));
+        memberProgram.setIndvKeyVal((String) map.get("indv_key_val"));
+        memberProgram.setMbrCovDtl((String) map.get("mbr_cov_dtl"));
+
+        return memberProgram;
+    }
+}
+
