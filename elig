@@ -1,0 +1,19 @@
+// Step 1: Check mbr_pgm values validity
+if (mbrCovDtl.get("lastName").asText().isEmpty() || mbrCovDtl.get("FirstName").asText().isEmpty() ||
+    mbrCovDtl.get("stateCode").asText().isEmpty() || mbrCovDtl.get("dateofBirth").asText().isEmpty() ||
+    mbrCovDtl.get("terminationDate").asText().isEmpty() || mbrCovDtl.get("enrolleeSourceId").asText().isEmpty()) {
+        // The mbr_pgm values are not all valid, return or throw an exception
+        return; // Or throw new Exception("Invalid mbr_pgm values");
+}
+
+// Step 2 & 3: Check terminationDate from mbr_pgm and API response
+LocalDate mbrTerminationDate = LocalDate.parse(mbrCovDtl.get("terminationDate").asText());
+LocalDate apiTerminationDate = LocalDate.parse(contactResponse.getTerminationDate());
+
+// Step 4: If API repsonse terminationDate is changed, update the mbr_pgm terminationDate
+if (!mbrTerminationDate.equals(apiTerminationDate)) {
+    mbrCovDtl.put("terminationDate", apiTerminationDate.toString());
+
+    // Step 5: Write the record in the file
+    Files.write(Paths.get("/path/to/file.txt"), mbrCovDtl.toString().getBytes(), StandardOpenOption.APPEND);
+}
