@@ -1,0 +1,35 @@
+// Get the current type of address from the mbrCovDtl
+String currentAddressUse = mbrCovDtl.get("ConfidentialAddress").get("use").asText();
+
+// Prepare a list of address use priorities
+List<String> addressUsesPriority = Arrays.asList("confidential", "temporary", "home");
+
+// Loop through the address use priorities
+for (String use : addressUsesPriority) {
+    // If the current address use is higher or equal in priority, check the corresponding address from the API response
+    if (addressUsesPriority.indexOf(use) <= addressUsesPriority.indexOf(currentAddressUse)) {
+        Address apiAddress = contactResponse.getAddresses().stream()
+                .filter(address -> address.getUse().equalsIgnoreCase(use))
+                .findFirst()
+                .orElse(null);
+
+        if (apiAddress != null) {
+            // Parse the API address period end date
+            LocalDate apiEndDate = LocalDate.parse(apiAddress.getPeriod().getEndDt());
+
+            // If the API address is still active (end date is after today), compare the state codes
+            if (apiEndDate.isAfter(today)) {
+                String apiState = apiAddress.getState();
+                String mbrState = mbrCovDtl.get("ConfidentialAddress").get("stateCode").asText();
+
+                if (!mbrState.equals(apiState)) {
+                    ((ObjectNode) mbrCovDtl.get("ConfidentialAddress")).put("stateCode", apiState);
+                }
+
+                // If the state codes matched or have been updated, stop the loop
+                break;
+            } 
+            // If the API address is expired, continue to the next iteration of the loop
+        }
+    }
+}
