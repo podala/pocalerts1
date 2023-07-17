@@ -1,0 +1,17 @@
+String updateQuery = "mutation updateMbrPgm(\n" +
+    "  $mbr_pgm_id: Int!,\n" +
+    "  $creat_sys_ref_id: String!,\n" +
+    "  $mbr_pgm_sts_ref_id: String!,\n" +
+    "  $mbr_cov_dtl: String!\n" +
+    ") {\n" +
+    "  update_mbrPgm(\n" +
+    "    where: {\n" +
+    "      mbr_pgm_id: {_eq: $mbr_pgm_id},\n" +
+    "      creat_sys_ref_id: {_eq: $creat_sys_ref_id},\n" +
+    "      mbr_pgm_sts_ref_id: {_eq: $mbr_pgm_sts_ref_id}\n" +
+    "    },\n" +
+    "    _set: {mbr_cov_dtl: $mbr_cov_dtl}\n" +
+    "  ) {\n" +
+    "    affected_rows\n" +
+    "  }\n" +
+    "}";
