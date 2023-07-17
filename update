@@ -1,0 +1,38 @@
+import org.springframework.web.client.RestTemplate;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
+
+// ... somewhere in your code
+
+String url = "http://your.graphql.endpoint"; // replace with your GraphQL endpoint
+
+// Define headers
+HttpHeaders headers = new HttpHeaders();
+headers.setContentType(MediaType.APPLICATION_JSON);
+headers.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+
+// Define mutation string and variables
+String mutationString = "your mutation string here"; // replace with your mutation string
+Map<String, Object> variables = new HashMap<>();
+variables.put("mbr_pgm_id", 123);
+variables.put("creat_sys_ref_id", "some value");
+variables.put("mbr_pgm_sts_ref_id", "some value");
+variables.put("indv_key_val", "some value");
+variables.put("mbr_cov_dtl", "some value");
+
+// Define request payload
+Map<String, Object> requestBody = new HashMap<>();
+requestBody.put("query", mutationString);
+requestBody.put("variables", variables);
+
+// Define http entity
+HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+
+// Execute post request
+RestTemplate restTemplate = new RestTemplate();
+ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
+
+// Print response
+System.out.println(response.getBody());
