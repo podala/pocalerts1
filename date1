@@ -1,0 +1,26 @@
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+
+public class Main {
+    public static void main(String[] args) {
+        String apiTerminationDateStr = "2023-12-31";
+        String tableTerminationDateStr = "2023-07-12";
+
+        // Parse the dates
+        LocalDate apiTerminationDate = LocalDate.parse(apiTerminationDateStr, DateTimeFormatter.ISO_LOCAL_DATE);
+        LocalDate tableTerminationDate = LocalDate.parse(tableTerminationDateStr, DateTimeFormatter.ISO_LOCAL_DATE);
+
+        // Convert the dates to integers in the format YYYYMMDD
+        int apiTerminationDateInt = apiTerminationDate.getYear() * 10000 + apiTerminationDate.getMonthValue() * 100 + apiTerminationDate.getDayOfMonth();
+        int tableTerminationDateInt = tableTerminationDate.getYear() * 10000 + tableTerminationDate.getMonthValue() * 100 + tableTerminationDate.getDayOfMonth();
+
+        // Compare the dates
+        if (apiTerminationDateInt < tableTerminationDateInt) {
+            System.out.println("API termination date is earlier");
+        } else if (apiTerminationDateInt > tableTerminationDateInt) {
+            System.out.println("Table termination date is earlier");
+        } else {
+            System.out.println("The dates are the same");
+        }
+    }
+}
