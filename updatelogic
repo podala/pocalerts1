@@ -1,0 +1,28 @@
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+public void compareAndUpdate(JSONObject tableResponse, JSONObject apiResponse) {
+    String tableHealthCoverageTypeCode = tableResponse.getJSONObject("product").getJSONObject("healthCoverageType").getString("code");
+    String tableTerminationDate = tableResponse.getString("terminationDate");
+
+    JSONArray eligibilities = apiResponse.getJSONArray("eligibilities");
+    for (int i = 0; i < eligibilities.length(); i++) {
+        JSONObject eligibility = eligibilities.getJSONObject(i);
+        JSONArray memberships = eligibility.getJSONArray("memberships");
+
+        for (int j = 0; j < memberships.length(); j++) {
+            JSONObject membership = memberships.getJSONObject(j);
+            String healthCoverageTypeCode = membership.getJSONObject("product").getJSONObject("healthCoverageType").getString("code");
+            String terminationDate = membership.getString("terminationDate");
+            if ("B".equals(healthCoverageTypeCode) && !terminationDate.equals(tableTerminationDate)) {
+                updateMbrCovDtlWithNewDate(terminationDate);
+            }
+        }
+    }
+}
+
+public void updateMbrCovDtlWithNewDate(String newDate) {
+    // Connect to your database and perform the update operation
+    // Make sure to handle any exceptions and close your connections
+}
+
