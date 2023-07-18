@@ -1,0 +1,5 @@
+// Get today's date
+LocalDate today = LocalDate.now();
+
+// Convert to string in the format "YYYY-MM-DD"
+String todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE);
