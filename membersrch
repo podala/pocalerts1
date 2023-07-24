@@ -1,0 +1,29 @@
+public class MemberSearchResponse {
+    private String policy;
+    private boolean offshoreRestricted;
+    private boolean onshoreRestricted;
+
+    public String getPolicy() {
+        return policy;
+    }
+
+    public void setPolicy(String policy) {
+        this.policy = policy;
+    }
+
+    public boolean isOffshoreRestricted() {
+        return offshoreRestricted;
+    }
+
+    public void setOffshoreRestricted(boolean offshoreRestricted) {
+        this.offshoreRestricted = offshoreRestricted;
+    }
+
+    public boolean isOnshoreRestricted() {
+        return onshoreRestricted;
+    }
+
+    public void setOnshoreRestricted(boolean onshoreRestricted) {
+        this.onshoreRestricted = onshoreRestricted;
+    }
+}
