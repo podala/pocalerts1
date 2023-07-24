@@ -1,0 +1,55 @@
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+
+import java.util.*;
+
+@Service
+public class BatchProcessService {
+    //... Add any necessary dependencies here
+
+    @Cacheable(value = "users", key = "#tableName + #from + #to + #dataColumn + #keyColumns")
+    public void process(String tableName, String from, String to, String dataColumn, List<String> keyColumns) {
+        validateInput(tableName, from, to, dataColumn, keyColumns);
+
+        String fetchQuery = buildFetchQuery(tableName, from, to, dataColumn, keyColumns);
+        List<Map<String, String>> result = executeFetchQuery(fetchQuery);
+
+        for (Map<String, String> record : result) {
+            String src_cd = record.get("src_cd");
+            String src_id = record.get("src_id");
+            MemberSearchResponse response = callMemberSearchAPI(src_cd, src_id);
+
+            String policy = response.getPolicy();
+            boolean offshoreRestricted = response.isOffshoreRestricted();
+            boolean onshoreRestricted = response.isOnshoreRestricted();
+            String updateQuery = buildUpdateQuery(tableName, policy, offshoreRestricted, onshoreRestricted, record);
+
+            executeUpdateQuery(updateQuery);
+        }
+    }
+
+    private String buildFetchQuery(String tableName, String from, String to, String dataColumn, List<String> keyColumns) {
+        //... Implement the method here
+    }
+
+    private List<Map<String, String>> executeFetchQuery(String fetchQuery) {
+        //... Implement the method here
+    }
+
+    private MemberSearchResponse callMemberSearchAPI(String src_cd, String src_id) {
+        //... Implement the method here
+    }
+
+    private String buildUpdateQuery(String tableName, String policy, boolean offshoreRestricted, boolean onshoreRestricted, Map<String, String> keyColumns) {
+        //... Implement the method here
+    }
+
+    private void executeUpdateQuery(String updateQuery) {
+        //... Implement the method here
+    }
+
+    private void validateInput(String tableName, String from, String to, String dataColumn, List<String> keyColumns) {
+        //... Implement the method here
+    }
+}
