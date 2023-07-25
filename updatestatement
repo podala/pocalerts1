@@ -1,0 +1,28 @@
+private String buildUpdateQuery(String tableName, String policy, boolean offshoreRestricted, boolean onshoreRestricted, Map<String, String> keyColumns) {
+    StringBuilder query = new StringBuilder();
+    query.append("mutation { ");
+    query.append("update" + StringUtils.capitalize(tableName)); // mutation name, e.g. 'updateTableName'
+    query.append(" (");
+    query.append("input: { "); // assuming your schema takes an 'input' argument for updates
+
+    // Add key columns to the 'where' clause.
+    query.append("where: { ");
+    for (Map.Entry<String, String> entry : keyColumns.entrySet()) {
+        query.append(entry.getKey() + ": \\\"" + entry.getValue() + "\\\", "); // key: "value"
+    }
+    query.deleteCharAt(query.length() - 2); // delete last comma
+    query.append("} ");
+
+    // Add policy, offshoreRestricted and onshoreRestricted to the 'set' clause.
+    query.append(", set: { ");
+    query.append("policy: \\\"" + policy + "\\\", "); // policy: "12345"
+    query.append("offshoreRestricted: " + offshoreRestricted + ", "); // offshoreRestricted: true
+    query.append("onshoreRestricted: " + onshoreRestricted); // onshoreRestricted: false
+    query.append(" } ");
+    
+    query.append("}) { "); // close 'input' argument
+    query.append("affected_rows "); // return the number of affected rows
+    query.append("} }"); // close mutation and query
+
+    return query.toString();
+}
