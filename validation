@@ -1,0 +1,36 @@
+import org.springframework.util.StringUtils;
+
+@Service
+public class BatchProcessService {
+    // other methods and fields...
+
+    private static final Pattern DATE_PATTERN = Pattern.compile("^\\d{4}-\\d{2}-\\d{2}$");
+    private static final Pattern COLUMN_NAME_PATTERN = Pattern.compile("^[a-zA-Z_][a-zA-Z0-9_]*$");
+
+    @Cacheable(value = "users", key = "#tableName + #from + #to + #dataColumn + #keyColumn")
+    public void process(String tableName, String from, String to, String dataColumn, List<String> keyColumns) {
+        validateInput(tableName, from, to, dataColumn, keyColumns);
+        
+        // rest of your code...
+    }
+    
+    private void validateInput(String tableName, String from, String to, String dataColumn, List<String> keyColumns) {
+        if (!COLUMN_NAME_PATTERN.matcher(tableName).matches()) {
+            throw new IllegalArgumentException("Invalid table name");
+        }
+
+        if (!DATE_PATTERN.matcher(from).matches() || !DATE_PATTERN.matcher(to).matches()) {
+            throw new IllegalArgumentException("Dates must be in YYYY-MM-DD format");
+        }
+        
+        if (!COLUMN_NAME_PATTERN.matcher(dataColumn).matches()) {
+            throw new IllegalArgumentException("Invalid data column name");
+        }
+        
+        for (String keyColumn : keyColumns) {
+            if (!COLUMN_NAME_PATTERN.matcher(keyColumn).matches()) {
+                throw new IllegalArgumentException("Invalid key column name: " + keyColumn);
+            }
+        }
+    }
+}
