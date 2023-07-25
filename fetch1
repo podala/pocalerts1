@@ -1,0 +1,10 @@
+private String buildFetchQuery(String tableName, String from, String to, String dataColumn, List<String> keyColumns) {
+    String fieldsToFetch = StringUtils.collectionToDelimitedString(keyColumns, ",");
+    if (dataColumn != null) {
+        fieldsToFetch += "," + dataColumn;
+    }
+
+    return String.format(
+        "{ %s(from: \"%s\", to: \"%s\") { %s } }",
+        tableName, from, to, fieldsToFetch);
+}
