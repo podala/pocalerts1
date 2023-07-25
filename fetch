@@ -1,0 +1,21 @@
+private String buildFetchQuery(String tableName, String from, String to, String dataColumn, List<String> keyColumns) {
+    StringBuilder query = new StringBuilder();
+    query.append("{ ");
+    query.append(tableName); // table name
+    query.append(" (");
+    query.append("from: \\\"" + from + "\\\", "); // from date
+    query.append("to: \\\"" + to + "\\\""); // to date
+    query.append(") ");
+    query.append("{ ");
+    
+    // Append all key columns and data column
+    for(String keyColumn : keyColumns) {
+        query.append(keyColumn + ", "); // key column
+    }
+    query.append(dataColumn); // data column
+    query.append(" } }");
+
+    return query.toString();
+}
+
+private String buildUpdateQuery(String tableName, String policy, boolean offshoreRestricted, boolean onshoreRestricted, List
