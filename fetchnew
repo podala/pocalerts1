@@ -1,0 +1,42 @@
+public String buildFetchQuery(String tableName, List<String> selectColumns, Map<String, String> whereColumns, String fromDate, String toDate) {
+    StringBuilder query = new StringBuilder();
+    query.append("query fetch");
+    query.append(StringUtils.capitalize(tableName));
+    query.append("Details(");
+
+    // Add variables with data types for where conditions
+    int counter = 1;
+    for (String key : whereColumns.keySet()) {
+        query.append("$whereKey" + counter + ": " + whereColumns.get(key));
+        query.append(", ");
+        counter++;
+    }
+    query.append("$fromDate: String, $toDate: String) {"); // Add from and to dates
+    query.append(tableName);
+    query.append("(where: {_and: [");
+
+    // Add where conditions for key columns
+    counter = 1;
+    for (String key : whereColumns.keySet()) {
+        query.append("{");
+        query.append(key);
+        query.append(": {_eq: $whereKey" + counter + "}}, ");
+        counter++;
+    }
+
+    // Add where conditions for date range
+    query.append("{dateColumn: {_gte: $fromDate}}, {dateColumn: {_lte: $toDate}}"); // Replace "dateColumn" with the actual column name
+
+    query.append("]}) {");
+
+    // Add select columns
+    for (String col : selectColumns) {
+        query.append(col);
+        query.append("\n");
+    }
+
+    query.append("}");
+    query.append("}");
+
+    return query.toString();
+}
