@@ -1,0 +1,12 @@
+SELECT m.*
+FROM member m
+JOIN (
+  SELECT member_id
+  FROM member_association
+  WHERE care_response_id = 'ResponseID1'
+  EXCEPT
+  SELECT member_id
+  FROM member_association
+  WHERE care_response_id = 'ResponseID2'
+) sub
+ON m.member_id = sub.member_id;
