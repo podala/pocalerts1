@@ -1,0 +1,15 @@
+SELECT m.*
+FROM (
+  SELECT member_id
+  FROM member_association
+  WHERE care_response_id = 'ResponseID1'
+) sub1
+JOIN member m
+ON m.member_id = sub1.member_id
+LEFT JOIN (
+  SELECT member_id
+  FROM member_association
+  WHERE care_response_id = 'ResponseID2'
+) sub2
+ON m.member_id = sub2.member_id
+WHERE sub2.member_id IS NULL;
