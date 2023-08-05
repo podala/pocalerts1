@@ -1,0 +1,53 @@
+@Service
+public class MemberService {
+
+    @Autowired
+    private GraphQLService graphQLService;  // Replace with your actual GraphQL service
+
+    public String fetchData(TableRequest tableRequest) {
+        // Build the fetch query.
+        String fetchQuery = buildFetchQuery(tableRequest);
+
+        // Use the fetch query to retrieve data from your database via GraphQL.
+        String fetchResult = graphQLService.execute(fetchQuery);  // Replace with your actual implementation
+
+        // handle the result
+        // TODO
+
+        return fetchResult;
+    }
+
+    public String updateData(TableRequest tableRequest, Map<String, String> fetchedData) {
+        // Call API to get policy and flags
+        PolicyResponse policyResponse = callMemberSearchAPI(fetchedData.get("src_cd"), fetchedData.get("src_id")); 
+
+        // Build the update query.
+        String updateQuery = buildUpdateQuery(tableRequest, policyResponse, fetchedData);
+
+        // Use the update query to update your database via GraphQL.
+        String updateResult = graphQLService.execute(updateQuery); // Replace with your actual implementation
+
+        // handle the result
+        // TODO
+
+        return updateResult;
+    }
+    
+    private PolicyResponse callMemberSearchAPI(String srcCd, String srcId) {
+        // Call the Member Search API using the given src_cd and src_id
+        // and get the policy and flags. Replace this with your actual implementation.
+
+        // TODO
+
+        // For the sake of example, we return a dummy policy response here.
+        return new PolicyResponse("12345", false, false);
+    }
+
+    private String buildFetchQuery(TableRequest tableRequest) {
+        // TODO: Implement the logic to build the GraphQL fetch query based on tableRequest.
+    }
+
+    private String buildUpdateQuery(TableRequest tableRequest, PolicyResponse policyResponse, Map<String, String> fetchedData) {
+        // TODO: Implement the logic to build the GraphQL update query based on tableRequest and policyResponse.
+    }
+}
