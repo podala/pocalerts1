@@ -1,0 +1,8 @@
+{
+    "tableName": "mbr_pgm",
+    "selectColumns": ["col1", "col2", "col3"],
+    "whereColumns": {"key1": "value1", "key2": "value2"},
+    "updateColumn": "data_rule_list",
+    "fromDate": "2023-07-01",
+    "toDate": "2023-07-31"
+}
