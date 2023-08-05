@@ -1,0 +1,26 @@
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+public class DataController {
+
+    @Autowired
+    private MemberService memberService;
+
+    @PostMapping("/process")
+    public String processData(@RequestBody TableRequest tableRequest) {
+        // Fetch data
+        String fetchDataResult = memberService.fetchData(tableRequest);
+        
+        // TODO: Process fetched data
+        
+        // Update data
+        // TODO: Pass the actual fetched data instead of null
+        String updateDataResult = memberService.updateData(tableRequest, null);
+
+        // TODO: Create meaningful response
+        return fetchDataResult + " | " + updateDataResult;
+    }
+}
