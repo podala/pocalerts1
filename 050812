@@ -1,0 +1,40 @@
+public String buildFetchQuery(TableRequest tableRequest) {
+    String tableName = tableRequest.getTableName();
+    List<String> selectColumns = tableRequest.getSelectColumns();
+    Map<String, String> whereColumns = tableRequest.getWhereColumns();
+
+    StringBuilder query = new StringBuilder();
+    query.append("query fetch");
+    query.append(StringUtils.capitalize(tableName));
+    query.append("(");
+
+    // Adding the variables for where conditions
+    for (Map.Entry<String, String> entry : whereColumns.entrySet()) {
+        query.append("$" + entry.getKey() + ": " + entry.getValue());
+        query.append(", ");
+    }
+    query.deleteCharAt(query.length() - 2); // delete last comma
+    query.append(") {");
+    query.append(tableName);
+    query.append("(where: {_and: [");
+
+    // Adding the where conditions using the variables
+    for (String key : whereColumns.keySet()) {
+        query.append("{");
+        query.append(key);
+        query.append(": {_eq: $" + key + "}}, ");
+    }
+    query.deleteCharAt(query.length() - 2); // delete last comma
+    query.append("]}) {");
+
+    // Adding the select columns
+    for (String col : selectColumns) {
+        query.append(col);
+        query.append("\n");
+    }
+
+    query.append("}");
+    query.append("}");
+
+    return query.toString();
+}
