@@ -1,0 +1,68 @@
+public class TableRequest {
+    private String tableName;
+    private List<String> selectColumns;
+    private Map<String, String> whereColumns;
+    private String updateColumn;
+    private String fromDate;
+    private String toDate;
+
+    // Constructors
+    public TableRequest(String tableName, List<String> selectColumns, Map<String, String> whereColumns, 
+                        String updateColumn, String fromDate, String toDate) {
+        this.tableName = tableName;
+        this.selectColumns = selectColumns;
+        this.whereColumns = whereColumns;
+        this.updateColumn = updateColumn;
+        this.fromDate = fromDate;
+        this.toDate = toDate;
+    }
+
+    // Getters and setters
+    public String getTableName() {
+        return tableName;
+    }
+
+    public void setTableName(String tableName) {
+        this.tableName = tableName;
+    }
+
+    public List<String> getSelectColumns() {
+        return selectColumns;
+    }
+
+    public void setSelectColumns(List<String> selectColumns) {
+        this.selectColumns = selectColumns;
+    }
+
+    public Map<String, String> getWhereColumns() {
+        return whereColumns;
+    }
+
+    public void setWhereColumns(Map<String, String> whereColumns) {
+        this.whereColumns = whereColumns;
+    }
+
+    public String getUpdateColumn() {
+        return updateColumn;
+    }
+
+    public void setUpdateColumn(String updateColumn) {
+        this.updateColumn = updateColumn;
+    }
+
+    public String getFromDate() {
+        return fromDate;
+    }
+
+    public void setFromDate(String fromDate) {
+        this.fromDate = fromDate;
+    }
+
+    public String getToDate() {
+        return toDate;
+    }
+
+    public void setToDate(String toDate) {
+        this.toDate = toDate;
+    }
+}
