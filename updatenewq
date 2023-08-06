@@ -1,0 +1,31 @@
+public String buildUpdateQuery(TableRequest request) {
+    StringBuilder query = new StringBuilder();
+    
+    // Beginning of the mutation
+    query.append("mutation update").append(StringUtils.capitalize(request.getTableName())).append("(");
+    
+    // Adding where columns with their types
+    for (String key : request.getWhereColumns().keySet()) {
+        query.append("$").append(key).append(": String!, "); // Assuming all are Strings for this example
+    }
+    
+    // Adding the update column with its type
+    query.append("$").append(request.getUpdateColumn()).append(": String!) {"); // Again assuming it's a String
+    
+    // Beginning of the update function
+    query.append("update_").append(request.getTableName()).append("( where: {_and: [");
+    
+    // Adding the where conditions
+    for (String key : request.getWhereColumns().keySet()) {
+        query.append("{").append(key).append(": {_eq: $").append(key).append("}}, ");
+    }
+    query.setLength(query.length() - 2);  // Remove the trailing comma and space
+    query.append("]}, _set: {");
+    
+    // Adding the update column and its value
+    query.append(request.getUpdateColumn()).append(": $").append(request.getUpdateColumn());
+    
+    query.append("} ) { affected_rows } }");
+    
+    return query.toString();
+}
