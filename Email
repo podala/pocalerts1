@@ -14,7 +14,29 @@ We are actively looking into these issues and will be working on optimization st
 
 Thank you for your patience and understanding. We'll keep you updated on our progress.
 
+Other API Calls: We've identified performance challenges with several of our API calls, notably the contact API and the member eligibility changes API. The prolonged call times for these APIs are affecting our overall system efficiency. As an immediate mitigation strategy, we've approached the qrhub team to update the address during the initial phase. We've supported our request with relevant metrics to emphasize the importance of this change. This action is anticipated to reduce the frequency of API calls, offering us a temporary reprieve. We trust that the qrhub team, understanding their role in this, will assist in implementing this solution while we further investigate and devise long-term optimizations.
+
+You can add this section to the email draft.
+
+
+
+
+
+
+Regenerate
+Send a message
+
+ChatGPT may produce inaccurate information about people, places, or facts. ChatGPT August 3 Version
+
+
+
+
+
 Best regards,
+
+
+
+
 
 [Your Name]
 
