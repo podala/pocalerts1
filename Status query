@@ -1,0 +1,18 @@
+{
+  members(where: {
+    OR: [
+      { mbrpgmstatus: 70104 },
+      { mbrpgmstatus: 70105 }
+    ],
+    NOT: {
+      OR: [
+        { mbrpgmstatus: 3700 },
+        { mbrpgmstatus: 3701 }
+      ]
+    }
+  }) {
+    clientOrgId
+    individualKey
+    mbrpgmstatus
+  }
+}
