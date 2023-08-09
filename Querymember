@@ -1,0 +1,12 @@
+SELECT YEAR(cancel_date) AS year_num,
+       MONTH(cancel_date) AS month_num,
+       DAY(cancel_date) AS day_num,
+       MONTHNAME(cancel_date) AS month_name, 
+       COUNT(DISTINCT member_id) AS terminated_member_count
+FROM coverage_table
+WHERE coverage_type = 'B' 
+AND YEAR(cancel_date) = 2023
+AND MONTH(cancel_date) = 1
+AND DAY(cancel_date) BETWEEN 1 AND 30
+GROUP BY YEAR(cancel_date), MONTH(cancel_date), DAY(cancel_date), MONTHNAME(cancel_date)
+ORDER BY day_num;
