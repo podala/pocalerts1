@@ -1,0 +1,33 @@
+That's a sensible approach. Notifying the user before flipping the task ensures better user experience and avoids potential confusion. Here's how you can implement it:
+
+1. Client-Side Reminder:
+a) When a user sets a task to "in-progress", start a client-side timer using JavaScript. You can use the setTimeout function to trigger an event after a set period, let's say, 1 hour 50 minutes (10 minutes before the 2-hour mark).
+
+b) When the timer event triggers, display a notification to the user (this can be a modal, popup, browser notification, etc.), asking them if they are still working on the task.
+
+c) If the user confirms they're still working on it, you can reset the client-side timer or allow for an extended grace period. If the user chooses to release the task or does not respond within a certain timeframe, you can proceed with flipping the status. This action will require a server call, but only when necessary.
+
+2. Server-Side Action:
+When the client decides to flip the status or if there's no response after the notification, you'll need to inform the server to update the task's status.
+
+a) Send an AJAX request (or fetch API call) from the client-side to the server, updating the task status to "scheduled" and resetting the in_progress_timestamp.
+
+b) If the client-side fails to send an update (maybe due to a browser/tab closure or connectivity issue), you still might want a server-side fallback. This can be a scheduled task that checks tasks in the "in-progress" state for more than 2 hours. Since the client-side is handling most notifications, this server-side check will happen less frequently, thereby reducing the database calls.
+
+3. Optional – Websockets:
+If your application uses websockets (e.g., through technologies like Socket.io or WebSockets in general), you can establish real-time communication between the server and the client. This would allow the server to directly push a notification to the user when the 2-hour mark is approaching and also receive a real-time response.
+
+Key Benefits:
+User-Centric: Notifying the user before taking action on their tasks makes the system more user-friendly and reduces the chance of unexpected behaviors.
+
+Reduced Server Load: By handling the notification and user confirmation on the client-side, you significantly reduce unnecessary server calls.
+
+Flexibility: Providing an option to extend the "in-progress" state (if the user is still working on it) can be beneficial for tasks that might genuinely take longer than expected.
+
+Remember, the goal is to strike a balance between efficient system operations and a smooth user experience. This approach seems to lean into achieving both.
+
+
+
+
+
+
