@@ -1,0 +1,47 @@
+Business Requirements for Timezone Assignment to Member Addresses
+Objective
+To add a timezone field to each address type (Confidential, Temporary, Primary) associated with a member. The timezone will be determined based on the state of the given address.
+
+Requirements
+Data Fields
+
+A new field named "Timezone" must be added to each address type: Confidential, Temporary, and Primary.
+Initial Data Collection
+
+During the member registration or address update process, the timezone must be auto-filled or selected based on the state of the address.
+State-to-Timezone Mapping
+
+Implement a pre-defined mapping between each U.S. state and its corresponding time zone(s).
+For non-U.S. states, implement a separate mapping list.
+Data Validation
+
+Ensure that only valid state names trigger a timezone selection.
+If the state name is invalid, prompt the user to correct it.
+User Interface
+
+The "Timezone" field should be non-editable by the user and should auto-populate once the state is selected or entered.
+Edit Functionality
+
+When a user edits the state in an address, the timezone should automatically update to correspond with the new state.
+Database Update
+
+Ensure that the database schema supports this new "Timezone" field for all address types.
+API Integration
+
+Update existing APIs to include the new "Timezone" field in the GET and POST methods for member information.
+Fallback
+
+If a timezone cannot be determined based on the state, a default timezone should be used.
+Audit and Logs
+
+All changes to the "Timezone" field should be logged for auditing purposes.
+Testing
+
+Conduct unit tests to verify that the new "Timezone" field correctly populates based on the state.
+Perform integration tests to ensure that all systems using the address information handle the new "Timezone" field correctly.
+Documentation
+
+Update all relevant system and user documentation to reflect the addition of the "Timezone" field.
+Rollback Plan
+
+Develop a rollback plan in case of implementation failure.
