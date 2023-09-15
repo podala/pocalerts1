@@ -1,0 +1,27 @@
+Risk Score in the Ingestion Process: We need to confirm whether we are currently receiving the risk score as part of our ingestion process.
+
+QR Hub Data Loading: It has come to our attention that the QR Hub might not be loading any risk score into the health score table.
+
+External API Calls: As of our last review, QR Hub does not seem to be making calls to the external risk score API.
+
+This situation is critical as it's impacting our Practice Manager performance. Currently, our risk score API is returning zero results, which implies that it's not functioning as intended or isn't being utilized properly.
+
+If the risk score API isn't necessary for our operations, we are considering shutting it down to optimize our processes.
+
+Please confirm the details above at your earliest convenience to ensure that we address this efficiently.
+
+Thank you for your prompt attention to this matter.
+
+Warm regards,
+
+[Your Name]
+[Your Position]
+
+Replace the placeholders (like [Recipient's Name]) with appropriate details before sending.
+
+
+
+
+
+Send a message
+
