@@ -1,0 +1,179 @@
+CREATE TABLE Teams (
+    TeamID serial PRIMARY KEY,
+    TeamName VARCHAR(255) NOT NULL,
+    TotalMembers INT DEFAULT 0
+);
+
+CREATE TABLE Users (
+    UserID serial PRIMARY KEY,
+    UserName VARCHAR(255) NOT NULL,
+    TeamID INT,
+    FOREIGN KEY (TeamID) REFERENCES Teams(TeamID)
+);
+
+CREATE TABLE Members (
+    MemberID serial PRIMARY KEY,
+    AssignedUserID INT,
+    FOREIGN KEY (AssignedUserID) REFERENCES Users(UserID)
+);
+INSERT INTO Teams (TeamName) VALUES ('Team Alpha');
+INSERT INTO Teams (TeamName) VALUES ('Team Beta');
+
+INSERT INTO Users (UserName, TeamID) VALUES ('User1', 1);
+INSERT INTO Users (UserName, TeamID) VALUES ('User2', 1);
+INSERT INTO Users (UserName, TeamID) VALUES ('User3', 2);
+
+INSERT INTO Members (AssignedUserID) VALUES (1);
+INSERT INTO Members (AssignedUserID) VALUES (1);
+INSERT INTO Members (AssignedUserID) VALUES (2);
+INSERT INTO Members (AssignedUserID) VALUES (3);
+CREATE OR REPLACE FUNCTION update_member_count() RETURNS TRIGGER AS $$
+BEGIN
+    -- When a new member is added
+    IF TG_OP = 'INSERT' THEN
+        UPDATE Teams SET TotalMembers = TotalMembers + 1 WHERE TeamID = NEW.AssignedUserID;
+    -- When a member is deleted
+    ELSIF TG_OP = 'DELETE' THEN
+        UPDATE Teams SET TotalMembers = TotalMembers - 1 WHERE TeamID = OLD.AssignedUserID;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_update_member_count
+AFTER INSERT OR DELETE ON Members
+FOR EACH ROW EXECUTE FUNCTION update_member_count();
+CREATE OR REPLACE FUNCTION update_member_count() RETURNS TRIGGER AS $$
+BEGIN
+    -- When a new member is added
+    IF TG_OP = 'INSERT' THEN
+        UPDATE Users SET MemberCount = MemberCount + 1 WHERE UserID = NEW.AssignedUserID;
+        UPDATE Teams t SET TotalMembers = TotalMembers + 1 
+        FROM Users u 
+        WHERE u.UserID = NEW.AssignedUserID AND u.TeamID = t.TeamID;
+
+    -- When a member is deleted
+    ELSIF TG_OP = 'DELETE' THEN
+        UPDATE Users SET MemberCount = MemberCount - 1 WHERE UserID = OLD.AssignedUserID;
+        UPDATE Teams t SET TotalMembers = TotalMembers - 1 
+        FROM Users u 
+        WHERE u.UserID = OLD.AssignedUserID AND u.TeamID = t.TeamID;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION update_member_count() RETURNS TRIGGER AS $$
+BEGIN
+    -- When a new member is added
+    IF TG_OP = 'INSERT' THEN
+        UPDATE Users SET MemberCount = MemberCount + 1 WHERE UserID = NEW.AssignedUserID;
+        UPDATE Teams t SET TotalMembers = TotalMembers + 1 
+        FROM Users u 
+        WHERE u.UserID = NEW.AssignedUserID AND u.TeamID = t.TeamID;
+
+    -- When a member is deleted
+    ELSIF TG_OP = 'DELETE' THEN
+        UPDATE Users SET MemberCount = MemberCount - 1 WHERE UserID = OLD.AssignedUserID;
+        UPDATE Teams t SET TotalMembers = TotalMembers - 1 
+        FROM Users u 
+        WHERE u.UserID = OLD.AssignedUserID AND u.TeamID = t.TeamID;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION update_member_count() RETURNS TRIGGER AS $$
+BEGIN
+    -- When a new member is added
+    IF TG_OP = 'INSERT' THEN
+        UPDATE Users SET MemberCount = MemberCount + 1 WHERE UserID = NEW.AssignedUserID;
+        UPDATE Teams t SET TotalMembers = TotalMembers + 1 
+        FROM Users u 
+        WHERE u.UserID = NEW.AssignedUserID AND u.TeamID = t.TeamID;
+
+    -- When a member is deleted
+    ELSIF TG_OP = 'DELETE' THEN
+        UPDATE Users SET MemberCount = MemberCount - 1 WHERE UserID = OLD.AssignedUserID;
+        UPDATE Teams t SET TotalMembers = TotalMembers - 1 
+        FROM Users u 
+        WHERE u.UserID = OLD.AssignedUserID AND u.TeamID = t.TeamID;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION update_member_count() RETURNS TRIGGER AS $$
+BEGIN
+    -- When a new member is added
+    IF TG_OP = 'INSERT' THEN
+        UPDATE Users SET MemberCount = MemberCount + 1 WHERE UserID = NEW.AssignedUserID;
+        UPDATE Teams t SET TotalMembers = TotalMembers + 1 
+        FROM Users u 
+        WHERE u.UserID = NEW.AssignedUserID AND u.TeamID = t.TeamID;
+
+    -- When a member is deleted
+    ELSIF TG_OP = 'DELETE' THEN
+        UPDATE Users SET MemberCount = MemberCount - 1 WHERE UserID = OLD.AssignedUserID;
+        UPDATE Teams t SET TotalMembers = TotalMembers - 1 
+        FROM Users u 
+        WHERE u.UserID = OLD.AssignedUserID AND u.TeamID = t.TeamID;
+    END IF;
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+SELECT MemberCount
+FROM Users
+WHERE UserName = 'User1';
+SELECT TotalMembers
+FROM Teams
+WHERE TeamName = 'Team Alpha';
+Tables:
+
+Teams:
+
+TeamID: Primary Key, Integer, Auto-Increment
+TeamName: String, Not Null
+TotalMembers: Integer, Default 0 (to store aggregated count)
+Users:
+
+UserID: Primary Key, Integer, Auto-Increment
+UserName: String, Not Null
+MemberCount: Integer, Default 0 (individual user member count)
+TeamID: Foreign Key, references Teams(TeamID)
+Members:
+
+MemberID: Primary Key, Integer, Auto-Increment
+AssignedUserID: Foreign Key, references Users(UserID)
+Relationships:
+
+A Team can have multiple Users. This is a One-to-Many relationship between Teams and Users represented by the TeamID foreign key in the Users table.
+
+A User can have multiple Members assigned to them. This is another One-to-Many relationship, this time between Users and Members, represented by the AssignedUserID foreign key in the Members table.
+
+Visual Representation:
+
+If you picture this, you'll have:
+
+A Teams table with lines connecting to multiple entries in the Users table (because one team can have multiple users).
+
+Similarly, the Users table will have lines connecting to multiple entries in the Members table (because one user can have multiple members assigned).
+
+To translate this into a real-world scenario:
+
+Teams:
+
+Team Alpha -> TotalMembers: 90
+Team Beta -> TotalMembers: 75
+Users:
+
+User1 (belongs to Team Alpha) -> MemberCount: 40
+User2 (belongs to Team Alpha) -> MemberCount: 50
+User3 (belongs to Team Beta) -> MemberCount: 75
+Members:
+
+Members 1-40 are assigned to User1.
+Members 41-90 are assigned to User2.
+Members 91-165 are assigned to User3.
+This data model is efficient and easy to maintain. Whenever a member is assigned, reassigned, or disenrolled, you can adjust the counts in the Users and Teams tables accordingly using database triggers or application logic.
+
+
+
+
