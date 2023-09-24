@@ -1,0 +1,6 @@
+Benefits of not pre-selecting checkboxes:
+User Experience: Users only select what they need, leading to fewer overall interactions. This avoids the inconvenience of having to deselect options that are not relevant to them.
+
+Performance: As you've mentioned, deselecting all options can cause a performance hit. By not pre-selecting, you can avoid this lag altogether.
+
+Clarity: When a user lands on the page, it's clear that no filters or selections have
