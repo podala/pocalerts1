@@ -1,0 +1,7 @@
+I hope this email finds you well. After extensive discussions and considering various options for tracking member eligibility changes, we have concluded that our core system will not be able to handle these changes effectively at the member level. Consequently, the core team has recommended implementing a batch service to address this challenge.
+
+We believe that batch processing will provide us with the efficiency and scalability we need, especially given the large volume of data involved. Furthermore, by using this approach, we aim to ensure data integrity and accuracy throughout the process.
+
+Our team has thoroughly reviewed this option and is in agreement with the core's recommendation. We will be moving forward with the development and implementation of the batch service solution. I urge all relevant departments to start preparing for this change and collaborate efficiently to ensure a smooth transition.
+
+If you have any questions or need further clarification, please don't hesitate to reach out. Your support and understanding in this matter are greatly appreciated.
