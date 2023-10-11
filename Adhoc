@@ -1,0 +1,56 @@
+-- Part 1: Match on both program_id and member_id
+WITH MatchBoth AS (
+    SELECT 
+        t.*, 
+        p.program_id, 
+        t.member_id,
+        CASE 
+            WHEN t.create_userid = p.create_userid AND t.change_userid = p.change_userid THEN 'User Matched'
+            ELSE 'User Not Matched' 
+        END AS user_match_indicator
+    FROM task_table t
+    JOIN program_table p ON t.program_id = p.program_id AND t.member_id = p.member_id
+    WHERE t.task_date BETWEEN p.start_date AND p.end_date
+),
+
+-- Part 2: Match only on member_id
+MatchMemberOnly AS (
+    SELECT 
+        t.*, 
+        p.program_id, 
+        t.member_id, 
+        'Match on Member ID Only'::TEXT AS match_indicator,
+        CASE 
+            WHEN t.create_userid = p.create_userid AND t.change_userid = p.change_userid THEN 'User Matched'
+            ELSE 'User Not Matched' 
+        END AS user_match_indicator
+    FROM task_table t
+    JOIN program_table p ON t.member_id = p.member_id
+    WHERE t.task_date BETWEEN p.start_date AND p.end_date
+    AND t.program_id != p.program_id  -- This ensures tasks only match on member_id
+),
+
+-- Counts for each case grouped by program_id, member_id, and user_match_indicator
+CountBoth AS (
+    SELECT program_id, member_id, user_match_indicator, COUNT(*) AS both_count
+    FROM MatchBoth
+    GROUP BY program_id, member_id, user_match_indicator
+),
+
+CountMemberOnly AS (
+    SELECT program_id, member_id, user_match_indicator, COUNT(*) AS member_only_count
+    FROM MatchMemberOnly
+    GROUP BY program_id, member_id, user_match_indicator
+)
+
+-- Combining the results for detailed records
+SELECT * FROM (
+    SELECT program_id, member_id, NULL::TEXT AS match_indicator, user_match_indicator, COUNT(*) AS task_count 
+    FROM MatchBoth
+    GROUP BY program_id, member_id, user_match_indicator
+    UNION ALL
+    SELECT program_id, member_id, match_indicator, user_match_indicator, COUNT(*) AS task_count
+    FROM MatchMemberOnly
+    GROUP BY program_id, member_id, match_indicator, user_match_indicator
+) AS combined_results
+ORDER BY program_id, member_id, user_match_indicator;
