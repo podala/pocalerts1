@@ -1,0 +1,21 @@
+WITH ProgramAgreementTasks AS (
+    -- Step 1: Identify the program agreement task ID for each program for the member
+    SELECT member_id, program_id, MIN(task_id) as program_agreement_task_id
+    FROM task_table
+    WHERE program_id != -1
+    GROUP BY member_id, program_id
+)
+
+SELECT 
+    t.member_id, 
+    t.task_id AS adhoc_task_id, 
+    p.program_id,
+    CASE 
+        WHEN t.task_id < p.program_agreement_task_id AND 
+             t.task_date BETWEEN p.start_date AND p.end_date THEN 'Belongs to this program'
+        ELSE 'Does not belong to this program'
+    END AS program_association
+FROM task_table t
+JOIN ProgramAgreementTasks p ON t.member_id = p.member_id
+WHERE t.program_id = -1  -- filter for adhoc tasks only
+ORDER BY t.member_id, t.task_id, p.program_id;
