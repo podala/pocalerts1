@@ -1,0 +1,34 @@
+WITH ProgramMinTasks AS (
+    -- Get the minimum task_id for each program for each member
+    SELECT member_id, program_id, MIN(task_id) as min_task_id
+    FROM task_table
+    WHERE program_id != -1
+    GROUP BY member_id, program_id
+)
+
+, RankedPrograms AS (
+    -- Rank the programs based on the min task_id for each member
+    SELECT member_id, program_id, min_task_id,
+           LEAD(min_task_id) OVER (PARTITION BY member_id ORDER BY min_task_id) as next_min_task_id
+    FROM ProgramMinTasks
+)
+
+, AdhocProgram AS (
+    -- Map adhoc tasks to program_ids based on the task_id ranking
+    SELECT 
+        a.member_id,
+        a.task_id as adhoc_task_id,
+        rp.program_id as inferred_program_id
+    FROM task_table a
+    JOIN RankedPrograms rp ON a.member_id = rp.member_id 
+        AND a.task_id >= rp.min_task_id 
+        AND (a.task_id < rp.next_min_task_id OR rp.next_min_task_id IS NULL)
+    WHERE a.program_id = -1
+)
+
+SELECT 
+    member_id, 
+    adhoc_task_id, 
+    inferred_program_id
+FROM AdhocProgram
+ORDER BY member_id, adhoc_task_id;
