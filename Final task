@@ -1,0 +1,29 @@
+WITH ProgramTasks AS (
+    -- Identify the minimum and maximum task_id for each program for the member
+    SELECT member_id, program_id, MIN(task_id) as min_task_id, MAX(task_id) as max_task_id
+    FROM task_table
+    WHERE program_id != -1
+    GROUP BY member_id, program_id
+),
+AdhocProgram AS (
+    -- Map adhoc tasks to program_ids based on the task_id range
+    SELECT 
+        a.member_id,
+        a.task_id as adhoc_task_id,
+        CASE 
+            WHEN a.task_id < LEAST(pt1.min_task_id, pt2.min_task_id) THEN pt1.program_id
+            WHEN a.task_id < pt2.min_task_id THEN pt2.program_id
+            ELSE NULL
+        END AS inferred_program_id
+    FROM task_table a
+    LEFT JOIN ProgramTasks pt1 ON a.member_id = pt1.member_id AND a.task_id > pt1.max_task_id
+    LEFT JOIN ProgramTasks pt2 ON a.member_id = pt2.member_id AND a.task_id < pt2.min_task_id AND pt2.min_task_id > pt1.min_task_id
+    WHERE a.program_id = -1
+)
+
+SELECT 
+    member_id, 
+    adhoc_task_id, 
+    inferred_program_id
+FROM AdhocProgram
+ORDER BY member_id, adhoc_task_id;
