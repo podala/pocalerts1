@@ -9,3 +9,24 @@ Additionally, we have noticed that the Time Zone API's Transactions Per Second (
 Ensuring optimal performance for our APIs is crucial to maintaining the trust and satisfaction of our users. We appreciate your prompt attention to these matters and look forward to your feedback and suggestions.
 
 Thank you for your understanding and cooperation.
+Transactions Per Second (TPS): Measures the number of transactions or requests that an API can handle in one second. It's useful to understand the load an API can handle.
+
+Response Time: Measures the time taken by the API to process a request and return a response. It's often given as an average, median (50th percentile), and sometimes 95th and 99th percentiles to understand outliers.
+
+Error Rate: The percentage of all requests that result in an error. This can help identify issues with the API or the underlying infrastructure.
+
+Availability/Uptime: Indicates the percentage of time the API is operational and available for use.
+
+Rate Limiting: Refers to the number of API calls an app or user can make within a specified time frame. It's used to prevent abuse and overloading of the API.
+
+Data Transfer Rate: Measures the amount of data sent and received by the API over a given period.
+
+Apdex Score: A measure of user satisfaction based on response times. It categorizes responses into three categories: Satisfied, Tolerating, and Frustrated.
+
+Concurrent Users: Measures the number of users interacting with the API at any given moment.
+
+Throughput: Similar to TPS, but it might also consider the size of each request and response.
+
+Latency: The delay between a client sending a request and receiving a response from the API, including network transmission times.
+
+Queue Length: The number of requests waiting to be processed.
