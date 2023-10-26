@@ -1,0 +1,33 @@
+-- Get daily missing records
+WITH DailyCareTeamMembers AS (
+    -- Extract year, month, and day from the date_column and group by them to get distinct member_ids for each day
+    SELECT
+        EXTRACT(YEAR FROM date_column) AS year,
+        EXTRACT(MONTH FROM date_column) AS month,
+        EXTRACT(DAY FROM date_column) AS day,
+        member_id
+    FROM
+        care_team
+    GROUP BY 
+        EXTRACT(YEAR FROM date_column),
+        EXTRACT(MONTH FROM date_column),
+        EXTRACT(DAY FROM date_column),
+        member_id
+)
+
+SELECT
+    dctm.year,
+    dctm.month,
+    dctm.day,
+    dctm.member_id
+FROM
+    DailyCareTeamMembers dctm
+LEFT JOIN
+    member_program mp ON dctm.member_id = mp.member_id
+    AND EXTRACT(YEAR FROM mp.date_column) = dctm.year
+    AND EXTRACT(MONTH FROM mp.date_column) = dctm.month
+    AND EXTRACT(DAY FROM mp.date_column) = dctm.day
+WHERE
+    mp.member_id IS NULL
+ORDER BY 
+    dctm.year, dctm.month, dctm.day, dctm.member_id;
