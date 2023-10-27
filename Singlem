@@ -1,0 +1,13 @@
+WITH MemberProgramCount AS (
+    SELECT mbr_id, COUNT(*) AS program_count
+    FROM Programs
+    WHERE status IN ('active', 'inactive')
+    GROUP BY mbr_id
+    HAVING COUNT(*) = 1
+)
+
+SELECT mpc.mbr_id, COUNT(t.task_id) AS task_count_with_mbrpgmid_minus_one
+FROM MemberProgramCount mpc
+LEFT JOIN Tasks t ON mpc.mbr_id = t.mbr_id AND t.mbrpgmid = -1
+GROUP BY mpc.mbr_id
+HAVING COUNT(t.task_id) > 0;
