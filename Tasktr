@@ -1,0 +1,34 @@
+WITH MissingMembers AS (
+    SELECT DISTINCT
+        t.member_id
+    FROM
+        task t
+    LEFT JOIN
+        mbr_pgm mp ON t.member_id = mp.member_id
+    WHERE
+        mp.member_id IS NULL
+)
+
+, TaskCountPerMember AS (
+    SELECT
+        mm.member_id,
+        COUNT(t.task_id) AS task_count
+    FROM
+        MissingMembers mm
+    JOIN
+        task t ON mm.member_id = t.member_id
+    GROUP BY
+        mm.member_id
+)
+
+SELECT
+    member_id,
+    task_count
+FROM
+    TaskCountPerMember
+UNION ALL
+SELECT
+    'Total' AS member_id,
+    SUM(task_count) AS task_count
+FROM
+    TaskCountPerMember;
