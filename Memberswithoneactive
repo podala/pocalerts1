@@ -1,0 +1,15 @@
+WITH MembersWithBothPrograms AS (
+    SELECT mbr_id
+    FROM Programs
+    GROUP BY mbr_id
+    HAVING SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) = 1
+       AND SUM(CASE WHEN status = 'inactive' THEN 1 ELSE 0 END) = 1
+)
+
+SELECT mwb.mbr_id, p.program_id, t.task_id, t.mbrpgmid
+FROM MembersWithBothPrograms mwb
+JOIN Programs p ON mwb.mbr_id = p.mbr_id
+JOIN Tasks t ON p.mbr_id = t.mbr_id
+WHERE t.mbrpgmid = -1
+AND t.start_date BETWEEN p.start_date AND p.end_date
+AND t.end_date BETWEEN p.start_date AND p.end_date;
