@@ -1,0 +1,7 @@
+SELECT * FROM task
+WHERE individual key NOT IN (
+    SELECT t.individual key
+    FROM task t
+    JOIN member pgm p ON t.individual key = p.individual key
+    WHERE t.task_date BETWEEN p.start_date AND p.end_date
+);
