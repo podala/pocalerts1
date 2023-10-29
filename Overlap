@@ -1,0 +1,5 @@
+SELECT p1.member_pgm_id, p2.member_pgm_id
+FROM member_pgm p1
+JOIN member_pgm p2 ON p1.member_pgm_id <> p2.member_pgm_id
+WHERE p1.start_date <= p2.end_date
+AND p1.end_date >= p2.start_date;
