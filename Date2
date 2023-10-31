@@ -1,0 +1,14 @@
+WITH DateComparison AS (
+    SELECT
+        CASE
+            WHEN DATE(timestamp_column) = date_column THEN 'Y'
+            ELSE 'N'
+        END AS result
+    FROM your_table_name
+)
+
+SELECT
+    result,
+    COUNT(*) as count
+FROM DateComparison
+GROUP BY result;
