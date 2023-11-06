@@ -1,0 +1,20 @@
+postgresql:
+  host: 'your_host'
+  port: 'your_port'
+  database: 'your_db'
+  user: 'your_user'
+  password: 'your_password'
+
+snowflake:
+  account: 'your_account'
+  user: 'your_user'
+  password: 'your_password'
+  warehouse: 'your_warehouse'
+  database: 'your_db'
+  schema: 'your_schema'
+  stage: 'your_stage'
+
+tables:
+  - 'table1'
+  - 'table2'
+  - ...
