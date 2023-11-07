@@ -1,0 +1,10 @@
+{
+  "batch_id": "batch-12345",
+  "user_id": "user-123",
+  "application_id": "app-456",
+  "records": [
+    { "record_id": "001", "new_data": "..." },
+    { "record_id": "002", "new_data": "..." }
+    // ...
+  ]
+}
