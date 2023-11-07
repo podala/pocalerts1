@@ -1,0 +1,7 @@
+private static void sendCompletionMessage(String batchId, String userId, String appId) {
+    // Here, you would construct a message that includes the batchId, userId, and appId
+    // This message would then be published to a Kafka topic
+    // The notification system or service that consumes this topic
+    // would filter messages based on userId and appId to deliver the notification
+    // only to the appropriate user and application
+}
