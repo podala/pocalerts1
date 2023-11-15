@@ -1,0 +1,9 @@
+SELECT t.taskid, t.mbrid, t.taskStartDate, t.taskEndDate, p.pgmid, p.pgmstatus
+FROM task t
+JOIN (
+    SELECT mbrid, pgmid, pgmstatus
+    FROM mbrpgm
+    WHERE pgmstatus IN ('70104', '70105', '3702')  -- Inactive statuses
+) p ON t.mbrid = p.mbrid
+WHERE t.taskStartDate BETWEEN [program start date] AND [program end date]
+AND t.taskEndDate BETWEEN [program start date] AND [program end date];
