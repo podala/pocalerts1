@@ -1,0 +1,26 @@
+import pandas as pd
+
+# Sample data - replace these with your actual dataframes
+df1 = pd.DataFrame({
+    'task': ['task1', 'task2', 'task3'],
+    'mbrid': [1, 2, 3],
+    'attrvalue': ['value1', 'value2', 'value3']
+})
+
+df2 = pd.DataFrame({
+    'mbrid': [1, 2, 4],
+    'attrvalue': ['value1', 'value2', 'value4'],
+    'responseid': ['resp1', 'resp2', 'resp3']
+})
+
+# Merge the two dataframes on 'mbrid' and 'attrvalue'
+merged_df = pd.merge(df1, df2, on=['mbrid', 'attrvalue'], how='inner')
+
+# Create the final dataframe with the required format
+final_df = merged_df[['task', 'responseid']]
+final_df.columns = ['taskid', 'responseid']
+final_df['default'] = 77436
+final_df['column3'] = pd.NA
+final_df['column4'] = pd.NA
+
+print(final_df)
