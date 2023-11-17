@@ -1,0 +1,35 @@
+import pandas as pd
+import csv
+
+# Assume df2 is either created within the script or read from another source
+df2 = pd.DataFrame({
+    'mbrid': [1, 2, 4],
+    'attrvalue': ['value1', 'value2', 'value4'],
+    'responseid': ['resp1', 'resp2', 'resp3']
+})
+
+# Define the full path to your first CSV file
+csv_file_path = '/path/to/your/first_dataframe.csv'  # Replace with your actual file path
+
+# Read the first dataframe from the CSV file
+df1 = pd.read_csv(csv_file_path)
+
+# Merge the two dataframes on 'mbrid' and 'attrvalue'
+merged_df = pd.merge(df1, df2, on=['mbrid', 'attrvalue'], how='inner')
+
+# Create the final dataframe with the required format
+final_df = merged_df[['task', 'responseid']]
+final_df.columns = ['taskid', 'responseid']
+final_df['default'] = 77436
+final_df['column3'] = pd.NA
+final_df['column4'] = pd.NA
+
+# Save the final dataframe to a CSV file
+final_csv_path = '/path/to/your/final_dataframe.csv'  # Replace with your desired path
+final_df.to_csv(final_csv_path, index=False)
+
+# Read the final dataframe from the CSV file
+with open(final_csv_path, mode='r') as csvfile:
+    data_reader = csv.reader(csvfile)
+    for row in data_reader:
+        print(row)
