@@ -1,0 +1,48 @@
+import csv
+
+# Schema defined in a dictionary
+schema = {
+    'table_name': 'your_table_name',
+    'columns': {
+        'column1': 'varchar',
+        'column2': 'int',
+        'column3': 'date',
+        # Add more columns as needed
+    }
+}
+
+batch_size = 5000  # Number of rows per INSERT statement
+
+# Function to format value based on the data type
+def format_value(value, data_type):
+    if data_type in ['varchar', 'char', 'text', 'date']:
+        return f"'{value}'"
+    return value
+
+# Open the CSV file and read data
+with open('data.csv', mode='r') as csvfile:
+    data_reader = csv.reader(csvfile)
+
+    # Open or create a SQL file to write the insert statements
+    with open('insert_statements.sql', 'w') as sqlfile:
+        batch = []  # List to store rows for the current batch
+        column_names = list(schema['columns'].keys())
+        data_types = list(schema['columns'].values())
+
+        for row in data_reader:
+            # Format the values based on the schema
+            formatted_values = [format_value(value, data_type) for value, data_type in zip(row, data_types)]
+            batch.append(f"({', '.join(formatted_values)})")
+
+            # Check if the batch has reached the specified size
+            if len(batch) == batch_size:
+                values_str = ',\n'.join(batch)
+                sqlfile.write(f"INSERT INTO {schema['table_name']} ({', '.join(column_names)}) VALUES\n{values_str};\n\n")
+                batch = []  # Reset the batch
+
+        # Handle any remaining rows in the last batch
+        if batch:
+            values_str = ',\n'.join(batch)
+            sqlfile.write(f"INSERT INTO {schema['table_name']} ({', '.join(column_names)}) VALUES\n{values_str};\n\n")
+
+print("SQL file with batch insert statements generated successfully.")
