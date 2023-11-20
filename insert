@@ -1,0 +1,43 @@
+import pandas as pd
+import random
+
+# Generate data
+data = []
+for _ in range(10000):
+    sample = {
+        "care_mgt_asgn_id": random.randint(1, 1000000),
+        "care_mgt_asgn_atr_val": str(random.randint(1, 100000)),
+        "care_mgt_asgn_atr_ref_id": 77436,
+        "data_secur_rule_list": 'Null',
+        "data_qlty_iss_list": 'Null'
+    }
+    data.append(sample)
+
+# Create DataFrame
+df = pd.DataFrame(data)
+
+# Define the batch size
+batch_size = 5000
+
+# Initialize a batch number
+batch_number = 1
+
+# Define the table name
+table_name = "care_mgt_asgn_atr"  # Replace with your actual table name
+
+# Open the first batch file
+with open(f"insert_batch_{batch_number}.sql", "w") as file:
+    for _, row in df.iterrows():
+        # Construct the INSERT statement for each row
+        sql = f"INSERT INTO {table_name} (care_mgt_asgn_id, care_mgt_asgn_atr_val, care_mgt_asgn_atr_ref_id, data_secur_rule_list, data_qlty_iss_list) VALUES ({row['care_mgt_asgn_id']}, '{row['care_mgt_asgn_atr_val']}', {row['care_mgt_asgn_atr_ref_id']}, '{row['data_secur_rule_list']}', '{row['data_qlty_iss_list']}');\n"
+        file.write(sql)
+        
+        # Check if we've reached the batch size, then close the current file and open a new one
+        if _ % batch_size == batch_size - 1:
+            batch_number += 1
+            file.close()
+            # Open the next batch file
+            file = open(f"insert_batch_{batch_number}.sql", "w")
+
+# Close the last file
+file.close()
