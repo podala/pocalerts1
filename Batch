@@ -1,0 +1,33 @@
+# Define batch size and initialize variables
+batch_size = 5000
+batch_count = 0
+batch = []
+
+# Open the CSV file and read data
+with open(csv_file_path, mode='r') as csvfile:
+    data_reader = csv.reader(csvfile)
+
+    for row in data_reader:
+        # Format the values based on the schema
+        formatted_values = [format_value(value, data_type) for value, data_type in zip(row, data_types)]
+        batch.append(f"({', '.join(formatted_values)})")
+
+        # Check if the batch has reached the specified size
+        if len(batch) == batch_size:
+            batch_count += 1
+            sql_file_path = f'insert_statements_{batch_count}.sql'
+
+            with open(sql_file_path, 'w') as sqlfile:
+                values_str = ',\n'.join(batch)
+                sqlfile.write(f"INSERT INTO {schema['table_name']} ({', '.join(column_names)}) VALUES\n{values_str};\n\n")
+            
+            batch = []  # Reset the batch
+
+# Write any remaining records in the last batch
+if batch:
+    batch_count += 1
+    sql_file_path = f'insert_statements_{batch_count}.sql'
+
+    with open(sql_file_path, 'w') as sqlfile:
+        values_str = ',\n'.join(batch)
+        sqlfile.write(f"INSERT INTO {schema['table_name']} ({', '.join(column_names)}) VALUES\n{values_str};\n\n")
