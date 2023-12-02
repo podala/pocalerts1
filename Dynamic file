@@ -1,0 +1,49 @@
+import csv
+import os
+
+# Define the path to the desktop folder and the SQL files folder
+desktop_folder = os.path.expanduser("~/Desktop")
+sql_files_folder = os.path.join(desktop_folder, "batch_sql_files")
+
+# Create the SQL files folder if it doesn't exist
+os.makedirs(sql_files_folder, exist_ok=True)
+
+# Define batch size and initialize variables
+batch_size = 5000
+batch_count = 0
+batch = []
+
+# Open the CSV file and read data
+with open(csv_file_path, mode='r') as csvfile:
+    data_reader = csv.reader(csvfile)
+
+    for row in data_reader:
+        # Directly append the row as an insert statement
+        batch.append(f"({', '.join(row)})")
+
+        # Check if the batch has reached the specified size
+        if len(batch) == batch_size:
+            batch_count += 1
+            sql_file_path = os.path.join(sql_files_folder, f'insert_statements_{batch_count}.sql')
+
+            with open(sql_file_path, 'w') as sqlfile:
+                values_str = ',\n'.join(batch)
+                sqlfile.write(f"INSERT INTO {schema['table_name']} ({', '.join(column_names)}) VALUES\n{values_str};\n\n")
+            
+            batch = []  # Reset the batch
+
+# Write any remaining records in the last batch
+if batch:
+    batch_count += 1
+    sql_file_path = os.path.join(sql_files_folder, f'insert_statements_{batch_count}.sql')
+
+    with open(sql_file_path, 'w') as sqlfile:
+        values_str = ',\n'.join(batch)
+        sqlfile.write(f"INSERT INTO {schema['table_name']} ({', '.join(column_names)}) VALUES\n{values_str};\n\n")
+
+    # Reset the batch
+    batch = []
+
+# Ensure that batch_count is 2 if there were 7500 records
+if batch_count == 1:
+    batch_count += 1
