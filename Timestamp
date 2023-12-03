@@ -1,0 +1,29 @@
+from datetime import datetime
+
+# Sample DataFrames (Replace these with your actual DataFrames)
+df1 = pd.DataFrame({
+    'task id': [1, 2, 3],
+    'timestamp': ['2023-12-02 09:30:00', '2023-12-02 10:45:00', '2023-12-02 11:15:00']
+})
+
+df2 = pd.DataFrame({
+    'task id': [2, 3, 4],
+    'timestamp': ['2023-12-02 10:40:00', '2023-12-02 11:20:00', '2023-12-02 12:00:00']
+})
+
+# Convert the 'timestamp' column to datetime format
+df1['timestamp'] = pd.to_datetime(df1['timestamp'])
+df2['timestamp'] = pd.to_datetime(df2['timestamp'])
+
+# Extract hour and minute components from the timestamp and convert to 16-byte binary
+df1['timestamp_bytes'] = df1['timestamp'].apply(lambda x: int(x.strftime('%Y%m%d%H%M')).to_bytes(16, byteorder='big'))
+df2['timestamp_bytes'] = df2['timestamp'].apply(lambda x: int(x.strftime('%Y%m%d%H%M')).to_bytes(16, byteorder='big'))
+
+# Merge (join) the DataFrames on 'task id'
+merged_df = df1.merge(df2, on='task id', suffixes=('_df1', '_df2'), how='inner')
+
+# Compare the timestamp bytes
+merged_df['timestamp_compare'] = merged_df['timestamp_bytes_df1'] == merged_df['timestamp_bytes_df2']
+
+# Print the resulting DataFrame with comparison results
+print(merged_df)
