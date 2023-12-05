@@ -1,0 +1,61 @@
+import openai
+
+# Set your OpenAI API key
+openai.api_key = 'your-api-key'
+
+# Predefined questions
+questions = {
+    "Q1": "Has the patient experienced any falls in the past month?",
+    "Q2": "Does the patient have a history of balance or walking difficulties?",
+    # Add more questions as needed
+}
+
+# Example unstructured data
+unstructured_data = [
+    "Patient mentioned feeling dizzy last week and nearly falling over in the kitchen.",
+    "During the check-up, the patient had difficulty standing up quickly."
+]
+
+def get_ai_response(prompt):
+    """
+    Function to get a response from the OpenAI API.
+    """
+    try:
+        response = openai.Completion.create(
+            engine="text-davinci-003",
+            prompt=prompt,
+            max_tokens=60
+        )
+        return response.choices[0].text.strip()
+    except Exception as e:
+        return str(e)
+
+def map_to_question(text):
+    """
+    Function to map AI-processed text to the most relevant predefined question.
+    """
+    # This is a placeholder function. You should implement a more sophisticated matching logic.
+    for key, question in questions.items():
+        if question in text:
+            return key, question
+    return None, None
+
+def process_unstructured_data(data):
+    """
+    Function to process unstructured data.
+    """
+    for item in data:
+        ai_response = get_ai_response(f"Interpret this medical note: '{item}'")
+        question_key, mapped_question = map_to_question(ai_response)
+
+        if mapped_question:
+            print(f"Unstructured Note: {item}")
+            print(f"AI Interpretation: {ai_response}")
+            print(f"Mapped to Question: {mapped_question}\n")
+        else:
+            print(f"Unstructured Note: {item}")
+            print(f"AI Interpretation: {ai_response}")
+            print("No relevant question found.\n")
+
+# Process each item in the unstructured data
+process_unstructured_data(unstructured_data)
