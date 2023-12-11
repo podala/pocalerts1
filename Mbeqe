@@ -1,0 +1,7 @@
+query GetMbrProgram($policyNumber: String!) {
+  mbr_program(where: { data_secure_rule_list: { policyNumber: { _eq: $policyNumber } } }) {
+    mbrid
+    mbrpgm
+    data_secure_rule_list
+  }
+}
