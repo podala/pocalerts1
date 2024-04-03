@@ -1,0 +1,77 @@
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import spacy
+import numpy as np
+from fuzzywuzzy import process
+
+# Ensure you have the necessary packages: spacy, scikit-learn, numpy, fuzzywuzzy
+# You may need to install python-Levenshtein to speed up fuzzywuzzy
+
+# Initialize spaCy for NLP and load English medium model
+nlp = spacy.load("en_core_web_md")
+
+# Sample dataset with preprocessing needs
+members = [
+    {"id": 1, "name": "John Doe", "notes": "Contact abt new project updates."},
+    {"id": 2, "name": "Jane Smith", "notes": "Reminder: schedule review meeting."},
+    {"id": 3, "name": "Emily Jones", "notes": "Discuss contract extension & budget."},
+]
+
+# Feedback data structure
+feedback_scores = np.zeros(len(members))
+
+# Preprocessing text
+def preprocess_text(text):
+    doc = nlp(text.lower())
+    return " ".join(token.lemma_ for token in doc if not token.is_stop and not token.is_punct)
+
+# Preprocess member notes
+preprocessed_notes = [preprocess_text(member["notes"]) for member in members]
+
+# Initialize and fit the TF-IDF vectorizer
+vectorizer = TfidfVectorizer()
+tfidf_matrix = vectorizer.fit_transform(preprocessed_notes)
+
+def search_members(query, use_semantic=True, use_fuzzy=False, top_n=2):
+    # Preprocess query
+    preprocessed_query = preprocess_text(query)
+    
+    # Fuzzy matching if enabled
+    if use_fuzzy:
+        query, _ = process.extractOne(preprocessed_query, preprocessed_notes)
+    
+    # TF-IDF Vectorization of the query
+    query_vector = vectorizer.transform([preprocessed_query])
+    tfidf_scores = cosine_similarity(query_vector, tfidf_matrix).flatten()
+    
+    # Adjust scores based on feedback
+    adjusted_scores = tfidf_scores + feedback_scores
+    
+    if use_semantic:
+        # Compute semantic similarity
+        query_doc = nlp(preprocessed_query)
+        semantic_scores = np.array([query_doc.similarity(nlp(note)) for note in preprocessed_notes])
+        # Combine TF-IDF scores with semantic similarity (simple average)
+        combined_scores = (adjusted_scores + semantic_scores) / 2
+    else:
+        combined_scores = adjusted_scores
+    
+    # Get top N results based on combined scores
+    top_indices = combined_scores.argsort()[-top_n:][::-1]
+    return [(members[idx]["id"], members[idx]["name"], combined_scores[idx]) for idx in top_indices]
+
+def update_feedback(member_id):
+    # Simulate feedback by incrementing the feedback score for the selected member
+    index = next((index for (index, d) in enumerate(members) if d["id"] == member_id), None)
+    if index is not None:
+        feedback_scores[index] += 1
+
+# Example usage
+query = "project meeting updates"
+print("Initial Search Results:", search_members(query, use_fuzzy=True))
+
+# Simulating feedback for member with id 1
+update_feedback(1)
+
+# Search again to see the effect of feedback
+print("Search Results after feedback:", search_members(query, use_fuzzy=True))
