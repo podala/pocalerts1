@@ -1,0 +1,76 @@
+import numpy as np
+import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
+from sklearn.metrics.pairwise import pairwise_distances
+import re
+from nltk.corpus import stopwords
+import nltk
+
+# Ensure NLTK's stopwords are downloaded
+nltk.download('stopwords')
+
+# Provided dataset
+members = [
+    {"id": 1, "name": "John Doe", "notes": "Contact abt new project updates."},
+    {"id": 2, "name": "Jane Smith", "notes": "Reminder: schedule review meeting."},
+    {"id": 3, "name": "Emily Jones", "notes": "Discuss contract extension & budget."},
+]
+
+# Convert to DataFrame
+members_df = pd.DataFrame(members)
+
+# Preprocess the notes
+def preprocess_text(text):
+    text = re.sub("\S*\d\S*", "", text).strip()
+    text = re.sub('[^A-Za-z]+', ' ', text)
+    stop_words = set(stopwords.words('english'))
+    return ' '.join(e.lower() for e in text.split() if e.lower() not in stop_words)
+
+members_df['Processed_Notes'] = members_df['notes'].apply(preprocess_text)
+
+# Initialize TF-IDF and BoW vectorizers and transform the data
+tfidf_vectorizer = TfidfVectorizer()
+bow_vectorizer = CountVectorizer()
+
+tfidf_features = tfidf_vectorizer.fit_transform(members_df['Processed_Notes'])
+bow_features = bow_vectorizer.fit_transform(members_df['Processed_Notes'])
+
+# Search functions
+def process_query(query):
+    return [preprocess_text(query)]
+
+def tfidf_search(query):
+    query = process_query(query)
+    query_trans = tfidf_vectorizer.transform(query)
+    pairwise_dist = pairwise_distances(tfidf_features, query_trans)
+    
+    indices = np.argsort(pairwise_dist.flatten())[0:10]
+    return indices
+
+def bow_search(query):
+    query = process_query(query)
+    query_trans = bow_vectorizer.transform(query)
+    pairwise_dist = pairwise_distances(bow_features, query_trans)
+    
+    indices = np.argsort(pairwise_dist.flatten())[0:10]
+    return indices
+
+def search(query, typ="tfidf"):
+    if typ == "tfidf":
+        indices = tfidf_search(query)
+    else:
+        indices = bow_search(query)
+    return members_df.iloc[indices]
+
+# Example usage
+query = "project updates"
+results = search(query, "tfidf")
+print("The Query is:", query)
+print("Top Results using TF-IDF:")
+for _, row in results.iterrows():
+    print(f"Name: {row['name']} - Notes: {row['notes']}")
+
+results = search(query, "bow")
+print("\nTop Results using BoW:")
+for _, row in results.iterrows():
+    print(f"Name: {row['name']} - Notes: {row['notes']}")
