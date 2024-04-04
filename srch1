@@ -1,0 +1,29 @@
+def search_members(query, use_semantic=True, use_fuzzy=False, top_n=2):
+    # Existing code to process the query and calculate scores...
+
+    if use_semantic:
+        # Assume semantic_scores and adjusted_scores have been calculated
+        combined_scores = (adjusted_scores + semantic_scores) / 2
+    else:
+        combined_scores = adjusted_scores
+    
+    # Normalize scores to sum to 1 (100%)
+    if combined_scores.sum() > 0:
+        normalized_scores = combined_scores / combined_scores.sum()
+    else:
+        normalized_scores = combined_scores
+    
+    # Get top N results based on combined scores
+    top_indices = normalized_scores.argsort()[-top_n:][::-1]
+    
+    # Prepare and return the results, including the percentage
+    results = []
+    for idx in top_indices:
+        member_id = members[idx]["id"]
+        member_name = members[idx]["name"]
+        score_percentage = normalized_scores[idx] * 100  # Convert to percentage
+        results.append((member_id, member_name, f"{score_percentage:.2f}%"))
+    
+    return results
+
+# Example usage and integration steps remain the same
