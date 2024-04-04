@@ -1,0 +1,13 @@
+def search_members(query, use_semantic=True, use_fuzzy=False, top_n=2):
+    # Previous implementation, including normalization and percentage calculation
+
+    return results
+
+# Example usage
+query = "project meeting updates"
+results = search_members(query, use_fuzzy=True)
+
+# Printing results line by line
+print(f"Search Results for '{query}':")
+for member_id, member_name, score_percentage in results:
+    print(f"Member ID: {member_id}, Name: {member_name}, Relevance: {score_percentage}")
