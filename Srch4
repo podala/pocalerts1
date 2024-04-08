@@ -1,0 +1,69 @@
+import numpy as np
+import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import re
+from nltk.corpus import stopwords
+import nltk
+import spacy
+
+# Ensure NLTK's stopwords are downloaded and load spaCy model
+nltk.download('stopwords')
+nlp = spacy.load("en_core_web_md")
+
+# Provided dataset
+members = [
+    {"id": 1, "name": "John Doe", "notes": "Contact about new project updates."},
+    {"id": 2, "name": "Jane Smith", "notes": "Reminder: schedule review meeting."},
+    {"id": 3, "name": "Emily Jones", "notes": "Discuss contract extension & budget."},
+]
+
+# Convert to DataFrame
+members_df = pd.DataFrame(members)
+
+# Preprocess the notes
+def preprocess_text(text):
+    text = re.sub("\S*\d\S*", "", text).strip()
+    text = re.sub('[^A-Za-z]+', ' ', text)
+    stop_words = set(stopwords.words('english'))
+    return ' '.join(e.lower() for e in text.split() if e.lower() not in stop_words)
+
+members_df['Processed_Notes'] = members_df['notes'].apply(preprocess_text)
+
+# Initialize vectorizers
+tfidf_vectorizer = TfidfVectorizer()
+bow_vectorizer = CountVectorizer()
+
+# Transform data
+tfidf_features = tfidf_vectorizer.fit_transform(members_df['Processed_Notes'])
+bow_features = bow_vectorizer.fit_transform(members_df['Processed_Notes'])
+
+# SpaCy vectorization
+members_df['Spacy_Vectors'] = members_df['Processed_Notes'].apply(lambda x: nlp(x).vector)
+
+# Function to display search results for each algorithm with score > 0.5
+def display_search_results(query):
+    processed_query = preprocess_text(query)
+    query_vector_spacy = np.array([nlp(processed_query).vector])
+    query_vector_tfidf = tfidf_vectorizer.transform([processed_query])
+    query_vector_bow = bow_vectorizer.transform([processed_query])
+    
+    # Compute similarities
+    similarities_tfidf = cosine_similarity(tfidf_features, query_vector_tfidf).flatten()
+    similarities_bow = cosine_similarity(bow_features, query_vector_bow).flatten()
+    similarities_spacy = cosine_similarity(np.array(list(members_df['Spacy_Vectors'])), query_vector_spacy).flatten()
+
+    # Filter results with similarity > 0.5 and display
+    for name, scores in [("TF-IDF", similarities_tfidf), ("BoW", similarities_bow), ("SpaCy Vectors", similarities_spacy)]:
+        print(f"Results using {name} for query '{query}':")
+        indices = [i for i, score in enumerate(scores) if score > 0.5]
+        if indices:
+            for idx in indices:
+                print(f"\tName: {members_df.iloc[idx]['name']} - Notes: {members_df.iloc[idx]['notes']} - Similarity: {scores[idx]:.2f}")
+        else:
+            print("\tNo results with similarity > 0.5")
+        print("-" * 40)
+
+# Example usage
+query = "project updates"
+display_search_results(query)
