@@ -1,0 +1,79 @@
+import numpy as np
+import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import re
+from nltk.corpus import stopwords
+import nltk
+import spacy
+
+# Ensure NLTK's stopwords are downloaded and load spaCy model
+nltk.download('stopwords')
+nlp = spacy.load("en_core_web_md")
+
+# Provided dataset
+members = [
+    {"id": 1, "name": "John Doe", "notes": "Contact about new project updates."},
+    {"id": 2, "name": "Jane Smith", "notes": "Reminder: schedule review meeting."},
+    {"id": 3, "name": "Emily Jones", "notes": "Discuss contract extension & budget."},
+]
+
+# Convert to DataFrame
+members_df = pd.DataFrame(members)
+
+# Detailed preprocessing function
+def preprocess_text(text):
+    # Remove digits and punctuation
+    text = re.sub("\S*\d\S*", "", text).strip()
+    text = re.sub('[^A-Za-z]+', ' ', text)
+    # Remove stopwords and lowercase
+    stop_words = set(stopwords.words('english'))
+    return ' '.join(e.lower() for e in text.split() if e.lower() not in stop_words)
+
+# Apply preprocessing
+members_df['Processed_Notes'] = members_df['notes'].apply(preprocess_text)
+
+# Initialize TF-IDF and BoW vectorizers and transform the data
+tfidf_vectorizer = TfidfVectorizer()
+bow_vectorizer = CountVectorizer()
+
+tfidf_features = tfidf_vectorizer.fit_transform(members_df['Processed_Notes'])
+bow_features = bow_vectorizer.fit_transform(members_df['Processed_Notes'])
+
+# SpaCy vectorization for comparison
+members_df['Spacy_Vectors'] = members_df['Processed_Notes'].apply(lambda x: nlp(x).vector)
+
+# Search and comparison function
+def compare_search_algorithms(query):
+    processed_query = preprocess_text(query)
+    query_vector_spacy = np.array([nlp(processed_query).vector])
+    query_vector_tfidf = tfidf_vectorizer.transform([processed_query])
+    query_vector_bow = bow_vectorizer.transform([processed_query])
+
+    # Compute similarities
+    similarities_tfidf = cosine_similarity(tfidf_features, query_vector_tfidf).flatten()
+    similarities_bow = cosine_similarity(bow_features, query_vector_bow).flatten()
+    similarities_spacy = cosine_similarity(np.array(list(members_df['Spacy_Vectors'])), query_vector_spacy).flatten()
+
+    # Get best scores
+    best_score_tfidf = np.max(similarities_tfidf)
+    best_score_bow = np.max(similarities_bow)
+    best_score_spacy = np.max(similarities_spacy)
+
+    print(f"Best similarity scores for query: '{query}'")
+    print(f"TF-IDF: {best_score_tfidf:.2f}")
+    print(f"BoW: {best_score_bow:.2f}")
+    print(f"SpaCy Vectors: {best_score_spacy:.2f}")
+
+    # Determine and print which algorithm got the best results
+    best_algorithm = max([
+        ("TF-IDF", best_score_tfidf),
+        ("BoW", best_score_bow),
+        ("SpaCy Vectors", best_score_spacy)],
+        key=lambda x: x[1])[0]
+
+    print(f"The best algorithm for this query is: {best_algorithm}\n")
+
+# Example usage
+query = "project updates"
+compare_search_algorithms(query)
