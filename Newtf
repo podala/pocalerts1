@@ -1,0 +1,53 @@
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import linear_kernel
+import numpy as np
+
+# Example dataset of notes - replace these with your actual data
+notes = [
+    "This is the first member's note about Python programming.",
+    "Second note talks about data science and Python.",
+    "Machine learning and artificial intelligence are covered in the third note.",
+    # Add up to 500 notes...
+]
+
+# Function to preprocess and calculate TF-IDF
+def calculate_tfidf(notes):
+    # Initialize a TfidfVectorizer
+    vectorizer = TfidfVectorizer(stop_words='english')
+    
+    # Fit and transform the notes to a TF-IDF matrix
+    tfidf_matrix = vectorizer.fit_transform(notes)
+    
+    return tfidf_matrix, vectorizer
+
+# Function to search across all notes
+def search_notes(query, tfidf_matrix, vectorizer):
+    # Transform the query to the same TF-IDF vector space as the notes
+    query_vector = vectorizer.transform([query])
+    
+    # Calculate cosine similarity between the query and all notes
+    cosine_similarities = linear_kernel(query_vector, tfidf_matrix).flatten()
+    
+    # Get the indices of the notes in descending order of similarity
+    related_docs_indices = cosine_similarities.argsort()[:-11:-1]
+    
+    # Get the scores of the 10 most similar notes
+    related_docs_scores = cosine_similarities[related_docs_indices]
+    
+    # Return the indices and scores of the top notes
+    return list(zip(related_docs_indices, related_docs_scores))
+
+# Main execution
+if __name__ == "__main__":
+    # Calculate TF-IDF matrix for all notes
+    tfidf_matrix, vectorizer = calculate_tfidf(notes)
+    
+    # Search for a term
+    query = "Python"
+    results = search_notes(query, tfidf_matrix, vectorizer)
+    
+    # Print out the results
+    print("Top matching notes for query:", query)
+    for index, score in results:
+        print(f"Note #{index + 1}: Score {score:.4f}")
+        print(notes[index])
