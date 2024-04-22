@@ -1,0 +1,97 @@
+import spacy
+from spacy.training import Example
+from spacy.util import minibatch, compounding
+import random
+import json
+
+# Initialize a blank English model
+nlp = spacy.blank("en")
+
+# Add the NER component to the pipeline
+if 'ner' not in nlp.pipe_names:
+    ner = nlp.add_pipe('ner')
+else:
+    ner = nlp.get_pipe('ner')
+
+# Define the templates
+templates = {
+    "default_transfer": [
+        "initiate the bulk transfer of {quantity} members from user {user}",
+        "begin transferring {quantity} members in bulk from user {user}",
+        "start the bulk movement of {quantity} members from user {user}",
+    ],
+    "program_transfer": [
+        "initiate the bulk transfer of {quantity} members for program {program} from user {user}",
+        "begin transferring {quantity} members in bulk for program {program} from user {user}",
+        "start the bulk movement of {quantity} members for program {program} from user {user}",
+    ],
+    "state_transfer": [
+        "initiate the bulk transfer of {quantity} members for state {state} from user {user}",
+        "begin transferring {quantity} members in bulk for state {state} from user {user}",
+        "start the bulk movement of {quantity} members for state {state} from user {user}",
+    ]
+}
+
+# Define sample data
+quantities = [100, 200, 300]
+users = ["user123", "user456", "user789"]
+programs = ["general", "high risk", "special initiative"]
+states = ["TX", "CA", "NY"]
+
+# Generate training data
+train_data = []
+for category, temp_list in templates.items():
+    for temp in temp_list:
+        for quantity in quantities:
+            for user in users:
+                if 'program' in category:
+                    for program in programs:
+                        text = temp.format(quantity=quantity, user=user, program=program)
+                        train_data.append((text, {"entities": [
+                            (text.find(str(quantity)), text.find(str(quantity)) + len(str(quantity)), "QUANTITY"),
+                            (text.find(user), text.find(user) + len(user), "USER"),
+                            (text.find(program), text.find(program) + len(program), "PROGRAM")
+                        ]}))
+                elif 'state' in category:
+                    for state in states:
+                        text = temp.format(quantity=quantity, user=user, state=state)
+                        train_data.append((text, {"entities": [
+                            (text.find(str(quantity)), text.find(str(quantity)) + len(str(quantity)), "QUANTITY"),
+                            (text.find(user), text.find(user) + len(user), "USER"),
+                            (text.find(state), text.find(state) + len(state), "STATE")
+                        ]}))
+                else:
+                    text = temp.format(quantity=quantity, user=user)
+                    train_data.append((text, {"entities": [
+                        (text.find(str(quantity)), text.find(str(quantity)) + len(str(quantity)), "QUANTITY"),
+                        (text.find(user), text.find(user) + len(user), "USER")
+                    ]}))
+
+# Train the model
+with nlp.disable_pipes(*[pipe for pipe in nlp.pipe_names if pipe != 'ner']):
+    optimizer = nlp.initialize()
+    for i in range(10):
+        random.shuffle(train_data)
+        losses = {}
+        batches = minibatch(train_data, size=compounding(4., 32., 1.001))
+        for batch in batches:
+            for text, annotations in batch:
+                doc = nlp.make_doc(text)
+                example = Example.from_dict(doc, annotations)
+                nlp.update([example], drop=0.2, sgd=optimizer, losses=losses)
+        print("Iteration", i, "Losses:", losses)
+
+# Save the trained model
+nlp.to_disk("./ner_model")
+
+# Define a function to process input and extract entities
+def process_input_json(input_json):
+    nlp = spacy.load("./ner_model")
+    data = json.loads(input_json)
+    doc = nlp(data["statement"])
+    entities = {ent.label_: ent.text for ent in doc.ents}
+    return json.dumps(entities, ensure_ascii=False)
+
+# Example usage
+example_json = '{"statement": "User123 initiates the transfer of 200 members for program high risk."}'
+print(process_input_json(example_json))
