@@ -1,0 +1,88 @@
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import linear_kernel
+from nltk.corpus import wordnet as wn
+from nltk import word_tokenize
+from nltk.stem import WordNetLemmatizer
+import nltk
+
+# Download necessary NLTK resources if not already present
+nltk.download('punkt')
+nltk.download('wordnet')
+nltk.download('omw-1.4')
+
+class LemmaTokenizer:
+    def __init__(self):
+        self.wnl = WordNetLemmatizer()
+    def __call__(self, doc):
+        return [self.wnl.lemmatize(t) for t in word_tokenize(doc)]
+
+# Function to get synonyms from WordNet
+def get_synonyms(word):
+    synonyms = set()
+    for syn in wn.synsets(word):
+        for lemma in syn.lemmas():
+            synonyms.add(lemma.name().replace('_', ' '))  # Replace underscores for readability
+    return list(synonyms)
+
+# Expand query with synonyms
+def expand_query_with_synonyms(query):
+    tokens = word_tokenize(query)
+    expanded_query = []
+    for token in tokens:
+        synonyms = get_synonyms(token)
+        if synonyms:
+            expanded_query.append('(' + '|'.join([token] + synonyms) + ')')
+        else:
+            expanded_query.append(token)  # Include the original token if no synonyms are found
+    return ' '.join(expanded_query)  # Return as a single string
+
+# Example dataset of notes
+notes = [
+    "discharge",
+    "need to reach member to monitor the discharge"
+]
+
+# Function to preprocess and calculate TF-IDF with improved settings
+def calculate_tfidf(notes):
+    # Initialize a TfidfVectorizer with sublinear tf scaling, L2 normalization, and a custom tokenizer
+    vectorizer = TfidfVectorizer(tokenizer=LemmaTokenizer(), norm='l2', sublinear_tf=True, stop_words='english')
+    
+    # Fit and transform the notes to a TF-IDF matrix
+    tfidf_matrix = vectorizer.fit_transform(notes)
+    
+    return tfidf_matrix, vectorizer
+
+# Function to search across all notes
+def search_notes(query, tfidf_matrix, vectorizer):
+    # Expand the query to include synonyms
+    expanded_query = expand_query_with_synonyms(query)
+    
+    # Transform the expanded query to the same TF-IDF vector space as the notes
+    query_vector = vectorizer.transform([expanded_query])
+    
+    # Calculate cosine similarity between the query and all notes
+    cosine_similarities = linear_kernel(query_vector, tfidf_matrix).flatten()
+    
+    # Get the indices of the notes in descending order of similarity
+    related_docs_indices = cosine_similarities.argsort()[:-11:-1]
+    
+    # Get the scores of the 10 most similar notes
+    related_docs_scores = cosine_similarities[related_docs_indices]
+    
+    # Return the indices and scores of the top notes
+    return list(zip(related_docs_indices, related_docs_scores))
+
+# Main execution
+if __name__ == "__main__":
+    # Calculate TF-IDF matrix for all notes
+    tfidf_matrix, vectorizer = calculate_tfidf(notes)
+    
+    # Search for a term
+    query = "need to reach"
+    results = search_notes(query, tfidf_matrix, vectorizer)
+    
+    # Print out the results
+    print("Top matching notes for query:", query)
+    for index, score in results:
+        print(f"Note #{index + 1}: Score {score:.4f}")
+        print(f"Content: {notes[index]}\n")
