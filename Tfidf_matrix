@@ -1,0 +1,60 @@
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import linear_kernel
+from nltk.corpus import wordnet as wn
+from nltk import word_tokenize
+from nltk.stem import WordNetLemmatizer
+import nltk
+
+# Download necessary NLTK resources
+nltk.download('punkt')
+nltk.download('wordnet')
+nltk.download('omw-1.4')
+
+class LemmaTokenizer:
+    def __init__(self):
+        self.wnl = WordNetLemmatizer()
+    def __call__(self, doc):
+        return [self.wnl.lemmatize(t) for t in word_tokenize(doc)]
+
+# Example dataset of notes
+notes = [
+    "discharge plan must be set",
+    "need to reach member to monitor the discharge",
+    "member reached out for consultation",
+    "follow discharge protocol"
+]
+
+# Initialize a TfidfVectorizer
+vectorizer = TfidfVectorizer(tokenizer=LemmaTokenizer(), stop_words='english')
+tfidf_matrix = vectorizer.fit_transform(notes)
+
+# Search function that ensures all keywords are included
+def search_notes(query, tfidf_matrix, vectorizer):
+    query_vector = vectorizer.transform([query])
+    cosine_similarities = linear_kernel(query_vector, tfidf_matrix).flatten()
+
+    # Ensure all keywords are present in the documents
+    feature_names = vectorizer.get_feature_names_out()
+    keywords_indices = [feature_names.tolist().index(word) for word in query.split() if word in feature_names]
+
+    # Filter documents that contain all keywords
+    valid_indices = []
+    for i, doc_vec in enumerate(tfidf_matrix.toarray()):
+        if all(doc_vec[keywords_index] > 0 for keywords_index in keywords_indices):
+            valid_indices.append(i)
+
+    # Sort valid documents by their similarity score
+    valid_scores = [(i, cosine_similarities[i]) for i in valid_indices]
+    valid_scores.sort(key=lambda x: x[1], reverse=True)
+    return valid_scores
+
+# Main execution
+if __name__ == "__main__":
+    query = "discharge reach"
+    results = search_notes(query, tfidf_matrix, vectorizer)
+
+    # Print out the results
+    print("Top matching notes for query:", query)
+    for index, score in results:
+        print(f"Note #{index + 1}: Score {score:.4f}")
+        print(f"Content: {notes[index]}\n")
