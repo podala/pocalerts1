@@ -1,0 +1,67 @@
+import spacy
+from spacy.training import Example
+from spacy.util import minibatch, compounding
+import random
+
+# Initialize a blank English model
+nlp = spacy.blank("en")
+
+# Add the NER component to the pipeline
+if 'ner' not in nlp.pipe_names:
+    ner = nlp.add_pipe('ner', last=True)
+else:
+    ner = nlp.get_pipe('ner')
+
+# Define templates for training data
+templates = [
+    "Create team {team} with users {users}",
+    "Set up team {team} including members {users}",
+    "Establish a new team named {team} with users {users}",
+]
+
+# Define sample teams and user groups
+teams = ["team_alpha", "team_beta", "team_gamma"]
+user_groups = [["Alice", "Bob"], ["Charlie", "Dave"], ["Eve", "Frank"]]
+
+# Generate training data using the given logic for better handling of user entities
+train_data = []
+for template in templates:
+    for team in teams:
+        for users in user_groups:
+            user_str = ', '.join(users)  # Ensures users are comma-separated
+            sentence = template.format(team=team, users=user_str)
+            entities = [(sentence.find(team), sentence.find(team) + len(team), 'TEAM')]
+            offset = sentence.find('users') + len('users ')  # Start after 'users '
+            for user in users:
+                start = sentence.find(user, offset)
+                end = start + len(user)
+                entities.append((start, end, 'USER'))
+                offset = end + 2  # Adjust offset to skip over comma and space
+            train_data.append((sentence, {'entities': entities}))
+
+# Train the NER model
+with nlp.disable_pipes(*[pipe for pipe in nlp.pipe_names if pipe != 'ner']):  # Only train NER
+    optimizer = nlp.initialize()
+    for i in range(10):  # Number of training iterations
+        random.shuffle(train_data)
+        losses = {}
+        for batch in minibatch(train_data, size=compounding(4., 32., 1.001)):
+            for text, annotations in batch:
+                doc = nlp.make_doc(text)
+                example = Example.from_dict(doc, annotations)
+                nlp.update([example], drop=0.2, sgd=optimizer, losses=losses)
+        print(f"Iteration {i}, Losses: {losses}")
+
+# Save the trained model
+nlp.to_disk("./team_user_ner_model")
+
+# Define a function to process input and extract entities
+def process_input(statement):
+    nlp = spacy.load("./team_user_ner_model")
+    doc = nlp(statement)
+    entities = {ent.label_: ent.text for ent in doc.ents}
+    return entities
+
+# Test the model with an example
+example_statement = "Create team team_alpha with users Alice, Bob"
+print(process_input(example_statement))
