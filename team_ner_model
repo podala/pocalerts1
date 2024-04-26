@@ -1,0 +1,75 @@
+import spacy
+from spacy.training import Example
+from spacy.util import minibatch, compounding
+import random
+
+# Initialize a blank English model
+nlp = spacy.blank("en")
+
+# Add the NER component to the pipeline
+if 'ner' not in nlp.pipe_names:
+    ner = nlp.add_pipe('ner')
+else:
+    ner = nlp.get_pipe('ner')
+
+# Define templates for sentences involving team names and users
+templates = {
+    "team_creation": [
+        "Create team {team} with users {users}",
+        "Set up team {team} including members {users}",
+        "Establish a new team named {team} with users {users}",
+    ]
+}
+
+# Define sample data for teams and users
+teams = ["team_alpha", "team_beta", "team_gamma"]
+users = [["Alice", "Bob"], ["Charlie", "Dave"], ["Eve", "Frank"]]
+
+# Generate training data
+train_data = []
+for temp in templates["team_creation"]:
+    for team in teams:
+        for user_group in users:
+            user_str = ', '.join(user_group)  # Join users into a single string
+            text = temp.format(team=team, users=user_str)
+            start_idx = text.find(team)
+            user_entities = []
+            offset = text.find(user_str)
+            for user in user_group:
+                user_start = text.find(user, offset)
+                user_entities.append((user_start, user_start + len(user), "USER"))
+                offset = user_start + len(user)  # Update offset to avoid finding the same user again
+
+            train_data.append((text, {"entities": [
+                (start_idx, start_idx + len(team), "TEAM"),
+                *user_entities
+            ]}))
+
+
+# Disable other pipeline components to train only NER
+with nlp.disable_pipes(*[pipe for pipe in nlp.pipe_names if pipe != 'ner']):
+    optimizer = nlp.initialize()
+    for i in range(10):  # Number of training iterations
+        random.shuffle(train_data)
+        losses = {}
+        batches = minibatch(train_data, size=compounding(4., 32., 1.001))
+        for batch in batches:
+            for text, annotations in batch:
+                doc = nlp.make_doc(text)
+                example = Example.from_dict(doc, annotations)
+                nlp.update([example], drop=0.2, sgd=optimizer, losses=losses)
+        print(f"Iteration {i}, Losses: {losses}")
+
+
+nlp.to_disk("./team_user_ner_model")
+
+def process_input(statement):
+    nlp = spacy.load("./team_user_ner_model")
+    doc = nlp(statement)
+    entities = {ent.label_: ent.text for ent in doc.ents}
+    return entities
+
+# Example usage
+example_statement = "Create team team_alpha with users Alice, Bob"
+print(process_input(example_statement))
+
