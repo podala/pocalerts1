@@ -1,0 +1,46 @@
+import spacy
+from spacy.training import Example
+import random
+import json
+
+nlp = spacy.blank("en")
+if 'ner' not in nlp.pipe_names:
+    ner = nlp.add_pipe("ner", last=True)
+ner.add_label("TEAM")
+ner.add_label("USER")
+
+
+TRAIN_DATA = [
+    ("Create team abc with spodala, smohit and anubhav", {
+        "entities": [(12, 15, "TEAM"), (21, 28, "USER"), (30, 36, "USER"), (41, 48, "USER")]
+    }),
+    ("Set up team xyz with alice, bob and charlie", {
+        "entities": [(11, 14, "TEAM"), (20, 25, "USER"), (27, 30, "USER"), (35, 42, "USER")]
+    }),
+    ("Form team qpr with john, doe and jane", {
+        "entities": [(9, 12, "TEAM"), (18, 22, "USER"), (24, 27, "USER"), (32, 36, "USER")]
+    })
+]
+
+optimizer = nlp.initialize()
+
+for i in range(30):
+    random.shuffle(TRAIN_DATA)
+    losses = {}
+    for text, annotations in TRAIN_DATA:
+        doc = nlp.make_doc(text)
+        example = Example.from_dict(doc, annotations)
+        nlp.update([example], sgd=optimizer, losses=losses)
+    print(f"Iteration {i}: Losses", losses)
+
+
+
+
+test_text = "Create team abc with spodala, smohit and rakesh"
+doc = nlp(test_text)
+entities = []
+for ent in doc.ents:
+    entities.append({ent.label_.lower(): ent.text})
+
+output = json.dumps(entities, indent=2)
+print(output)
