@@ -1,0 +1,26 @@
+import spacy
+from spacy.pipeline import EntityRuler
+
+# Step 1: Load the English NLP model
+nlp = spacy.blank('en')  # Creates a blank English language model
+
+# Step 2: Create an Entity Ruler
+ruler = EntityRuler(nlp)
+patterns = [
+    {"label": "ORG", "pattern": "OpenAI"},
+    {"label": "GPE", "pattern": "California"}
+]
+ruler.add_patterns(patterns)
+
+# Step 3: Add the Entity Ruler to the pipeline
+nlp.add_pipe(ruler)
+
+# Step 4: Process some text
+text = "OpenAI is based in California."
+doc = nlp(text)
+
+# Step 5: Print the detected entities
+for ent in doc.ents:
+    print(ent.text, ent.label_)
+
+# Output should include "OpenAI" as "ORG" and "California" as "GPE"
