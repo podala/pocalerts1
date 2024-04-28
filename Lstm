@@ -1,0 +1,83 @@
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader, Dataset
+import numpy as np
+from sklearn.metrics import cosine_similarity
+import nltk
+from nltk.tokenize import word_tokenize
+from collections import Counter
+
+nltk.download('punkt')
+
+class TextDataset(Dataset):
+    def __init__(self, texts, vocab=None):
+        self.texts = [word_tokenize(text.lower()) for text in texts]
+        if vocab is None:
+            word_counts = Counter(word for text in self.texts for word in text)
+            self.vocab = {word: i + 1 for i, word in enumerate(word_counts)}  # start indexing from 1
+        else:
+            self.vocab = vocab
+
+    def __len__(self):
+        return len(self.texts)
+
+    def __getitem__(self, idx):
+        tokens = [self.vocab.get(word, 0) for word in self.texts[idx]]  # 0 is for unknown words
+        return torch.tensor(tokens, dtype=torch.long)
+
+class LSTMEncoder(nn.Module):
+    def __init__(self, vocab_size, embedding_dim, hidden_dim):
+        super(LSTMEncoder, self).__init__()
+        self.embedding = nn.Embedding(vocab_size + 1, embedding_dim, padding_idx=0)
+        self.lstm = nn.LSTM(embedding_dim, hidden_dim, batch_first=True)
+        self.hidden_dim = hidden_dim
+
+    def forward(self, text):
+        embedded = self.embedding(text)
+        _, (hidden, _) = self.lstm(embedded)
+        return hidden.squeeze(0)  # we return the last hidden state
+
+def train_model(model, dataloader, epochs=10):
+    criterion = nn.MSELoss()  # Dummy criterion, replace as needed
+    optimizer = optim.Adam(model.parameters())
+    model.train()
+    for epoch in range(epochs):
+        for texts in dataloader:
+            optimizer.zero_grad()
+            outputs = model(texts)
+            loss = criterion(outputs, outputs)  # dummy target, replace with actual target
+            loss.backward()
+            optimizer.step()
+
+# Sample texts for demonstration
+texts = [
+    "Discharge plan must be set",
+    "Need to reach member to monitor the discharge",
+    "Member reached out for consultation",
+    "Follow discharge protocol",
+    "I need to contact member for further instructions"
+]
+
+dataset = TextDataset(texts)
+vocab = dataset.vocab
+dataloader = DataLoader(dataset, batch_size=2, shuffle=True)
+
+# Model parameters
+vocab_size = len(vocab)
+embedding_dim = 50  # Size of the word embeddings
+hidden_dim = 100  # Size of the LSTM hidden layer
+
+model = LSTMEncoder(vocab_size, embedding_dim, hidden_dim)
+
+# Train the model
+train_model(model, dataloader)
+
+# Generating embeddings
+embeddings = torch.stack([model(dataset[i].unsqueeze(0)) for i in range(len(dataset))]).detach().numpy()
+
+# Calculate cosine similarities
+similarity_matrix = cosine_similarity(embeddings)
+
+print("Cosine Similarity Matrix:")
+print(similarity_matrix)
