@@ -1,0 +1,111 @@
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader, Dataset
+from torch.nn.utils.rnn import pad_sequence
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
+import nltk
+from nltk.tokenize import word_tokenize
+from collections import Counter
+
+nltk.download('punkt')
+
+class TextDataset(Dataset):
+    def __init__(self, texts, vocab=None):
+        self.texts = [word_tokenize(text.lower()) for text in texts]
+        if vocab is None:
+            word_counts = Counter(word for text in self.texts for word in text)
+            self.vocab = {word: i + 1 for i, word in enumerate(word_counts)}
+        else:
+            self.vocab = vocab
+
+    def __len__(self):
+        return len(self.texts)
+
+    def __getitem__(self, idx):
+        tokens = [self.vocab.get(word, 0) for word in self.texts[idx]]
+        return torch.tensor(tokens, dtype=torch.long)
+
+def collate_batch(batch):
+    text_list = pad_sequence(batch, padding_value=0, batch_first=True)
+    return text_list
+
+class LSTMEncoder(nn.Module):
+    def __init__(self, vocab_size, embedding_dim, hidden_dim):
+        super(LSTMEncoder, self).__init__()
+        self.embedding = nn.Embedding(vocab_size + 1, embedding_dim, padding_idx=0)
+        self.lstm = nn.LSTM(embedding_dim, hidden_dim, batch_first=True)
+
+    def forward(self, text):
+        embedded = self.embedding(text)
+        output, (hidden, _) = self.lstm(embedded)
+        return output.mean(dim=1)
+
+def train_model(model, dataloader, epochs=10):
+    optimizer = optim.Adam(model.parameters())
+    criterion = nn.MSELoss()
+    model.train()
+    for epoch in range(epochs):
+        total_loss = 0
+        for texts in dataloader:
+            optimizer.zero_grad()
+            outputs = model(texts)
+            loss = criterion(outputs, torch.zeros_like(outputs))
+            loss.backward()
+            optimizer.step()
+            total_loss += loss.item()
+        print(f'Epoch {epoch + 1}, Loss: {total_loss / len(dataloader)}')
+
+def generate_embeddings(model, dataset):
+    model.eval()
+    embeddings = []
+    for text in DataLoader(dataset, batch_size=1, collate_fn=collate_batch):
+        output = model(text).squeeze(0)
+        embeddings.append(output)
+    embeddings = torch.stack(embeddings).detach().numpy()
+    return embeddings
+
+def search_text(query, model, dataset):
+    query_tokens = torch.tensor([dataset.vocab.get(word, 0) for word in word_tokenize(query.lower())]).unsqueeze(0)
+    query_embedding = model(query_tokens).detach().numpy()
+    cosine_scores = cosine_similarity([query_embedding], embeddings).flatten()
+    results = [(dataset.texts[i], cosine_scores[i]) for i in range(len(cosine_scores))]
+    results.sort(key=lambda x: x[1], reverse=True)
+    return results
+
+# Unit test for LSTM output dimensions
+def test_lstm_output():
+    model = LSTMEncoder(vocab_size=10, embedding_dim=64, hidden_dim=128)
+    input_tensor = torch.randint(0, 10, (1, 5)).long()  # Simulate a batch of sequences
+    output = model(input_tensor)
+    assert output.dim() == 2, "Output should be 2D"
+    assert output.shape[0] == 1, "Batch size should be maintained"
+    assert output.shape[1] == 128, "Feature size should match hidden dimension"
+    print("LSTM output test passed.")
+
+# Testing
+test_lstm_output()
+
+# Script Execution
+texts = [
+    "Discharge plan must be set",
+    "Need to reach member to monitor the discharge",
+    "Member reached out for consultation",
+    "Follow discharge protocol",
+    "I need to contact member for further instructions"
+]
+dataset = TextDataset(texts)
+dataloader = DataLoader(dataset, batch_size=2, shuffle=True, collate_fn=collate_batch)
+vocab_size = len(dataset.vocab)
+embedding_dim = 64
+hidden_dim = 128
+model = LSTMEncoder(vocab_size, embedding_dim, hidden_dim)
+train_model(model, dataloader)
+
+embeddings = generate_embeddings(model, dataset)
+
+query = "I need to contact member"
+results = search_text(query, model, dataset)
+for text, similarity in results:
+    print(f'Text: {" ".join(text)}, Similarity: {similarity:.4f}')
