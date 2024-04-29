@@ -1,0 +1,88 @@
+import random
+import joblib
+import json
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import classification_report, confusion_matrix
+
+# Define templates and data
+create_templates = [
+    "Create team {team} with users {users}",
+    "Set up team {team} including members {users}",
+    "Establish a new team named {team} with users {users}",
+]
+delete_templates = [
+    "Delete team {team}",
+    "Remove team {team} from records",
+    "Disband team {team}"
+]
+teams = ["team_alpha", "team_beta", "team_gamma"]
+user_groups = [["Alice", "Bob"], ["Charlie", "Dave"], ["Eve", "Frank"]]
+
+# Function to generate random data
+def generate_random_data(create_templates, delete_templates, teams, user_groups, num_samples=100):
+    data = []
+    while len([d for d in data if d[1] == 'create']) < num_samples:
+        template = random.choice(create_templates)
+        team = random.choice(teams)
+        users = random.choice(user_groups)
+        user_list = ", ".join(users)
+        statement = template.format(team=team, users=user_list)
+        data.append((statement, 'create'))
+    while len([d for d in data if d[1] == 'delete']) < num_samples:
+        template = random.choice(delete_templates)
+        team = random.choice(teams)
+        statement = template.format(team=team)
+        data.append((statement, 'delete'))
+    random.shuffle(data)
+    return data
+
+# Generate data
+data = generate_random_data(create_templates, delete_templates, teams, user_groups, 100)
+statements, labels = zip(*data)
+
+# Prepare data for classification
+vectorizer = TfidfVectorizer()
+X = vectorizer.fit_transform(statements)
+y = labels
+
+# Split data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42)
+
+# Train a logistic regression model
+model = LogisticRegression()
+model.fit(X_train, y_train)
+
+# Evaluate the model
+predictions = model.predict(X_test)
+print("Classification Report:\n", classification_report(y_test, predictions))
+print("Confusion Matrix:\n", confusion_matrix(y_test, predictions))
+
+# Save the model and vectorizer
+joblib.dump(model, 'team_model.pkl')
+joblib.dump(vectorizer, 'vectorizer.pkl')
+
+# Function to make predictions and return JSON output
+def predict_team_action(statement):
+    # Load the model and vectorizer
+    model = joblib.load('team_model.pkl')
+    vectorizer = joblib.load('vectorizer.pkl')
+    
+    # Transform the statement
+    X = vectorizer.transform([statement])
+    
+    # Make a prediction
+    prediction = model.predict(X)[0]
+    
+    # Prepare the JSON output
+    result = {
+        "input_statement": statement,
+        "predicted_output": prediction
+    }
+    return json.dumps(result, indent=2)
+
+# Example usage
+input_statement = "Create team team_delta with users George, Henry"
+output = predict_team_action(input_statement)
+print(output)
