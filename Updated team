@@ -1,0 +1,101 @@
+import random
+import joblib
+import json
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import classification_report, confusion_matrix
+
+# Define templates for teams and work queues involving only users
+create_team_templates = [
+    "Create team {team} with users {users}",
+    "Set up team {team} including members {users}",
+    "Establish a new team named {team} with users {users}",
+]
+delete_team_templates = [
+    "Delete team {team}",
+    "Remove team {team} from records",
+    "Disband team {team}"
+]
+create_queue_templates = [
+    "Create work queue {queue} with users {users}",
+    "Set up work queue {queue} including members {users}",
+    "Establish a new work queue named {queue} with users {users}",
+]
+delete_queue_templates = [
+    "Delete work queue {queue}",
+    "Remove work queue {queue} from records",
+    "Disband work queue {queue}"
+]
+
+teams = ["team_alpha", "team_beta", "team_gamma"]
+queues = ["queue_x", "queue_y", "queue_z"]
+user_groups = [["Alice", "Bob"], ["Charlie", "Dave"], ["Eve", "Frank"]]
+
+# Function to generate random data for all categories
+def generate_random_data(num_samples=100):
+    data = []
+    templates = [
+        (create_team_templates, teams, user_groups, 'create team'),
+        (delete_team_templates, teams, [], 'delete team'),
+        (create_queue_templates, queues, user_groups, 'create work queue'),
+        (delete_queue_templates, queues, [], 'delete work queue')
+    ]
+    for template_group, names, groups, label in templates:
+        while len([d for d in data if d[1] == label]) < num_samples:
+            template = random.choice(template_group)
+            name = random.choice(names)
+            users = ", ".join(random.choice(groups)) if groups else ""
+            statement = template.format(team=name, queue=name, users=users)
+            data.append((statement, label))
+    random.shuffle(data)
+    return data
+
+# Generate data
+data = generate_random_data()
+statements, labels = zip(*data)
+
+# Prepare data for classification
+vectorizer = TfidfVectorizer()
+X = vectorizer.fit_transform(statements)
+y = labels
+
+# Split data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42)
+
+# Train a logistic regression model
+model = LogisticRegression(max_iter=1000)
+model.fit(X_train, y_train)
+
+# Evaluate the model
+predictions = model.predict(X_test)
+print("Classification Report:\n", classification_report(y_test, predictions))
+print("Confusion Matrix:\n", confusion_matrix(y_test, predictions))
+
+# Save the model and vectorizer
+joblib.dump(model, 'team_queue_model.pkl')
+joblib.dump(vectorizer, 'vectorizer.pkl')
+
+# Function to make predictions and return JSON output
+def predict_action(statement):
+    # Load the model and vectorizer
+    model = joblib.load('team_queue_model.pkl')
+    vectorizer = joblib.load('vectorizer.pkl')
+    
+    # Transform the statement
+    X = vectorizer.transform([statement])
+    
+    # Make a prediction
+    prediction = model.predict(X)[0]
+    
+    # Prepare the JSON output
+    result = {
+        "input_statement": statement,
+        "predicted_output": prediction
+    }
+    return json.dumps(result, indent=2)
+
+# Example usage
+input_statement = "Create work queue queue_x with users Alice, Bob"
+output = predict_action(input_statement)
+print(output)
