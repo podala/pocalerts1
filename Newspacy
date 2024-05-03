@@ -1,0 +1,44 @@
+import spacy
+from spacy.matcher import Matcher
+
+# Load SpaCy model
+nlp = spacy.load("en_core_web_sm")
+
+# Initialize Matcher with the vocab
+matcher = Matcher(nlp.vocab)
+
+# Define patterns to catch phrases and numbers related to days
+patterns = [
+    {"IS_DIGIT": True},  # Match any digit
+    {"LOWER": {"IN": ["day", "days", "business day", "business days"]}},  # Match 'day', 'days', 'business day', 'business days'
+    {"LOWER": "tomorrow", "OP": "?"}  # Optionally match 'tomorrow'
+]
+
+# Add pattern to matcher
+matcher.add("TIME_PATTERNS", [patterns])
+
+def extract_time_entities(text):
+    doc = nlp(text)
+    matches = matcher(doc)
+    results = []
+    
+    for match_id, start, end in matches:
+        # Check if the match has a number before 'day', 'days', 'business day', or 'business days'
+        if doc[start].is_digit and doc[end-1].lower_ in {"day", "days", "business day", "business days"}:
+            entity = doc[start:end].text
+            results.append(entity)
+        elif doc[end-1].lower_ == "tomorrow":  # Directly add 'tomorrow'
+            results.append(doc[end-1].text)
+    
+    return results
+
+# Example usage
+texts = [
+    "BHA will wait 5 business days before closing the program.",
+    "The project will be completed in 2 days.",
+    "I will call you tomorrow."
+]
+
+for text in texts:
+    entities = extract_time_entities(text)
+    print(f"From '{text}': {entities}")
