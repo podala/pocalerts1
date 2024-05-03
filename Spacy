@@ -1,0 +1,40 @@
+import spacy
+from spacy.matcher import Matcher
+
+# Load the English NLP model
+nlp = spacy.load("en_core_web_sm")
+
+# Initialize the Matcher with the shared vocabulary
+matcher = Matcher(nlp.vocab)
+
+# Add pattern to match units of days or specific day-related terms
+patterns = [
+    {"LOWER": {"IN": ["day", "days"]}},  # matches 'day' or 'days'
+    {"LOWER": "tomorrow"}  # matches 'tomorrow'
+]
+matcher.add("DAYS_PATTERN", [patterns])  # Add patterns to the matcher
+
+def extract_days(text):
+    doc = nlp(text)
+    matches = matcher(doc)
+    days_entities = []
+
+    for match_id, start, end in matches:
+        span = doc[start:end]  # The matched span
+        if doc[start-1].pos_ == "NUM" and start > 0:  # Check for a preceding number
+            days_entities.append((doc[start-1].text + ' ' + span.text, span.start-1, span.end))
+        else:
+            days_entities.append((span.text, span.start, span.end))
+
+    return days_entities
+
+# Example texts
+texts = [
+    "BHA will wait 5 business days before closing the program.",
+    "The deadline is in 2 days.",
+    "I will call you tomorrow."
+]
+
+for text in texts:
+    days = extract_days(text)
+    print(f"Extracted from '{text}': {days}")
