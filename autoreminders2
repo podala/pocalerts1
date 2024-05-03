@@ -1,0 +1,87 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import joblib
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.linear_model import LogisticRegression
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score, confusion_matrix, precision_recall_fscore_support, roc_curve, auc
+
+# Example dataset
+statements = [
+    "Your statement data here...",
+    # Add all your statements
+]
+labels = [
+    "your labels here...",
+    # Corresponding labels for the statements
+]
+
+# Reminder type mapping based on labels
+reminder_types = {
+    "close_case": "Final Notice Reminder",
+    "follow_up": "Follow-up Reminder",
+    "discharge": "Discharge Reminder",
+    "provide_information": "Informational Reminder",
+    "UTRY": "Urgent Try Reminder"
+}
+
+# Splitting the dataset
+X_train, X_test, y_train, y_test = train_test_split(statements, labels, test_size=0.25, random_state=42)
+
+# Vectorization
+vectorizer = TfidfVectorizer(stop_words='english')
+X_train_vectors = vectorizer.fit_transform(X_train)
+X_test_vectors = vectorizer.transform(X_test)
+
+# Define parameter grids for GridSearchCV
+param_grid_lr = {'C': [0.01, 0.1, 1, 10], 'penalty': ['l2']}
+param_grid_nb = {'alpha': [0.001, 0.01, 0.1, 1]}
+param_grid_svm = {'C': [0.1, 1, 10], 'kernel': ['linear', 'rbf']}
+
+# Setup GridSearchCV
+grid_lr = GridSearchCV(LogisticRegression(), param_grid_lr, cv=5, scoring='accuracy')
+grid_nb = GridSearchCV(MultinomialNB(), param_grid_nb, cv=5, scoring='accuracy')
+grid_svm = GridSearchCV(SVC(probability=True), param_grid_svm, cv=5, scoring='accuracy')
+
+# List of models for iteration
+grids = {"Logistic Regression": grid_lr, "Multinomial Naive Bayes": grid_nb, "SVM": grid_svm}
+
+# Perform Grid Search
+best_models = {}
+for name, grid in grids.items():
+    grid.fit(X_train_vectors, y_train)
+    best_models[name] = grid.best_estimator_
+    print(f"Best parameters for {name}: {grid.best_params_}")
+    print(f"Best cross-validation score: {grid.best_score_:.2f}")
+
+# Evaluate the best models and choose the best one overall based on accuracy
+best_accuracy = 0
+best_model = None
+for name, model in best_models.items():
+    predictions = model.predict(X_test_vectors)
+    accuracy = accuracy_score(y_test, predictions)
+    if accuracy > best_accuracy:
+        best_accuracy = accuracy
+        best_model = model
+    print(f"Accuracy for {name}: {accuracy:.2f}")
+
+# Save the best model
+joblib.dump(best_model, 'best_model.joblib')
+
+# Load the best model
+loaded_model = joblib.load('best_model.joblib')
+
+# Function to predict new input
+def predict_new_input(new_input):
+    vectorized_input = vectorizer.transform([new_input])
+    prediction = loaded_model.predict(vectorized_input)
+    confidence = np.max(loaded_model.predict_proba(vectorized_input))
+    reminder_type = reminder_types.get(prediction[0], "Unknown Reminder Type")
+    return prediction[0], confidence, reminder_type
+
+# Example usage
+new_input = "Example input text here..."
+predicted_label, confidence, reminder_type = predict_new_input(new_input)
+print(f"Predicted label: {predicted_label}, Confidence: {confidence:.2f}, Reminder Type: {reminder_type}")
