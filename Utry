@@ -1,0 +1,16 @@
+WITH LatestUrtyTasks AS (
+    SELECT MemberID, MAX(TaskDate) as LatestUrtyTaskDate
+    FROM Tasks
+    WHERE TaskType = 'urty'
+    GROUP BY MemberID
+),
+NoActivityMembers AS (
+    SELECT t.MemberID
+    FROM LatestUrtyTasks
+    LEFT JOIN Tasks t ON LatestUrtyTasks.MemberID = t.MemberID AND t.TaskDate > LatestUrtyTasks.LatestUrtyTaskDate
+    WHERE t.TaskID IS NULL
+)
+SELECT m.MemberID
+FROM NoActivityMembers
+JOIN MbrPgm m ON NoActivityMembers.MemberID = m.MemberID
+WHERE m.ProgramStatus = 'Active' AND m.EnrollmentStatus = 'Enrolled';
