@@ -1,0 +1,54 @@
+import spacy
+from spacy.matcher import Matcher
+from spacy.lang.en import English
+from spacy.tokens import Span
+from spacy.pipeline import EntityRuler
+
+# Load the SpaCy model for English
+nlp = English()
+
+# Add the EntityRuler to the pipeline to enhance numerical entity recognition
+ruler = nlp.add_pipe("entity_ruler")
+
+# Define patterns for the EntityRuler to recognize written numbers followed by 'days'
+patterns = [
+    {"label": "DURATION", "pattern": [{"LOWER": {"IN": ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"]}}, {"LOWER": "days"}]},
+    {"label": "DURATION", "pattern": [{"LOWER": "business"}, {"LOWER": "days"}]},
+    {"label": "DURATION", "pattern": [{"LOWER": "tomorrow"}]}
+]
+ruler.add_patterns(patterns)
+
+# Initialize the Matcher with the shared vocabulary and add custom patterns
+matcher = Matcher(nlp.vocab)
+matcher.add("NUM_DAYS", [
+    [{"LIKE_NUM": True, "OP": "?"}, {"LOWER": "business", "OP": "?"}, {"LOWER": "days"}],
+    [{"LOWER": "tomorrow"}]
+])
+
+def extract_time_entities(text):
+    doc = nlp(text)
+    matches = matcher(doc)
+    results = []
+    
+    for match_id, start, end in matches:
+        span = Span(doc, start, end, label="DURATION")
+        doc.ents = list(doc.ents) + [span]
+    
+    # Filter and return unique entities recognized as DURATION
+    for ent in doc.ents:
+        if ent.label_ == "DURATION":
+            results.append(ent.text)
+    
+    return results
+
+# Example texts to analyze
+texts = [
+    "BHA will wait 5 business days before closing the program.",
+    "The project will be completed in 2 days.",
+    "I will call you tomorrow.",
+    "He said he'd return in three days."
+]
+
+for text in texts:
+    entities = extract_time_entities(text)
+    print(f"From '{text}': {entities}")
