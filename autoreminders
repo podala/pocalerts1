@@ -1,0 +1,169 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import joblib
+import json
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score, confusion_matrix, precision_recall_fscore_support, roc_curve, auc
+
+# Example dataset
+# Example dataset
+statements = [
+    # Statements from "close_case"
+    "Despite BHA's third attempt to contact the member and leaving a voicemail, there was no response,so close the case",
+    "After a third outreach attempt and leaving a voicemail without any response.With no response and no call back after the UTRY letter, BHA will wait 5 business days before closing the case. The program will be closed if no return communication is received.",
+    "BHA made a third attempt to reach the member and left a voicemail urging a return call. With no response and no call back after the UTRY letter, BHA will wait 5 business days before closing the case. The program will be closed if no return communication is received.",
+    "Following three attempts to contact the member, including a voicemail, and no communication after sending the UTRY letter, BHA will wait 5 business days before deciding to close the case. If there is no response from the member, the program will be terminated.",
+    "The member did not respond to BHA's third attempt or return calls after the UTRY letter was sent. Consequently, BHA will wait 5 business days before closing the program, and it will be closed if the member does not communicate during this time.",
+    "Since there was no response or call back from the member after the UTRY letter, BHA will wait 5 business days before proceeding to close the program. The program will be closed if no return communication occurs.",
+    "Given the lack of reply and the member's failure to contact after the UTRY letter was issued, BHA will wait 5 business days before shutting down the program. It will be closed if the member does not reach out during this period.",
+    "As the member did not answer or return calls following the UTRY letter, BHA will wait 5 business days before finalizing the closure of the program. The program will be closed if there is no communication from the member in this timeframe.",                                              
+    # Statements from "follow_up"
+    "BHA tried to follow up with the member by calling but received no answer. A voicemail was left...",
+    "Phone outreach was made to introduce the wellness program to the person, and a voicemail was left...",
+    "BHA reached out for a follow-up at 832-257-3770 and left a voicemail when the member didn't answer. They will attempt contact again in 5 business days.",
+    "Unable to reach the member at 832-257-3770, BHA left contact details in a voicemail and will follow up again in 5 business days.",
+    "When BHA called the member at 832-257-3770 for a follow-up and got no response, they left a voicemail. A subsequent follow-up will occur in 5 business days.",
+    "Initial outreach attempt made. The phone rang multiple times before being directed to an unconfigured voicemail box. Follow-up actions will be planned.",
+    "During the first outreach effort, the phone rang repeatedly and eventually connected to a voicemail box that hasn't been set up. Follow-up is pending.",
+    "The initial call rang several times and was then diverted to a voicemail box that was not set up. A follow-up attempt will be scheduled.",
+    "Upon initial contact, the phone call went unanswered and was forwarded to an unestablished voicemail box. Further follow-up efforts are to be arranged.",
+    "The first outreach attempt resulted in multiple rings and a transfer to an undeveloped voicemail system. Plans for a follow-up are in place.",
+    "The member indicated that he was unavailable at the moment and requested BHA to call back tomorrow. Plans for a follow-up call are set.",
+    "During the call, the member expressed that he is currently busy and asked BHA to contact him again tomorrow. A follow-up is scheduled.",
+    "The member communicated that now was not a good time and asked for a return call from BHA tomorrow. Follow-up actions are being arranged.",
+    "BHA was informed by the member that he could not speak at the time and to call him the following day. A follow-up call will be made.",
+    "The member asked BHA to defer the call to tomorrow as he was not free to talk.Arrangements for a follow-up call are in place.",
+    "Initial outreach to 615-475-3717 resulted in continuous ringing with no response from the member. BHA plans to schedule a follow-up.",
+    "The phone continuously rang during the initial contact at 615-475-3717 without the member answering. BHA will arrange a follow-up call.",
+    "During the first attempt to contact the member at 615-475-3717, there was no answer, only ringing. BHA will organize a follow-up.",
+    "BHA's initial outreach call to 615-475-3717 was met with no answer, just ringing. Follow-up actions are planned.",
+    "After the phone at 615-475-3717 rang continuously without an answer from the member, BHA decided to schedule a follow-up.",
+    # Statements from "discharge"
+    "BHC communicated with the member but could not verify HIPAA compliance. The member reported being currently admitted. BHC will monitor the patient's status for any changes leading to discharge",
+    "During a conversation with the member, BHC was unable to verify HIPAA details. The member informed them of his current hospital admission. Monitoring will continue until the member is discharged",
+    "BHC spoke to the member but failed to confirm HIPAA compliance. The member indicated he is hospitalized at the moment. BHC will keep an eye on the case for any updates regarding discharge",
+    "After speaking with the member and being unable to verify HIPAA, BHC learned the member is presently admitted to a hospital. BHC will maintain oversight of the patient’s case until discharge.",
+    "BHC had a conversation with the member; however, HIPAA verification was not possible. The member mentioned his current admission. BHC will continue to follow the patient’s situation until discharge is confirmed.",
+    "After speaking with the member and being unable to verify HIPAA, BHC learned the member is presently admitted...",
+    "BHA reached out to the member’s father for a follow-up on the discharge, and the father communicated that discharge will happen in 2 days",
+    "BHA contacted the member’s husband regarding a follow-up on discharge, and the husband indicated that the discharge is scheduled in 3 days. ",
+    "BHA spoke to the member’s wife to follow up about the discharge, and she reported that the discharge will occur in 4 days",
+    "BHA communicated with the member’s son about a follow-up concerning the discharge, and the son mentioned that discharge will take place in 2 days.",
+    "BHA connected with the member’s father to discuss the discharge process, and he stated the discharge will happen in 3 days",
+    "BHA made contact with the member’s husband to follow up on the discharge, and the husband reported that the discharge will happen in 4 days.",
+    "BHA got in touch with the member’s wife regarding the discharge follow-up, and she confirmed that the discharge will be in 2 days.",
+    "BHA spoke with the member’s son about the upcoming discharge, and he conveyed that the discharge is expected in 3 days.",
+    "BHA contacted the member’s father to check on the discharge status, and he informed them that the discharge is planned for 4 days",
+    "BHA communicated with the member’s wife concerning the discharge follow-up, and she indicated that the discharge would occur in 3 days",
+    # Statements from "provide_information"
+    "BHA reached out to the member’s father for a follow-up on the discharge, and the father communicated...",
+    "Post-discharge from MH IP, BHA contacted Karen Chin to provide information about available behavioral health resources...",
+    "After the member was released from MH IP on 1/14/24, BHA made a subsequent call to Karen Chin, the member’s mother, at 609-558-0044, aiming to offer behavioral health support and resources.",
+    "Post the member's discharge on 1/14/24 from MH IP, BHA placed another call to the member’s mother, Karen Chin, at 609-558-0044, to offer information about behavioral health support and resources. ",
+    "Following the member’s discharge from MH IP on 1/14/24, BHA contacted Karen Chin at 609-558-0044, the member's mother, to provide information on behavioral health resources and support.",
+    "BHA conducted a second outreach call to Karen Chin, mother of the member, at 609-558-0044 post the member's MH IP discharge on 1/14/24, offering essential behavioral health resources and support",
+    # statements from UTRY
+    "The second outreach attempt has been made. CA is preparing to send the UTRY lette",
+    "Following the completion of the second outreach attempt, CA will proceed to dispatch an UTRY letter.",
+    "After finishing the second outreach effort, CA plans to issue the UTRY letter",
+    "CA completed a second attempt to contact and will now send out the UTRY letter",
+    "The second attempt at outreach is now complete, and CA will send the UTRY letter next",
+    "On the second outreach attempt, the member’s line was busy. After verifying the number from the discharge paperwork, CA will send an UTRY letter and keep trying to reach out",
+    "CA encountered a busy signal during the second outreach attempt but confirmed the number matches the discharge paperwork. An UTRY letter will be sent, and further attempts will follow",
+    "During the second attempt to contact the member, CA found the line busy. The number was confirmed against discharge documents. CA will now send an UTRY letter and continue outreach efforts.",
+    "The second attempt to contact the member resulted in a busy signal. The number was checked and confirmed against the discharge paperwork. CA will send an UTRY letter and attempt further contact.",
+    "On the second outreach try, a busy signal was encountered. After confirming the number’s accuracy with the discharge paperwork, CA will send out an UTRY letter and continue attempts to reach the member.",
+    "Attempted to contact the person to introduce the wellness program and left a voicemail asking for a callback. BHA will request that an UTRY letter be mailed to the person and will suspend activity for 10 days.",
+    "Phone outreach was made to introduce the wellness program to the person, and a voicemail was left requesting a return call. BHA will arrange for an UTRY letter to be sent to the person and will pause further actions for 10 days.",
+    "BHA tried reaching the person to explain the wellness program and left a message for them to call back. An UTRY letter will be mailed to the person, and the case will be held for 10 days.",
+    "After attempting to phone the person to discuss the wellness program and leaving a voicemail, BHA will send an UTRY letter to the person and hold any further activities for 10 days.",
+    "A call was made to the person to present the wellness program, and a voicemail was left for a callback. BHA will proceed with mailing an UTRY letter to the person and pause all related activities for 10 days"
+]
+labels = [
+    "close_case", "close_case","close_case","close_case","close_case","close_case","close_case","close_case",
+    "follow_up", "follow_up","follow_up","follow_up","follow_up","follow_up","follow_up","follow_up","follow_up","follow_up","follow_up","follow_up","follow_up","follow_up","follow_up","follow_up","follow_up","follow_up","follow_up","follow_up",
+    "discharge", "discharge","discharge","discharge","discharge","discharge","discharge","discharge","discharge","discharge","discharge","discharge","discharge","discharge","discharge","discharge",
+    "provide_information", "provide_information","provide_information","provide_information","provide_information","provide_information",
+    "UTRY","UTRY","UTRY","UTRY","UTRY","UTRY","UTRY","UTRY","UTRY","UTRY","UTRY","UTRY","UTRY","UTRY","UTRY"
+]
+
+
+# Splitting the dataset
+X_train, X_test, y_train, y_test = train_test_split(statements, labels, test_size=0.25, random_state=42)
+
+# Vectorization
+vectorizer = TfidfVectorizer(stop_words='english')
+X_train_vectors = vectorizer.fit_transform(X_train)
+X_test_vectors = vectorizer.transform(X_test)
+
+# Define models
+models = {
+    "Logistic Regression": LogisticRegression(),
+    "Multinomial Naive Bayes": MultinomialNB(),
+    "SVM": SVC(probability=True)
+}
+
+# Reminder type mapping based on labels
+reminder_types = {
+    "close_case": "Final Notice Reminder",
+    "follow_up": "Follow-up Reminder",
+    "discharge": "Discharge Reminder",
+    "provide_information": "Informational Reminder",
+    "UTRY": "Urgent Try Reminder"
+    # Add other mappings as necessary
+}
+
+# Train and evaluate models
+results = []
+for name, model in models.items():
+    model.fit(X_train_vectors, y_train)
+    predictions = model.predict(X_test_vectors)
+    accuracy = accuracy_score(y_test, predictions)
+    precision, recall, fscore, _ = precision_recall_fscore_support(y_test, predictions, average='macro')
+    results.append((name, accuracy, precision, recall, fscore, model))
+
+# Choosing the best model based on F1-score
+best_model_name, best_accuracy, best_precision, best_recall, best_fscore, best_model = max(results, key=lambda item: item[4])
+
+# Display results
+print(f"Best Model: {best_model_name}")
+print(f"Accuracy: {best_accuracy:.2f}, Precision: {best_precision:.2f}, Recall: {best_recall:.2f}, F1-Score: {best_fscore:.2f}")
+
+# Confusion Matrix
+cm = confusion_matrix(y_test, best_model.predict(X_test_vectors))
+print("Confusion Matrix:")
+print(cm)
+
+# ROC Curve and AUC (Assuming binary classification)
+if hasattr(best_model, 'predict_proba'):
+    probas = best_model.predict_proba(X_test_vectors)[:, 1]  # Probability estimates for the positive class
+    fpr, tpr, thresholds = roc_curve(y_test, probas, pos_label=labels[1])
+    roc_auc = auc(fpr, tpr)
+    plt.figure()
+    plt.plot(fpr, tpr, label=f'ROC Curve (area = {roc_auc:.2f})')
+    plt.plot([0, 1], [0, 1], 'k--')  # Dashed diagonal
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('Receiver Operating Characteristic')
+    plt.legend(loc="lower right")
+    plt.show()
+
+# Save the best model
+joblib.dump(best_model, 'best_model.joblib')
+
+# Function to predict new input
+def predict_new_input(new_input):
+    vectorized_input = vectorizer.transform([new_input])
+    prediction = best_model.predict(vectorized_input)
+    confidence = np.max(best_model.predict_proba(vectorized_input))
+    reminder_type = reminder_types.get(prediction[0], "Unknown Reminder Type")
+    return prediction[0], confidence, reminder_type
+
+# Example usage
+new_input = "Despite BHA's third attempt to contact the member and leaving a voicemail, there was no response,so will close the case"
+predicted_label, confidence, reminder_type = predict_new_input(new_input)
+print(f"Predicted label: {predicted_label}, Confidence: {confidence:.2f}, Reminder Type: {reminder_type}")
