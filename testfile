@@ -1,0 +1,8 @@
+# Test the TensorFlow import
+import tensorflow as tf
+print("TensorFlow version:", tf.__version__)
+
+# Test importing Keras modules from TensorFlow
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, LSTM, Embedding, Dense, TimeDistributed, Bidirectional
+print("Keras modules imported successfully")
