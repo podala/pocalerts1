@@ -1,0 +1,35 @@
+WITH LastTaskDetails AS (
+    SELECT 
+        MemberID, 
+        Category,
+        AssignTypeRef,
+        MAX(TaskDate) as LastTaskDate
+    FROM Tasks
+    WHERE TaskDate <= '2024-03-31'
+    GROUP BY MemberID, Category, AssignTypeRef
+),
+NoActionAfterLastTask AS (
+    SELECT 
+        l.MemberID,
+        l.Category,
+        l.AssignTypeRef
+    FROM LastTaskDetails l
+    LEFT JOIN Tasks t ON l.MemberID = t.MemberID AND t.TaskDate > l.LastTaskDate
+    WHERE t.TaskID IS NULL
+),
+ActiveMembersAndPrograms AS (
+    SELECT 
+        n.MemberID,
+        n.Category,
+        n.AssignTypeRef
+    FROM NoActionAfterLastTask n
+    JOIN MbrPgm m ON n.MemberID = m.MemberID
+    WHERE m.ProgramStatus = 'Active' AND m.EnrollmentStatus = 'Enrolled'
+)
+SELECT 
+    Category,
+    AssignTypeRef,
+    COUNT(DISTINCT MemberID) AS OpenProgramCount
+FROM ActiveMembersAndPrograms
+GROUP BY Category, AssignTypeRef
+ORDER BY Category, AssignTypeRef;
