@@ -1,0 +1,104 @@
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torchcrf import CRF
+from torch.utils.data import DataLoader, Dataset
+import numpy as np
+import random
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+import json
+import pickle
+
+def generate_data(num_samples):
+    team_names = ["Supervisors", "ProjectX", "AlphaTeam", "Zebra", "Champions"]
+    user_names = ["Alice", "Bob", "Charlie", "David"]
+    commands = [
+        "Initialize team {} with {}",
+        "Setup team {} with members {}",
+        "Register team {} and include {}",
+        "Form team {} and add {}"
+    ]
+    sentences = []
+    annotations = []
+    for _ in range(num_samples):
+        team = random.choice(team_names)
+        users = ', '.join(random.sample(user_names, random.randint(1, 3)))
+        sentence = random.choice(commands).format(team, users)
+        team_start = sentence.find(team)
+        team_end = team_start + len(team) - 1
+        user_start = sentence.find(users)
+        user_end = user_start + len(users) - 1
+        sentences.append(sentence)
+        annotations.append([(team_start, team_end, 'TEAM_NAME'), (user_start, user_end, 'USER')])
+    return sentences, annotations
+
+class BiLSTM_CRF(nn.Module):
+    def __init__(self, vocab_size, tagset_size, embedding_dim=50, hidden_dim=64):
+        super(BiLSTM_CRF, self).__init__()
+        self.embedding = nn.Embedding(vocab_size, embedding_dim)
+        self.lstm = nn.LSTM(embedding_dim, hidden_dim // 2,
+                            num_layers=1, bidirectional=True)
+        self.hidden2tag = nn.Linear(hidden_dim, tagset_size)
+        self.crf = CRF(tagset_size)
+
+    def forward(self, sentence):
+        embeds = self.embedding(sentence)
+        lstm_out, _ = self.lstm(embeds)
+        lstm_feats = self.hidden2tag(lstm_out)
+        return lstm_feats
+
+    def loss(self, feats, tags):
+        return -self.crf(feats, tags)  # Negative log likelihood
+
+sentences, annotations = generate_data(500)
+
+# Placeholder tokenizer and label encoder (must be defined properly)
+tokenizer = {"your": 1, "dictionary": 2, "here": 3}  # Update with actual tokenizer logic
+label_encoder = LabelEncoder()
+labels = ['O', 'TEAM_NAME', 'USER']
+label_encoder.fit(labels)
+
+# Placeholder for converting sentences and annotations to the format expected by the model
+X = torch.tensor([[tokenizer.get(word, 0) for word in sentence.split()] for sentence in sentences])
+y = torch.tensor([[label_encoder.transform([tag for _, _, tag in ann]).tolist()] for ann in annotations])
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.1)
+train_data = [(X_train[i], y_train[i]) for i in range(len(X_train))]
+train_loader = DataLoader(train_data, batch_size=32, shuffle=True)
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = BiLSTM_CRF(len(tokenizer), len(labels)).to(device)
+optimizer = optim.Adam(model.parameters(), lr=0.01)
+
+for epoch in range(10):  # Number of epochs
+    total_loss = 0
+    for sentence, tags in train_loader:
+        model.zero_grad()
+        sentence, tags = sentence.to(device), tags.to(device)
+        feats = model(sentence)
+        loss = model.loss(feats, tags)
+        loss.backward()
+        optimizer.step()
+        total_loss += loss.item()
+    print(f"Epoch {epoch}, Loss: {total_loss / len(train_loader)}")
+
+torch.save(model.state_dict(), 'ner_model.pth')
+model.load_state_dict(torch.load('ner_model.pth'))
+model.eval()
+
+def predict(model, text):
+    tokens = [tokenizer.get(word, 0) for word in text.split()]
+    input_ids = torch.tensor([tokens]).to(device)
+    with torch.no_grad():
+        feats = model(input_ids)
+        tags = model.crf.decode(feats)
+    return [label_encoder.inverse_transform([tag])[0] for tag in tags[0]]
+
+text_input = json.dumps({"sentence": "Register team AlphaTeam and include Alice, Bob"})
+loaded_text = json.loads(text_input)
+output = predict(model, loaded_text["sentence"])
+
+print("Input JSON:", text_input)
+print("Output JSON:", json.dumps(output))
+
