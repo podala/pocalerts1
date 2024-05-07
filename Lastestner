@@ -1,0 +1,118 @@
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader, Dataset
+from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence, pad_packed_sequence
+from torchcrf import CRF
+import numpy as np
+import random
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+import json
+
+def generate_data(num_samples):
+    team_names = ["Supervisors", "ProjectX", "AlphaTeam", "Zebra", "Champions"]
+    user_names = ["Alice", "Bob", "Charlie", "David"]
+    commands = [
+        "Initialize team {} with {}",
+        "Setup team {} with members {}",
+        "Register team {} and include {}",
+        "Form team {} and add {}"
+    ]
+    sentences = []
+    annotations = []
+    for _ in range(num_samples):
+        team = random.choice(team_names)
+        users = ', '.join(random.sample(user_names, random.randint(1, 3)))
+        sentence = random.choice(commands).format(team, users)
+        sentences.append(sentence)
+        annotations.append(['O']*len(sentence.split()))  # Mock labels for simplicity
+    return sentences, annotations
+
+class NERDataset(Dataset):
+    def __init__(self, sentences, annotations, word_to_ix):
+        self.sentences = [torch.tensor([word_to_ix.get(word, word_to_ix['<UNK>']) for word in sentence.split()], dtype=torch.long) for sentence in sentences]
+        self.labels = [torch.tensor(label, dtype=torch.long) for label in annotations]  # assuming labels are already encoded
+
+    def __len__(self):
+        return len(self.sentences)
+
+    def __getitem__(self, idx):
+        return self.sentences[idx], self.labels[idx]
+
+def pad_collate(batch):
+    (xx, yy) = zip(*batch)
+    x_lens = [len(x) for x in xx]
+    xx_pad = pad_sequence(xx, batch_first=True, padding_value=0)
+    yy_pad = pad_sequence(yy, batch_first=True, padding_value=-1)  # Padding label for CRF ignore
+    return xx_pad, yy_pad, torch.tensor(x_lens, dtype=torch.long)
+
+class BiLSTM_CRF(nn.Module):
+    def __init__(self, vocab_size, tagset_size):
+        super(BiLSTM_CRF, self).__init__()
+        self.embedding_dim = 50
+        self.hidden_dim = 64
+        self.embedding = nn.Embedding(vocab_size, self.embedding_dim)
+        self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim // 2, num_layers=1, bidirectional=True, batch_first=True)
+        self.hidden2tag = nn.Linear(self.hidden_dim, tagset_size)
+        self.crf = CRF(tagset_size, batch_first=True)
+
+    def forward(self, sentence, lengths):
+        embeds = self.embedding(sentence)
+        packed = pack_padded_sequence(embeds, lengths, batch_first=True, enforce_sorted=False)
+        lstm_out, _ = self.lstm(packed)
+        lstm_out, _ = pad_packed_sequence(lstm_out, batch_first=True)
+        lstm_feats = self.hidden2tag(lstm_out)
+        return lstm_feats
+
+    def loss(self, feats, tags, mask):
+        return -self.crf(feats, tags, mask=mask)
+
+def train(model, device, train_loader, optimizer, epochs=10):
+    model.train()
+    for epoch in range(epochs):
+        total_loss = 0
+        for sentences, labels, lengths in train_loader:
+            model.zero_grad()
+            sentences, labels, lengths = sentences.to(device), labels.to(device), lengths.to(device)
+            mask = labels != -1
+            feats = model(sentences, lengths)
+            loss = model.loss(feats, labels, mask)
+            loss.backward()
+            optimizer.step()
+            total_loss += loss.item()
+        print("Epoch: {}, Loss: {:.4f}".format(epoch, total_loss / len(train_loader)))
+
+
+def predict(model, sentence, word_to_ix, device):
+    model.eval()
+    inputs = torch.tensor([word_to_ix.get(word, word_to_ix['<UNK>']) for word in sentence.split()], dtype=torch.long).unsqueeze(0).to(device)
+    with torch.no_grad():
+        lengths = torch.tensor([len(inputs[0])], dtype=torch.long).to(device)
+        feats = model(inputs, lengths)
+        tags = model.crf.decode(feats)
+    return tags
+
+# Example data
+sentences, annotations = generate_data(100)
+word_to_ix = {word: i for i, word in enumerate(set(w for s in sentences for w in s.split()), 1)}
+word_to_ix['<UNK>'] = 0
+vocab_size = len(word_to_ix)
+
+# Prepare dataset and dataloader
+dataset = NERDataset(sentences, annotations, word_to_ix)
+data_loader = DataLoader(dataset, batch_size=32, shuffle=True, collate_fn=pad_collate)
+
+# Model setup
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = BiLSTM_CRF(vocab_size, 3).to(device)  # 3 is just an example tagset size
+optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+# Train the model
+train(model, device, data_loader, optimizer, epochs=10)
+
+# Predict
+sample_sentence = "Initialize team AlphaTeam with Alice, Bob"
+predicted_tags = predict(model, sample_sentence, word_to_ix, device)
+print("Predicted Tags:", predicted_tags)
+
