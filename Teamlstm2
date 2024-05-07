@@ -1,0 +1,70 @@
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader, Dataset
+from torchcrf import CRF
+
+# Create a simple dataset
+class SimpleNERDataset(Dataset):
+    def __init__(self, sentences, tags):
+        self.sentences = sentences
+        self.tags = tags
+
+    def __len__(self):
+        return len(self.sentences)
+
+    def __getitem__(self, index):
+        return self.sentences[index], self.tags[index]
+
+def collate_fn(batch):
+    sentences, tags = zip(*batch)
+    sentences_padded = torch.nn.utils.rnn.pad_sequence(sentences, padding_value=0)
+    tags_padded = torch.nn.utils.rnn.pad_sequence(tags, padding_value=-1)
+    return sentences_padded, tags_padded
+
+# Define the model
+class BiLSTMCRF(nn.Module):
+    def __init__(self, vocab_size, tagset_size):
+        super(BiLSTMCRF, self).__init__()
+        self.embedding = nn.Embedding(vocab_size, 50)
+        self.lstm = nn.LSTM(50, 32, num_layers=1, bidirectional=True)
+        self.hidden2tag = nn.Linear(64, tagset_size)
+        self.crf = CRF(tagset_size)
+
+    def forward(self, x):
+        embeddings = self.embedding(x)
+        lstm_out, _ = self.lstm(embeddings)
+        emissions = self.hidden2tag(lstm_out)
+        return emissions
+
+    def compute_loss(self, sentences, tags):
+        emissions = self.forward(sentences)
+        loss = -self.crf(emissions, tags)
+        return loss
+
+# Main execution function
+def main():
+    vocab_size = 10  # For example, adjust according to your actual vocabulary size
+    tagset_size = 5   # Adjust based on your tag set
+
+    model = BiLSTMCRF(vocab_size, tagset_size)
+    optimizer = optim.Adam(model.parameters(), lr=0.01)
+
+    # Example data
+    sentences = [torch.tensor([1, 2, 3, 4], dtype=torch.long), torch.tensor([1, 2, 4], dtype=torch.long)]
+    tags = [torch.tensor([1, 2, 3, 0], dtype=torch.long), torch.tensor([1, 0, 2], dtype=torch.long)]
+    
+    dataset = SimpleNERDataset(sentences, tags)
+    dataloader = DataLoader(dataset, batch_size=2, collate_fn=collate_fn)
+
+    # Training loop
+    for epoch in range(3):  # Run for more epochs
+        for sentences, tags in dataloader:
+            optimizer.zero_grad()
+            loss = model.compute_loss(sentences, tags)
+            loss.backward()
+            optimizer.step()
+            print(f"Loss: {loss.item()}")
+
+if __name__ == "__main__":
+    main()
