@@ -1,0 +1,46 @@
+import pandas as pd
+import random
+
+# Define possible components of the sentence
+actions = ["create", "setup", "register", "form", "establish"]
+team_names = ["teamassss", "teamalpha", "teamomega"]
+user_lists = [
+    "users spodala, smohit, balaji",
+    "users 000678689, 000789456, 000345678"
+]
+
+# Function to generate structured sentences with placeholders
+def generate_sentences_and_annotations(actions, team_names, user_lists, n):
+    sentences = []
+    for _ in range(n):
+        action = random.choice(actions)
+        team_name = random.choice(team_names)
+        user_list = random.choice(user_lists)
+        # Construct the sentence
+        sentence = f"{action} team {team_name} with {user_list}"
+        # Find entity positions
+        team_start = sentence.find(team_name)
+        team_end = team_start + len(team_name)
+        user_start = sentence.find(user_list)
+        user_end = user_start + len(user_list)
+        # Create annotations
+        annotations = {
+            "entities": [
+                (team_start, team_end, "TEAM"),
+                (user_start, user_end, "USER")
+            ]
+        }
+        sentences.append((sentence, annotations))
+    return sentences
+
+# Generate data
+n = 50  # number of sentences to generate
+augmented_data = generate_sentences_and_annotations(actions, team_names, user_lists, n)
+
+# Convert to DataFrame
+df = pd.DataFrame(augmented_data, columns=['text', 'annotations'])
+
+# Save to CSV
+df.to_csv('augmented_data_with_annotations.csv', index=False)
+
+print("Structured augmented data with annotations generated and saved to CSV.")
