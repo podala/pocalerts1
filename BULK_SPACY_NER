@@ -1,0 +1,117 @@
+import spacy
+from spacy.training import Example
+import pandas as pd
+import random
+import json
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix, classification_report
+import matplotlib.pyplot as plt
+
+# Step 1: Data Generation for annotations
+def generate_and_annotate_data(n):
+    actions = ["initiate", "start", "begin", "launch"]
+    transfers = ["bulk transfer", "mass move", "group shift"]
+    counts = ["100 members", "200 participants"]
+    users = ["mohit", "user99999999"]
+    programs = ["behavioral high-risk program", "behavioral high General program"]
+    states = ["TX", "NY", "CA"]
+
+    data = []
+    for _ in range(n):
+        action = random.choice(actions)
+        transfer = random.choice(transfers)
+        count = random.choice(counts)
+        user = random.choice(users)
+        program = random.choice(programs)
+        state = random.choice(states)
+        sentence = f"{action} {transfer} of {count} from {user} for {program} in state {state}"
+        
+        annotations = {
+            "entities": [
+                (sentence.find(count), sentence.find(count) + len(count), "COUNT"),
+                (sentence.find(user), sentence.find(user) + len(user), "USER"),
+                (sentence.find(program), sentence.find(program) + len(program), "PROGRAM"),
+                (sentence.find(state), sentence.find(state) + len(state), "STATE")
+            ]
+        }
+        
+        data.append({"text": sentence, "annotations": annotations})
+    return data
+
+annotated_data = generate_and_annotate_data(100)
+df = pd.DataFrame(annotated_data)
+df.to_json('annotated_training_data.json', lines=True, orient='records')
+
+# Step 2: Load the spaCy model and add NER pipeline
+nlp = spacy.blank('en')
+if 'ner' not in nlp.pipe_names:
+    ner = nlp.add_pipe('ner', last=True)
+for label in ["COUNT", "USER", "PROGRAM", "STATE"]:
+    ner.add_label(label)
+
+# Step 3: Load Data and Create Examples
+def load_data(filename):
+    df = pd.read_json(filename, lines=True)
+    examples = []
+    for _, row in df.iterrows():
+        doc = nlp.make_doc(row['text'])
+        annotations = row['annotations']
+        ents = [(start, end, label) for start, end, label in annotations['entities']]
+        ents_formatted = [(start, end, label) for start, end, label in ents]
+        example = Example.from_dict(doc, {'entities': ents_formatted})
+        examples.append(example)
+    return examples
+
+train_data = load_data('annotated_training_data.json')
+train_data, test_data = train_test_split(train_data, test_size=0.2, random_state=42)
+
+# Step 4: Train the Model
+nlp.initialize(lambda: train_data)
+for i in range(10):
+    random.shuffle(train_data)
+    losses = {}
+    for example in train_data:
+        nlp.update([example], drop=0.5, losses=losses)
+    print(f"Losses at epoch {i}: {losses}")
+
+# Step 5: Evaluate the Model
+def evaluate_model(nlp, examples):
+    true_labels = []
+    pred_labels = []
+    for example in examples:
+        true = [ent.label_ for ent in example.reference.ents]
+        pred = [ent.label_ for ent in nlp(example.reference.text).ents]
+        true_labels.extend(true)
+        pred_labels.extend(pred)
+    labels = list(nlp.get_pipe('ner').labels)
+    cm = confusion_matrix(true_labels, pred_labels, labels=labels)
+    print(classification_report(true_labels, pred_labels, labels=labels))
+    return cm, labels
+
+cm, labels = evaluate_model(nlp, test_data)
+
+# Step 6: Plot Confusion Matrix
+def plot_confusion_matrix(cm, labels):
+    fig, ax = plt.subplots()
+    cax = ax.matshow(cm, cmap=plt.cm.Blues)
+    plt.title('Confusion Matrix')
+    fig.colorbar(cax)
+    ax.set_xticks(range(len(labels)))
+    ax.set_yticks(range(len(labels)))
+    ax.set_xticklabels(labels)
+    ax.set_yticklabels(labels)
+    plt.xlabel('Predicted')
+    plt.ylabel('True')
+    plt.show()
+
+plot_confusion_matrix(cm, labels)
+
+# Step 7: Prediction Function
+def predict_entities(text):
+    doc = nlp(text)
+    return [(ent.text, ent.start_char, ent.end_char, ent.label_) for ent in doc.ents]
+
+# Example prediction
+example_text = "initiate bulk transfer of 200 participants from mohit for behavioral high-risk program in state NY"
+predictions = predict_entities(example_text)
+print("Predictions:", predictions)
