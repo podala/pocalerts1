@@ -1,0 +1,85 @@
+import spacy
+import pandas as pd
+import random
+from spacy.tokens import DocBin
+from spacy.training import Example
+from sklearn.model_selection import train_test_split
+import re
+
+# Load a blank English model
+nlp = spacy.blank("en")
+
+# Create the NER pipeline if it doesn't exist
+if 'ner' not in nlp.pipe_names:
+    ner = nlp.add_pipe('ner', last=True)
+else:
+    ner = nlp.get_pipe('ner')
+
+# Add entity labels
+labels = ["TEAM", "USER"]
+for label in labels:
+    ner.add_label(label)
+
+# Function to preprocess text
+def preprocess_text(text):
+    """Clean text by removing unwanted characters and extra spaces."""
+    text = re.sub(r'\s+', ' ', text)  # Remove multiple spaces
+    text = re.sub(r'[^\w\s,]', '', text)  # Remove special characters except comma
+    return text.strip()
+
+# Load and preprocess the data
+df = pd.read_csv('augmented_data_with_annotations.csv')
+df['text'] = df['text'].apply(preprocess_text)
+
+# Function to convert DataFrame to a list of Example objects
+def convert_to_examples(df, nlp):
+    examples = []
+    for _, row in df.iterrows():
+        doc = nlp.make_doc(row['text'])
+        spans = [doc.char_span(start, end, label=label) for start, end, label in eval(row['annotations'])['entities']]
+        entities = {'entities': [(span.start_char, span.end_char, span.label_) for span in spans if span]}
+        examples.append(Example.from_dict(doc, entities))
+    return examples
+
+# Split data into training, validation, and testing sets
+train_data, temp_data = train_test_split(df, test_size=0.4, random_state=42)
+val_data, test_data = train_test_split(temp_data, test_size=0.5, random_state=42)
+
+# Convert data to examples
+train_examples = convert_to_examples(train_data, nlp)
+val_examples = convert_to_examples(val_data, nlp)
+test_examples = convert_to_examples(test_data, nlp)
+
+# Initialize the model
+nlp.initialize(lambda: train_examples)
+
+# Training the model
+from spacy.util import minibatch, compounding
+
+for epoch in range(10):
+    random.shuffle(train_examples)  # Shuffle training data
+    losses = {}
+    batches = minibatch(train_examples, size=compounding(4.0, 32.0, 1.001))
+    for batch in batches:
+        nlp.update(batch, drop=0.5, losses=losses)
+    print(f"Losses at epoch {epoch}: {losses}")
+
+# Function to evaluate the model
+def evaluate_model(nlp, examples):
+    return nlp.evaluate(examples)
+
+# Evaluate the model on the test set
+test_scores = evaluate_model(nlp, test_examples)
+print("Test scores:", test_scores)
+
+# Example function to predict entities and print them in JSON format
+def predict_entities(text):
+    doc = nlp(text)
+    entities = {ent.label_: ent.text for ent in doc.ents}
+    import json
+    return json.dumps(entities, indent=2)
+
+# Usage example
+example_text = "Register team teamalpha with users 000678689, 000789456, 000345678"
+predicted_entities = predict_entities(example_text)
+print(predicted_entities)
