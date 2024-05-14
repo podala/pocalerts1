@@ -1,0 +1,105 @@
+SELECT
+    a.care_mgt_asgn_id,
+    a.asgn_rsn_ref_id,
+    CASE
+        WHEN a.asgn_rsn_ref_id IN (73398, 73399, 73408, 73409, 77732, 21888) AND a.repet_cnt = 3 AND p.mbr_pgm_sts_ref_id = 70104 AND c.end_date = CURRENT_DATE THEN 'Successful'
+        WHEN a.asgn_rsn_ref_id IN (73397, 73400, 73401, 73402, 73404, 73407, 73411, 23714) AND a.repet_cnt = 1 AND p.mbr_pgm_sts_ref_id = 70104 AND c.end_date = CURRENT_DATE THEN 'Successful'
+        WHEN a.asgn_rsn_ref_id = 24008 AND a.repet_cnt = 3 AND p.mbr_pgm_sts_ref_id = 70104 AND c.end_date = CURRENT_DATE THEN 'Successful'
+        ELSE 'Unsuccessful'
+    END AS Status,
+    p.mbr_pgm_id,
+    p.mbr_pgm_sts_ref_id,
+    c.user_id,
+    c.end_date
+FROM
+    care_mgt_asgn a
+    JOIN mbr_pgm p ON a.mbr_pgm_id = p.mbr_pgm_id
+    JOIN care_team_prtcp c ON p.mbr_pgm_id = c.mbr_pgm_id
+WHERE
+    a.asgn_rsn_ref_id IN (73398, 73397, 73400, 73401, 73402, 73404, 73407, 73411, 73399, 24008, 73408, 73409, 77732, 21888, 23714);
+
+SELECT
+    a.care_mgt_asgn_id,
+    a.asgn_rsn_ref_id,
+    CASE
+        WHEN a.asgn_rsn_ref_id IN (73398, 73399, 73408, 73409, 77732, 21888) AND a.repet_cnt = 3 AND p.mbr_pgm_sts_ref_id = 70104 AND c.end_date = CURRENT_DATE THEN 'Successful'
+        WHEN a.asgn_rsn_ref_id IN (73397, 73400, 73401, 73402, 73404, 73407, 73411, 23714) AND a.repet_cnt = 1 AND p.mbr_pgm_sts_ref_id = 70104 AND c.end_date = CURRENT_DATE THEN 'Successful'
+        WHEN a.asgn_rsn_ref_id = 24008 AND a.repet_cnt = 3 AND p.mbr_pgm_sts_ref_id = 70104 AND c.end_date = CURRENT_DATE THEN 'Successful'
+        ELSE 'Unsuccessful'
+    END AS Status,
+    p.mbr_pgm_id,
+    p.mbr_pgm_sts_ref_id,
+    c.user_id,
+    c.end_date
+FROM
+    care_mgt_asgn a
+    JOIN mbr_pgm p ON a.mbr_pgm_id = p.mbr_pgm_id
+    JOIN care_team_prtcp c ON p.mbr_pgm_id = c.mbr_pgm_id
+WHERE
+    a.asgn_rsn_ref_id IN (73398, 73397, 73400, 73401, 73402, 73404, 73407, 73411, 73399, 24008, 73408, 73409, 77732, 21888, 23714);
+
+-- Verify task status and linked member program status
+SELECT a.care_mgt_asgn_id, a.asgn_sts_ref_id, b.mbr_pgm_sts_ref_id
+FROM care_mgt_asgn AS a
+JOIN mbr_pgm AS b ON a.mbr_pgm_id = b.mbr_pgm_id
+WHERE a.asgn_sts_ref_id = 74113 AND b.mbr_pgm_sts_ref_id = 3703;
+
+-- Verify that the user has been unassigned from the care team
+SELECT care_id, user_id, start_date, end_date
+FROM care_team_prtcp
+WHERE end_date <= CURRENT_DATE;
+
+-- Check for newly created member program
+SELECT mbr_pgm_id, indv_key_val, mbr_pgm_sts_ref_id
+FROM mbr_pgm
+WHERE mbr_pgm_sts_ref_id = 3700;
+
+-- Check for task creation linked to the member program
+SELECT care_mgt_asgn_id, mbr_pgm_id, indv_key_val, asgn_typ_ref_id, asgn_sts_ref_id, repet_cnt, asgn_catgy_ref_id
+FROM care_mgt_asgn
+WHERE mbr_pgm_id IN (SELECT mbr_pgm_id FROM mbr_pgm WHERE mbr_pgm_sts_ref_id = 3700);
+
+
+-- Template to check if conditions are met for specific dispositions
+SELECT
+    a.care_mgt_asgn_id,
+    a.asgn_rsn_ref_id,
+    a.repet_cnt,
+    p.mbr_pgm_id,
+    p.mbr_pgm_sts_ref_id,
+    c.user_id,
+    c.end_date
+FROM
+    care_mgt_asgn a
+    JOIN mbr_pgm p ON a.mbr_pgm_id = p.mbr_pgm_id
+    JOIN care_team_prtcp c ON p.mbr_pgm_id = c.mbr_pgm_id
+WHERE
+    a.asgn_rsn_ref_id = [Disposition_Ref_ID]  -- Replace with specific disposition ref ID
+    AND a.repet_cnt = [Expected_Repet_Cnt]    -- Replace with the expected repeat count for the disposition
+    AND (p.mbr_pgm_sts_ref_id != 70104 OR c.end_date != CURRENT_DATE);
+
+task order
+
+SELECT
+    p.indv_key_val,
+    p.mbr_pgm_id,
+    MIN(CASE WHEN a.asgn_catgy_ref_id = [Initial_Member_Call_ID] THEN a.created_date ELSE NULL END) AS Initial_Call_Date,
+    MIN(CASE WHEN a.asgn_catgy_ref_id = [Follow_Up_Call_ID] THEN a.created_date ELSE NULL END) AS Follow_Up_Date,
+    MIN(CASE WHEN a.asgn_catgy_ref_id = [Coordination_Of_Care_ID] THEN a.created_date ELSE NULL END) AS Coordination_Date,
+    CASE
+        WHEN MIN(CASE WHEN a.asgn_catgy_ref_id = [Initial_Member_Call_ID] THEN a.created_date ELSE NULL END) IS NULL AND
+             (MIN(CASE WHEN a.asgn_catgy_ref_id = [Follow_Up_Call_ID] THEN a.created_date ELSE NULL END) IS NOT NULL OR
+              MIN(CASE WHEN a.asgn_catgy_ref_id = [Coordination_Of_Care_ID] THEN a.created_date ELSE NULL END) IS NOT NULL)
+        THEN 'Unsuccessful - Initial Call Missing'
+        ELSE 'Successful'
+    END AS Status
+FROM
+    care_mgt_asgn a
+JOIN
+    mbr_pgm p ON a.mbr_pgm_id = p.mbr_pgm_id
+GROUP BY
+    p.indv_key_val, p.mbr_pgm_id
+HAVING
+    MIN(CASE WHEN a.asgn_catgy_ref_id = [Follow_Up_Call_ID] THEN a.created_date ELSE NULL END) < MIN(CASE WHEN a.asgn_catgy_ref_id = [Initial_Member_Call_ID] THEN a.created_date ELSE NULL END)
+    OR MIN(CASE WHEN a.asgn_catgy_ref_id = [Coordination_Of_Care_ID] THEN a.created_date ELSE NULL END) < MIN(CASE WHEN a.asgn_catgy_ref_id = [Initial_Member_Call_ID] THEN a.created_date ELSE NULL END);
+
