@@ -1,0 +1,109 @@
+import pandas as pd
+import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.metrics import precision_score, recall_score, f1_score
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
+from textblob import TextBlob
+import spacy
+import nltk
+from sklearn.decomposition import NMF
+from gensim.summarization import summarize
+
+nltk.download('punkt')
+nltk.download('stopwords')
+
+# Load spaCy model for advanced NLP tasks
+nlp = spacy.load("en_core_web_sm")
+
+# Load the CSV file containing care agents' notes
+df = pd.read_csv('care_agents_notes.csv')
+
+# Convert notes to strings and handle missing values
+df['notes'] = df['notes'].astype(str).fillna('')
+
+documents = df['notes'].tolist()
+
+# Preprocessing function
+def preprocess(text):
+    # Correct spelling
+    text = str(TextBlob(text).correct())
+    # Tokenize and lowercase
+    tokens = word_tokenize(text.lower())
+    # Remove stopwords and punctuation
+    tokens = [word for word in tokens if word.isalnum() and word not in stopwords.words('english')]
+    # Lemmatization
+    tokens = [token.lemma_ for token in nlp(' '.join(tokens))]
+    return ' '.join(tokens)
+
+preprocessed_documents = [preprocess(doc) for doc in documents]
+
+# Initialize TF-IDF
+tfidf_vectorizer = TfidfVectorizer(max_df=0.95, min_df=2, stop_words='english')
+tfidf_matrix = tfidf_vectorizer.fit_transform(preprocessed_documents)
+
+# Search function
+def search(query):
+    query = preprocess(query)
+    query_vec = tfidf_vectorizer.transform([query])
+    similarities = cosine_similarity(query_vec, tfidf_matrix)
+    sorted_indices = np.argsort(similarities[0])[::-1]
+    return [(documents[idx], similarities[0][idx]) for idx in sorted_indices if similarities[0][idx] > 0]
+
+# Validation and evaluation
+from sklearn.model_selection import train_test_split
+
+# Split documents into train and test sets
+train_docs, test_docs = train_test_split(documents, test_size=0.2, random_state=42)
+
+# Preprocess and vectorize training documents
+train_preprocessed = [preprocess(doc) for doc in train_docs]
+tfidf_vectorizer.fit(train_preprocessed)
+
+# Function to evaluate the search engine
+def evaluate_search_engine():
+    y_true = []
+    y_pred = []
+    for doc in test_docs:
+        search_results = search(doc)
+        if doc in [result[0] for result in search_results[:3]]:  # Top-3 results
+            y_true.append(1)
+            y_pred.append(1)
+        else:
+            y_true.append(1)
+            y_pred.append(0)
+
+    accuracy = sum(np.array(y_true) == np.array(y_pred)) / len(y_true)
+    precision = precision_score(y_true, y_pred)
+    recall = recall_score(y_true, y_pred)
+    f1 = f1_score(y_true, y_pred)
+
+    print(f"Accuracy: {accuracy:.2f}")
+    print(f"Precision: {precision:.2f}")
+    print(f"Recall: {recall:.2f}")
+    print(f"F1-Score: {f1:.2f}")
+
+# Summarization
+summarized_documents = [summarize(doc, ratio=0.3) for doc in documents if len(doc.split()) > 50]
+for i, summary in enumerate(summarized_documents):
+    print(f"Summary of document {i+1}:\n{summary}\n")
+
+# NMF topic modeling
+nmf_model = NMF(n_components=5, random_state=1)
+nmf_topics = nmf_model.fit_transform(tfidf_matrix)
+
+def display_topics(model, feature_names, no_top_words):
+    for topic_idx, topic in enumerate(model.components_):
+        print(f"Topic {topic_idx}:")
+        print(" ".join([feature_names[i] for i in topic.argsort()[:-no_top_words - 1:-1]]))
+
+no_top_words = 10
+tfidf_feature_names = tfidf_vectorizer.get_feature_names_out()
+display_topics(nmf_model, tfidf_feature_names, no_top_words)
+
+# Example search and evaluation
+search_results = search("scheduled follow up")
+print(search_results)
+
+evaluate_search_engine()
