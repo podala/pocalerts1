@@ -1,0 +1,16 @@
+SELECT 
+    p.mbr_pgm_id,
+    p.indv_key_val,
+    p.mbr_pgm_sts_ref_id AS Current_Status,
+    '70104' AS Recommended_Status,
+    COUNT(a.care_mgt_asgn_id) AS Active_Task_Count
+FROM 
+    mbr_pgm p
+LEFT JOIN 
+    care_mgt_asgn a ON p.mbr_pgm_id = a.mbr_pgm_id AND a.asgn_sts_ref_id NOT IN (74113) -- Assuming 74113 is the status code for cancelled tasks
+WHERE 
+    p.mbr_pgm_sts_ref_id != 70104 -- Programs not already marked as disenrolled
+GROUP BY 
+    p.mbr_pgm_id, p.indv_key_val, p.mbr_pgm_sts_ref_id
+HAVING 
+    COUNT(a.care_mgt_asgn_id) = 0; -- No active tasks found
