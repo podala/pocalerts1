@@ -1,0 +1,96 @@
+import spacy
+from spacy.training import Example
+import random
+import matplotlib.pyplot as plt
+import json
+import pandas as pd
+from sklearn.model_selection import train_test_split
+
+def generate_data(n):
+    actions = ["add", "remove"]
+    names = ["smohit", "spodala", "alice_w", "john_doe"]
+    ids = ["99999999", "6678796", "54678909"]
+    teams = ["teamAlpha", "teamBeta", "teamGamma"]
+    structures = [
+        "{action} users {user_text} to {team}",
+        "{user_text} {action} to {team}",
+        "Let's {action} {user_text} to {team}",
+        "{team} should have {user_text} {action}"
+    ]
+    data = []
+    for _ in range(n):
+        action = random.choice(actions)
+        team = random.choice(teams)
+        user_type = random.choice([names, ids])
+        num_users = random.randint(1, 3)
+        user_list = random.sample(user_type, k=num_users)
+        user_text = ", ".join(user_list)
+        
+        sentence_structure = random.choice(structures)
+        sentence = sentence_structure.format(action=action, user_text=user_text, team=team)
+
+        entities = []
+        try:
+            action_idx = sentence.index(action)
+            entities.append((action_idx, action_idx + len(action), "ACTION"))
+            team_idx = sentence.index(team)
+            entities.append((team_idx, team_idx + len(team), "TEAM"))
+            start_idx = sentence.index(user_text)
+            for user in user_list:
+                user_start = sentence.index(user, start_idx)
+                user_end = user_start + len(user)
+                entities.append((user_start, user_end, "USER"))
+                start_idx = user_end + 2
+        except ValueError:
+            continue
+
+        data.append((sentence, {"entities": entities}))
+    return data
+
+# Initialize and set up the model
+nlp = spacy.blank("en")
+ner = nlp.add_pipe('ner')
+for label in ["ACTION", "USER", "TEAM"]:
+    ner.add_label(label)
+
+data = generate_data(100)
+train_data, test_data = train_test_split(data, test_size=0.2)
+train_examples = [Example.from_dict(nlp.make_doc(text), annotations) for text, annotations in train_data]
+nlp.initialize(lambda: train_examples)
+
+# Training the model
+train_losses = []
+for i in range(10):
+    random.shuffle(train_examples)
+    losses = {}
+    nlp.update(train_examples, drop=0.5, losses=losses)
+    train_losses.append(losses['ner'])
+
+plt.figure(figsize=(10, 5))
+plt.plot(train_losses, label='Training Loss')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.title('Training Loss Over Epochs')
+plt.legend()
+plt.show()
+
+# Saving the generated data to a CSV file
+df = pd.DataFrame(data, columns=['Sentence', 'Entities'])
+df.to_csv('training_data.csv', index=False)
+
+# Prediction function
+def predict_entities(text):
+    doc = nlp(text)
+    result = {'operation': None, 'users': [], 'team': None}
+    for ent in doc.ents:
+        if ent.label_ == 'USER':
+            result['users'].append(ent.text)
+        elif ent.label_ == 'TEAM':
+            result['team'] = ent.text
+        elif ent.label_ == 'ACTION':
+            result['operation'] = ent.text
+    return json.dumps(result, indent=4)
+
+# Example usage
+example_text = "Let's add smohit, spodala to teamAlpha"
+print(predict_entities(example_text))
