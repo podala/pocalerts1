@@ -1,0 +1,59 @@
+-- Find the most recent user assignment per member
+WITH RecentUserAssignments AS (
+    SELECT
+        c.indv_key_val,
+        c.user_id,
+        ROW_NUMBER() OVER (PARTITION BY c.indv_key_val ORDER BY c.end_date DESC) AS rn
+    FROM
+        care_team_prtcp c
+    WHERE
+        c.end_date IS NULL OR c.end_date > CURRENT_DATE -- considering active assignments
+)
+
+SELECT
+    indv_key_val,
+    user_id
+FROM
+    RecentUserAssignments
+WHERE
+    rn = 1;
+
+
+-- Validation query to ensure the same user is reassigned for new tasks
+WITH RecentUserAssignments AS (
+    SELECT
+        c.indv_key_val,
+        c.user_id,
+        ROW_NUMBER() OVER (PARTITION BY c.indv_key_val ORDER BY c.end_date DESC) AS rn
+    FROM
+        care_team_prtcp c
+    WHERE
+        c.end_date IS NULL OR c.end_date > CURRENT_DATE
+),
+NewTasks AS (
+    SELECT
+        a.indv_key_val,
+        a.assigned_user_id,
+        a.task_id
+    FROM
+        care_mgt_asgn a
+    JOIN
+        mbr_pgm p ON a.mbr_pgm_id = p.mbr_pgm_id
+    WHERE
+        a.created_date > [Last_Check_Date] -- Assuming there is a date to filter new tasks
+)
+SELECT
+    n.task_id,
+    n.indv_key_val,
+    r.user_id AS previous_user_id,
+    n.assigned_user_id,
+    CASE
+        WHEN r.user_id = n.assigned_user_id THEN 'Correct Reassignment'
+        ELSE 'Mismatch Reassignment'
+    END AS validation_status
+FROM
+    NewTasks n
+JOIN
+    RecentUserAssignments r ON n.indv_key_val = r.indv_key_val
+WHERE
+    r.rn = 1;
