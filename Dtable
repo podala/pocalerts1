@@ -1,0 +1,108 @@
+import pandas as pd
+import re
+from dateutil.parser import parse
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.cluster import KMeans
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report
+import json
+
+# Load the CSV file
+df = pd.read_csv('/mnt/data/messages.csv')
+
+# Filter messages that contain "eligibility", "elig", or "eligible"
+df = df[df['notes'].str.contains('eligibility|elig|eligible', case=False, na=False)]
+
+# Preprocessing function
+def preprocess_text(text):
+    text = text.lower()
+    text = re.sub(r'\d+', '', text)  # Remove numbers
+    text = re.sub(r'\s+', ' ', text).strip()  # Remove extra spaces
+    return text
+
+# Preprocess all messages
+df['cleaned_notes'] = df['notes'].apply(preprocess_text)
+
+# Vectorize using TF-IDF
+vectorizer = TfidfVectorizer()
+X = vectorizer.fit_transform(df['cleaned_notes'])
+
+# Apply K-means clustering
+num_clusters = 3
+kmeans = KMeans(n_clusters=num_clusters, random_state=0)
+kmeans.fit(X)
+df['cluster'] = kmeans.labels_
+
+# Encode labels (assuming 'intent' column contains the actual labels for training)
+label_encoder = LabelEncoder()
+df['intent_encoded'] = label_encoder.fit_transform(df['intent'])
+
+# Train-test split
+X_train, X_test, y_train, y_test = train_test_split(X, df['intent_encoded'], test_size=0.2, random_state=0)
+
+# Train a RandomForest classification model
+classifier = RandomForestClassifier(random_state=0)
+classifier.fit(X_train, y_train)
+
+# Predict intents for the test set
+y_pred = classifier.predict(X_test)
+
+# Evaluate the model
+classification_report_str = classification_report(y_test, y_pred, target_names=label_encoder.classes_, zero_division=1)
+print(classification_report_str)
+
+# Predict intents for all messages
+df['predicted_intent_encoded'] = classifier.predict(X)
+df['predicted_int'] = label_encoder.inverse_transform(df['predicted_intent_encoded'])
+
+# Function to extract dates
+def extract_dates(message):
+    date_patterns = [
+        r'\b\d{1,2}/\d{1,2}/\d{2,4}\b',  # Matches formats like 8/31/23, 02/29/24
+        r'\b\d{1,2}-\d{1,2}-\d{2,4}\b',  # Matches formats like 8-31-23, 02-29-24
+        r'\b\d{1,2}\\\d{1,2}\\\d{2,4}\b',  # Matches formats like 8\31\23, 02\29\24
+        r'\b\d{1,2}\s\w+\s\d{2,4}\b'  # Matches formats like 31 August 2023
+    ]
+    dates = []
+    for pattern in date_patterns:
+        found_dates = re.findall(pattern, message)
+        for date_str in found_dates:
+            try:
+                dates.append(parse(date_str).date())
+            except ValueError:
+                continue
+    return dates
+
+# Add a new column for extracted dates
+df['extracted_dates'] = df['notes'].apply(extract_dates)
+
+# Function to categorize actions
+def categorize_action(row):
+    if row['predicted_intent'] == 'check':
+        return 'Check eligibility'
+    elif row['predicted_int'] == 'close':
+        return f"Close case on {row['extracted_dates'][0]}" if row['extracted_dates'] else "Close case"
+    elif row['predicted_int'] == 'monitor':
+        return f"Monitor until {row['extracted_dates'][0] + pd.DateOffset(days=30)}" if row['extracted_dates'] else "Monitor"
+    else:
+        return "Inform"
+
+# Add a new column for categorized actions
+df['action'] = df.apply(categorize_action, axis=1)
+
+# Convert the final output to JSON format
+output_json = df[['notes', 'cluster', 'predicted_intent', 'extracted_dates', 'action']].to_json(orient='records')
+
+# Print the classification report and JSON output
+print(classification_report_str)
+print(output_json)
+
+# Save the JSON output to a file
+with open('/mnt/data/output.json', 'w') as json_file, open('/mnt/data/output_table.txt', 'w') as table_file:
+    json.dump(output_json, json_file)
+    table_file.write(df[['notes', 'cluster', 'predicted_intent', 'extracted_dates', 'action']].to_string(index=False))
+
+# Display the output in a tabular format
+print(df[['notes', 'cluster', 'predicted_intent', 'extracted_dates', 'action']])
