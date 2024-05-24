@@ -1,0 +1,171 @@
+import pandas as pd
+import re
+from dateutil.parser import parse
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.cluster import KMeans
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report
+import joblib
+import json
+
+# Load the CSV file
+df = pd.read_csv('messages.csv')
+
+# Filter messages that contain "eligibility", "elig", or "eligible"
+df = df[df['notes'].str.contains('eligibility|elig|eligible', case=False, na=False)]
+
+# Ensure all values in 'notes' are strings and handle missing values
+df['notes'] = df['notes'].astype(str).fillna('')
+
+# Function to label intents based on patterns
+def label_intent(note):
+    note = note.lower()
+    if re.search(r'\bcheck\b|\bchk\b|\bfu\b', note):
+        return 'check'
+    elif re.search(r'\bclose\b|\bclse\b|will close|will be ended', note):
+        return 'close'
+    elif re.search(r'\bmonitor\b|\bwatch\b|\bwait\b', note):
+        return 'monitor'
+    elif re.search(r'\binform\b|\btell\b', note) or re.search(r'eligibility', note) and re.search(r'good|ends on|lost|termed|terminated', note):
+        return 'inform'
+    else:
+        return 'unknown'
+
+# Label intents based on the function
+df['intent'] = df['notes'].apply(label_intent)
+
+# Preprocessing function
+def preprocess_text(text):
+    text = text.lower()
+    text = re.sub(r'\d+', '', text)  # Remove numbers
+    text = re.sub(r'\s+', ' ', text).strip()  # Remove extra spaces
+    return text
+
+# Preprocess all messages
+df['cleaned_notes'] = df['notes'].apply(preprocess_text)
+
+# Vectorize using TF-IDF
+vectorizer = TfidfVectorizer()
+X = vectorizer.fit_transform(df['cleaned_notes'])
+
+# Apply K-means clustering
+num_clusters = 3
+kmeans = KMeans(n_clusters=num_clusters, random_state=0)
+kmeans.fit(X)
+df['cluster'] = kmeans.labels_
+
+# Encode labels
+label_encoder = LabelEncoder()
+df['intent_encoded'] = label_encoder.fit_transform(df['intent'])
+
+# Train-test split
+X_train, X_test, y_train, y_test = train_test_split(X, df['intent_encoded'], test_size=0.2, random_state=0)
+
+# Train a RandomForest classification model
+classifier = RandomForestClassifier(random_state=0)
+classifier.fit(X_train, y_train)
+
+# Predict intents for the test set
+y_pred = classifier.predict(X_test)
+
+# Evaluate the model
+classification_report_str = classification_report(y_test, y_pred, target_names=label_encoder.classes_, zero_division=1)
+print("Classification Report:\n", classification_report_str)
+
+# Predict intents for all messages
+predicted_int_encoded = classifier.predict(X)
+df['predicted_int'] = label_encoder.inverse_transform(predicted_int_encoded)
+
+# Function to extract dates
+def extract_dates(message):
+    date_patterns = [
+        r'\b\d{1,2}/\d{1,2}/\d{2,4}\b',  # Matches formats like 8/31/23, 02/29/24
+        r'\b\d{1,2}-\d{1,2}-\d{2,4}\b',  # Matches formats like 8-31-23, 02-29-24
+        r'\b\d{1,2}\\\d{1,2}\\\d{2,4}\b',  # Matches formats like 8\31\23, 02\29\24
+        r'\b\d{1,2}\s\w+\s\d{2,4}\b'  # Matches formats like 31 August 2023
+    ]
+    dates = []
+    for pattern in date_patterns:
+        found_dates = re.findall(pattern, message)
+        for date_str in found_dates:
+            try:
+                date = parse(date_str).date()
+                dates.append(date.isoformat())  # Convert to ISO 8601 format
+            except ValueError:
+                continue
+    return dates
+
+# Add a new column for extracted dates
+df['extracted_dates'] = df['notes'].apply(extract_dates)
+
+# Function to categorize actions
+def categorize_action(row):
+    if row['predicted_int'] == 'check':
+        return 'Check eligibility'
+    elif row['predicted_int'] == 'close':
+        return f"Close case on {row['extracted_dates'][0]}" if row['extracted_dates'] else "Close case"
+    elif row['predicted_int'] == 'monitor':
+        return f"Monitor until {row['extracted_dates'][0]} + 30 days" if row['extracted_dates'] else "Monitor"
+    else:
+        return "Inform"
+
+# Add a new column for categorized actions
+df['action'] = df.apply(categorize_action, axis=1)
+
+# Save the model components for later use
+joblib.dump(vectorizer, 'vectorizer.pkl')
+joblib.dump(classifier, 'classifier.pkl')
+joblib.dump(label_encoder, 'label_encoder.pkl')
+joblib.dump(kmeans, 'kmeans.pkl')
+
+# Function to predict new notes and output in JSON and tabular format
+def predict_new_notes(notes):
+    # Load the model components
+    vectorizer = joblib.load('vectorizer.pkl')
+    classifier = joblib.load('classifier.pkl')
+    label_encoder = joblib.load('label_encoder.pkl')
+    kmeans = joblib.load('kmeans.pkl')
+    
+    # Preprocess the new notes
+    new_df = pd.DataFrame({'notes': notes})
+    new_df['cleaned_notes'] = new_df['notes'].apply(preprocess_text)
+    
+    # Vectorize the new notes
+    X_new = vectorizer.transform(new_df['cleaned_notes'])
+    
+    # Predict clusters and intents
+    new_df['cluster'] = kmeans.predict(X_new)
+    new_df['predicted_int_encoded'] = classifier.predict(X_new)
+    new_df['predicted_int'] = label_encoder.inverse_transform(new_df['predicted_int_encoded'])
+    
+    # Extract dates
+    new_df['extracted_dates'] = new_df['notes'].apply(extract_dates)
+    
+    # Categorize actions
+    new_df['action'] = new_df.apply(categorize_action, axis=1)
+    
+    # Convert to JSON
+    output_json = new_df[['notes', 'cluster', 'predicted_int', 'extracted_dates', 'action']].to_json(orient='records')
+    
+    # Print tabular format
+    print(new_df[['notes', 'cluster', 'predicted_int', 'extracted_dates', 'action']])
+    
+    return output_json
+
+# Example usage
+new_notes = [
+    "Check eligibility before calling member",
+    "Eligibility ends on 12/31/2024",
+    "Eligibility will close on 02/29/24, close on 03/29/24"
+]
+
+# Predict and get the output
+output_json = predict_new_notes(new_notes)
+print("Output JSON:\n", output_json)
+
+# Save the output JSON to a file
+output_json_path = 'predicted_output.json'
+with open(output_json_path, 'w') as json_file:
+    json.dump(json.loads(output_json), json_file, indent=4)
