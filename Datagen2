@@ -1,0 +1,98 @@
+import pandas as pd
+import numpy as np
+from datetime import datetime, timedelta
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Function to generate random data
+def generate_random_data(num_records):
+    np.random.seed(42)
+    member_ids = [f'MID{str(i).zfill(4)}' for i in range(num_records)]
+    discharge_events = np.random.choice(['IP', 'OBS', 'ER'], num_records, p=[0.5, 0.3, 0.2])
+    sla_dates = [datetime.now() + timedelta(days=np.random.randint(0, 60)) for _ in range(num_records)]
+    
+    # Generate multiple appointments for the same day
+    appointment_dates = []
+    for _ in range(num_records):
+        base_date = datetime.now() + timedelta(days=np.random.randint(0, 60))
+        num_appointments = np.random.randint(1, 5)  # Each member can have 1 to 5 appointments on the same day
+        for i in range(num_appointments):
+            appointment_time = base_date + timedelta(minutes=np.random.randint(0, 1440))
+            appointment_dates.append(appointment_time)
+    
+    # Create a DataFrame
+    data = {
+        'Member ID': np.repeat(member_ids, np.random.randint(1, 5)),
+        'Discharge Event': np.repeat(discharge_events, np.random.randint(1, 5)),
+        'SLA Date': np.repeat(sla_dates, np.random.randint(1, 5)),
+        'Appointment Date': appointment_dates
+    }
+    return pd.DataFrame(data)
+
+# Business condition to ensure appointment dates are less than or equal to SLA dates
+def filter_appointment_dates(df):
+    return df[df['Appointment Date'] <= df['SLA Date']]
+
+# Business condition to prioritize records with appointments within the next 30 minutes
+def prioritize_appointments_within_30_mins(df):
+    next_30_mins = datetime.now() + timedelta(minutes=30)
+    df_30mins = df[df['Appointment Date'] <= next_30_mins]
+    result_df = pd.concat([df_30mins, df[~df.index.isin(df_30mins.index)]])
+    return result_df
+
+# Function to rank appointments
+def rank_appointments(df):
+    df['Rank'] = df.groupby(['Member ID', 'SLA Date'])['Appointment Date'].rank(method='first')
+    return df
+
+# Function to generate the final data
+def generate_member_data(num_records=100):
+    df = generate_random_data(num_records)
+    
+    # Add Discharge Priority for sorting
+    df['Discharge Priority'] = df['Discharge Event'].map({'IP': 1, 'OBS': 2, 'ER': 3})
+    df.sort_values(by=['Discharge Priority', 'SLA Date'], inplace=True)
+    
+    # Apply business conditions
+    df = filter_appointment_dates(df)
+    df = prioritize_appointments_within_30_mins(df)
+    
+    # Rank appointments
+    df = rank_appointments(df)
+    
+    # Drop the temporary priority column
+    df.drop(columns=['Discharge Priority'], inplace=True)
+    
+    return df
+
+# Generate the data
+result_df = generate_member_data()
+
+# Visualize the data
+plt.figure(figsize=(14, 8))
+
+# Plotting the count of discharge events
+plt.subplot(3, 1, 1)
+sns.countplot(data=result_df, x='Discharge Event', order=['IP', 'OBS', 'ER'])
+plt.title('Count of Discharge Events')
+plt.xlabel('Discharge Event')
+plt.ylabel('Count')
+
+# Plotting the distribution of SLA Dates
+plt.subplot(3, 1, 2)
+result_df['SLA Date'].hist(bins=30, edgecolor='black')
+plt.title('Distribution of SLA Dates')
+plt.xlabel('SLA Date')
+plt.ylabel('Frequency')
+
+# Plotting the appointment dates vs due dates
+plt.subplot(3, 1, 3)
+sns.scatterplot(data=result_df, x='SLA Date', y='Appointment Date', hue='Discharge Event', palette='deep')
+plt.title('Appointment Dates vs SLA Dates')
+plt.xlabel('SLA Date')
+plt.ylabel('Appointment Date')
+
+plt.tight_layout()
+plt.show()
+
+import ace_tools as tools; tools.display_dataframe_to_user(name="Member Data with Appointment Ranks", dataframe=result_df)
