@@ -1,0 +1,89 @@
+import pandas as pd
+import numpy as np
+from datetime import datetime, timedelta
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Function to generate random data
+def generate_random_data(num_records):
+    np.random.seed(42)
+    member_ids = [f'MID{str(i).zfill(4)}' for i in range(num_records)]
+    discharge_events = np.random.choice(['IP', 'OBS', 'ER'], num_records, p=[0.5, 0.3, 0.2])
+    sla_dates = [datetime.now() + timedelta(days=np.random.randint(0, 60)) for _ in range(num_records)]
+    appointment_dates = [datetime.now() + timedelta(minutes=np.random.randint(0, 1440)) for _ in range(num_records)]
+    
+    data = {
+        'Member ID': member_ids,
+        'Discharge Event': discharge_events,
+        'SLA Date': sla_dates,
+        'Appointment Date': appointment_dates
+    }
+    return pd.DataFrame(data)
+
+# Function to rank appointments based on business rules
+def rank_appointments(df):
+    # Add Discharge Priority for sorting
+    df['Discharge Priority'] = df['Discharge Event'].map({'IP': 1, 'OBS': 2, 'ER': 3})
+    
+    # Sort by discharge priority, SLA date, and appointment date
+    df.sort_values(by=['Discharge Priority', 'SLA Date', 'Appointment Date'], inplace=True)
+    
+    # Rank appointments
+    df['Rank'] = df.groupby(['SLA Date', 'Discharge Priority'])['Appointment Date'].rank(method='first')
+    
+    # Sort by final rank
+    df.sort_values(by=['Rank'], inplace=True)
+    
+    return df
+
+# Function to generate the final data
+def generate_member_data(num_records=100):
+    df = generate_random_data(num_records)
+    
+    # Rank appointments
+    df = rank_appointments(df)
+    
+    # Drop the temporary priority column
+    df.drop(columns=['Discharge Priority'], inplace=True)
+    
+    return df
+
+# Generate the data
+result_df = generate_member_data()
+
+# Check if the DataFrame is empty
+if result_df.empty:
+    print("The DataFrame is empty after applying filters.")
+else:
+    print("Final Data:")
+    print(result_df.head())
+
+    # Save the DataFrame to a CSV file
+    result_df.to_csv("member_data_with_appointment_ranks.csv", index=False)
+
+    # Visualize the data
+    plt.figure(figsize=(14, 8))
+
+    # Plotting the count of discharge events
+    plt.subplot(3, 1, 1)
+    sns.countplot(data=result_df, x='Discharge Event', order=['IP', 'OBS', 'ER'])
+    plt.title('Count of Discharge Events')
+    plt.xlabel('Discharge Event')
+    plt.ylabel('Count')
+
+    # Plotting the distribution of SLA Dates
+    plt.subplot(3, 1, 2)
+    result_df['SLA Date'].hist(bins=30, edgecolor='black')
+    plt.title('Distribution of SLA Dates')
+    plt.xlabel('SLA Date')
+    plt.ylabel('Frequency')
+
+    # Plotting the appointment dates vs due dates
+    plt.subplot(3, 1, 3)
+    sns.scatterplot(data=result_df, x='SLA Date', y='Appointment Date', hue='Discharge Event', palette='deep')
+    plt.title('Appointment Dates vs SLA Dates')
+    plt.xlabel('SLA Date')
+    plt.ylabel('Appointment Date')
+
+    plt.tight_layout()
+    plt.show()
