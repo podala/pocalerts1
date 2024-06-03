@@ -1,0 +1,72 @@
+import pandas as pd
+import numpy as np
+from datetime import datetime, timedelta
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Function to generate random data
+def generate_random_data(num_records):
+    np.random.seed(42)
+    member_ids = [f'MID{str(i).zfill(4)}' for i in range(num_records)]
+    discharge_events = np.random.choice(['IP', 'OBS', 'ER'], num_records, p=[0.5, 0.3, 0.2])
+    sla_dates = [datetime.now() + timedelta(days=np.random.randint(0, 60)) for _ in range(num_records)]
+    appointment_dates = [datetime.now() + timedelta(minutes=np.random.randint(0, 43200)) for _ in range(num_records)]
+    
+    data = {
+        'Member ID': member_ids,
+        'Discharge Event': discharge_events,
+        'SLA Date': sla_dates,
+        'Appointment Date': appointment_dates
+    }
+    return pd.DataFrame(data)
+
+# Business condition to ensure appointment dates are less than or equal to SLA dates
+def filter_appointment_dates(df):
+    return df[df['Appointment Date'] <= df['SLA Date']]
+
+# Business condition to prioritize records with appointments within the next 30 minutes
+def prioritize_appointments_within_30_mins(df):
+    next_30_mins = datetime.now() + timedelta(minutes=30)
+    df_30mins = df[df['Appointment Date'] <= next_30_mins]
+    result_df = pd.concat([df_30mins, df[~df.index.isin(df_30mins.index)]])
+    return result_df
+
+# Function to generate the final data
+def generate_member_data(num_records=100):
+    df = generate_random_data(num_records)
+    
+    # Add Discharge Priority for sorting
+    df['Discharge Priority'] = df['Discharge Event'].map({'IP': 1, 'OBS': 2, 'ER': 3})
+    df.sort_values(by=['Discharge Priority', 'SLA Date'], inplace=True)
+    
+    # Apply business conditions
+    df = filter_appointment_dates(df)
+    df = prioritize_appointments_within_30_mins(df)
+    
+    # Drop the temporary priority column
+    df.drop(columns=['Discharge Priority'], inplace=True)
+    
+    return df
+
+# Generate the data
+result_df = generate_member_data()
+
+# Visualize the data
+plt.figure(figsize=(14, 8))
+
+# Plotting the count of discharge events
+plt.subplot(2, 1, 1)
+sns.countplot(data=result_df, x='Discharge Event', order=['IP', 'OBS', 'ER'])
+plt.title('Count of Discharge Events')
+plt.xlabel('Discharge Event')
+plt.ylabel('Count')
+
+# Plotting the distribution of SLA Dates
+plt.subplot(2, 1, 2)
+result_df['SLA Date'].hist(bins=30, edgecolor='black')
+plt.title('Distribution of SLA Dates')
+plt.xlabel('SLA Date')
+plt.ylabel('Frequency')
+
+plt.tight_layout()
+plt.show()
