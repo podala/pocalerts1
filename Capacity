@@ -1,0 +1,81 @@
+Example Scenario: Healthcare Task Management System
+Context:
+Let's consider a healthcare task management system that handles various tasks such as referral handling, member follow-ups, and program management. We will calculate the database capacity and the number of requests per second (RPS) that the system can handle.
+
+Step 1: Understanding the Requirements
+Types of Data:
+
+Member data
+Task data
+Program data
+User data
+Average Sizes:
+
+Member record: 1 KB
+Task record: 2 KB
+Program record: 1.5 KB
+User record: 0.5 KB
+System Operations:
+
+Create, read, update, delete (CRUD) operations for each type of data.
+Expected Load:
+
+Average number of members: 100,000
+Average number of tasks per day: 50,000
+Average number of programs per day: 10,000
+Average number of users: 1,000
+Step 2: Estimating Data Size
+Daily Data Growth:
+
+Member data: 100,000 members * 1 KB = 100,000 KB (100 MB)
+Task data: 50,000 tasks * 2 KB = 100,000 KB (100 MB)
+Program data: 10,000 programs * 1.5 KB = 15,000 KB (15 MB)
+User data: 1,000 users * 0.5 KB = 500 KB (0.5 MB)
+Total Daily Data Growth:
+
+Total daily data: 100 MB + 100 MB + 15 MB + 0.5 MB = 215.5 MB
+Monthly Data Growth:
+
+Total monthly data: 215.5 MB/day * 30 days = 6,465 MB (approximately 6.5 GB)
+Annual Data Growth:
+
+Total annual data: 6.5 GB/month * 12 months = 78 GB
+Step 3: Database Capacity Planning
+Data Retention Policy:
+
+Let's assume we need to retain data for 5 years.
+Total data for 5 years: 78 GB/year * 5 years = 390 GB
+Additional Storage for Indexes and Overhead:
+
+Typically, add 20-30% overhead.
+Storage requirement with overhead: 390 GB * 1.3 = 507 GB
+Choosing Database Storage:
+
+Based on the calculated requirement, we need at least 507 GB of storage for our database.
+Step 4: Calculating Requests per Second (RPS)
+Peak Load Estimation:
+
+Assume the system operates 16 hours a day.
+Tasks handled per second: 50,000 tasks / (16 hours * 3600 seconds) ≈ 0.87 tasks/sec
+Programs handled per second: 10,000 programs / (16 hours * 3600 seconds) ≈ 0.17 programs/sec
+Total peak RPS (tasks + programs): 0.87 + 0.17 ≈ 1.04 RPS
+Including Member and User Operations:
+
+Let's assume members and users have an equal number of CRUD operations as tasks.
+Total peak RPS including members and users: 1.04 (tasks + programs) + 0.87 (members) + 0.17 (users) ≈ 2.08 RPS
+Step 5: Performance Tuning and Scalability
+Database Tuning:
+
+Indexing frequently accessed columns.
+Using partitioning for large tables.
+Optimizing query performance.
+Scalability:
+
+Vertical scaling: Increasing hardware resources (CPU, RAM).
+Horizontal scaling: Distributing load across multiple database instances using sharding or replication.
+Load Balancing:
+
+Implementing load balancers to distribute requests evenly across database servers.
+Caching:
+
+Utilizing caching mechanisms (e.g., Redis, Memcached) to reduce database load for frequently accessed data.
