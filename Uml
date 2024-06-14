@@ -1,0 +1,50 @@
+                +------------------+
+                |   Care Agent     |
+                +---------+--------+
+                          |
+                          |
+                          v
+         +----------------------------------+
+         |  Task Management System          |
+         +----------------------------------+
+         | + Create Task                    |
+         | + Check Eligibility              |
+         | + Update Status                  |
+         | + Assign Task                    |
+         +----------------------------------+
+                          ^
+                          |
+                          |
+                +---------+--------+
+                |   System Admin   |
+                +------------------+
+    +---------------------+          +---------------------+
+    |       Task          |          |      Program        |
+    +---------------------+          +---------------------+
+    | - taskId: int       |<>--------| - programId: int    |
+    | - taskName: String  |          | - programName: String|
+    | - dueDate: Date     |          | - status: String    |
+    +---------------------+          +---------------------+
+    | + createTask()      |          | + updateStatus()    |
+    | + assignTask()      |          |                     |
+    +---------------------+          +---------------------+
+
+    +---------------------+
+    |      Member         |
+    +---------------------+
+    | - memberId: int     |
+    | - memberName: String|
+    | - eligibility: Date |
+    +---------------------+
+    | + checkEligibility()|
+    +---------------------+
+
+    +---------------------+
+    |     CareAgent       |
+    +---------------------+
+    | - agentId: int      |
+    | - agentName: String |
+    +---------------------+
+    | + createTask()      |
+    | + assignTask()      |
+    +---------------------+
