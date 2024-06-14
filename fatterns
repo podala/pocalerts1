@@ -1,0 +1,115 @@
+class SingletonMeta(type):
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            instance = super().__call__(*args, **kwargs)
+            cls._instances[cls] = instance
+        return cls._instances[cls]
+
+class DatabaseConnection(metaclass=SingletonMeta):
+    def __init__(self, connection_string):
+        self.connection_string = connection_string
+        self.connection = self.connect_to_db()
+
+    def connect_to_db(self):
+        # Simulated database connection
+        return f"Connected to {self.connection_string}"
+
+# Usage
+db1 = DatabaseConnection("DB_URI")
+db2 = DatabaseConnection("DB_URI")
+print(db1 is db2)  # True
+===============================================
+
+class DataParserFactory:
+    def get_parser(self, file_type):
+        if file_type == 'json':
+            return JSONParser()
+        elif file_type == 'csv':
+            return CSVParser()
+        elif file_type == 'xml':
+            return XMLParser()
+        else:
+            raise ValueError("Unknown file type")
+
+class JSONParser:
+    def parse(self, data):
+        # Implement JSON parsing logic
+        pass
+
+class CSVParser:
+    def parse(self, data):
+        # Implement CSV parsing logic
+        pass
+
+class XMLParser:
+    def parse(self, data):
+        # Implement XML parsing logic
+        pass
+
+# Usage
+factory = DataParserFactory()
+parser = factory.get_parser('json')
+parser.parse(data)
+===============================
+class Subject:
+    def __init__(self):
+        self._observers = []
+
+    def attach(self, observer):
+        self._observers.append(observer)
+
+    def detach(self, observer):
+        self._observers.remove(observer)
+
+    def notify(self, data):
+        for observer in self._observers:
+            observer.update(data)
+
+class Observer:
+    def update(self, data):
+        raise NotImplementedError("Subclass must implement abstract method")
+
+class DataWarehouse(Observer):
+    def update(self, data):
+        print("DataWarehouse received data:", data)
+
+class DataLake(Observer):
+    def update(self, data):
+        print("DataLake received data:", data)
+
+# Usage
+subject = Subject()
+dw = DataWarehouse()
+dl = DataLake()
+
+subject.attach(dw)
+subject.attach(dl)
+
+subject.notify("New data ingested")
+===================================
+
+def cache_decorator(func):
+    cache = {}
+
+    def wrapper(*args, **kwargs):
+        if args in cache:
+            return cache[args]
+        result = func(*args, **kwargs)
+        cache[args] = result
+        return result
+
+    return wrapper
+
+@cache_decorator
+def fetch_data(query):
+    # Simulate data fetching
+    return f"Data for {query}"
+
+# Usage
+print(fetch_data("SELECT * FROM table"))
+print(fetch_data("SELECT * FROM table"))  # Cached result
+=============================
+
+
