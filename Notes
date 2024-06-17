@@ -1,0 +1,158 @@
+import pandas as pd
+from transformers import GPT2Tokenizer
+
+# Load data
+data = pd.read_csv('notes.csv')
+
+# Save notes to a text file
+with open('notes.txt', 'w') as f:
+    for note in data['notes']:
+        f.write(note + '\n')
+from transformers import GPT2LMHeadModel, GPT2Tokenizer, TextDataset, DataCollatorForLanguageModeling, Trainer, TrainingArguments
+
+# Load the tokenizer and model
+tokenizer = GPT2Tokenizer.from_pretrained('distilgpt2')
+model = GPT2LMHeadModel.from_pretrained('distilgpt2')
+
+# Create a dataset from the notes text file
+def load_dataset(file_path, tokenizer):
+    return TextDataset(
+        tokenizer=tokenizer,
+        file_path=file_path,
+        block_size=128
+    )
+
+# Load the dataset
+dataset = load_dataset('notes.txt', tokenizer)
+
+# Create a data collator
+data_collator = DataCollatorForLanguageModeling(
+    tokenizer=tokenizer,
+    mlm=False,
+)
+
+# Set up training arguments
+training_args = TrainingArguments(
+    output_dir='./results',
+    overwrite_output_dir=True,
+    num_train_epochs=3,
+    per_device_train_batch_size=2,
+    save_steps=10_000,
+    save_total_limit=2,
+)
+
+# Initialize the Trainer
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    data_collator=data_collator,
+    train_dataset=dataset,
+)
+
+# Train the model
+trainer.train()
+
+# Save the trained model
+model.save_pretrained('./trained_model')
+tokenizer.save_pretrained('./trained_model')
+from flask import Flask, request, jsonify
+from transformers import GPT2Tokenizer, GPT2LMHeadModel
+import torch
+from torch.quantization import quantize_dynamic
+import asyncio
+from queue import Queue
+from threading import Thread
+
+# Initialize the Flask app
+app = Flask(__name__)
+
+# Load the fine-tuned model and tokenizer
+tokenizer = GPT2Tokenizer.from_pretrained('./trained_model')
+model = GPT2LMHeadModel.from_pretrained('./trained_model')
+
+# Quantize the model to int8 for faster inference
+model = quantize_dynamic(model, {torch.nn.Linear}, dtype=torch.qint8)
+model.eval()  # Set the model to evaluation mode
+
+# Queue to handle incoming requests for batching
+request_queue = Queue()
+
+# Function to process requests in batches
+def process_requests():
+    while True:
+        batch = []
+        while not request_queue.empty():
+            batch.append(request_queue.get())
+        if batch:
+            texts = [item[1] for item in batch]
+            inputs = tokenizer(texts, return_tensors='pt', padding=True, truncation=True)
+            outputs = model.generate(inputs['input_ids'], max_length=inputs['input_ids'].shape[1] + 5, num_return_sequences=1, no_repeat_ngram_size=2)
+            generated_texts = [tokenizer.decode(output, skip_special_tokens=True) for output in outputs]
+            for i, (queue_item, text) in enumerate(zip(batch, generated_texts)):
+                queue_item[0].set_result(text)
+
+# Start a separate thread to process the request queue
+Thread(target=process_requests, daemon=True).start()
+
+# Endpoint to handle prediction requests
+@app.route('/predict', methods=['POST'])
+async def predict():
+    data = await request.get_json()
+    text = data['text']
+    future = asyncio.Future()
+    request_queue.put((future, text))
+    generated_text = await future
+    next_word = generated_text[len(text):].strip().split()[0]
+    return jsonify({'generated_text': next_word})
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Task Management</title>
+</head>
+<body>
+    <textarea id="notes" onkeyup="handleKeyUp(event)"></textarea>
+    <div id="suggestions"></div>
+
+    <script>
+        let typingTimer;                // Timer identifier
+        let doneTypingInterval = 500;   // Time in ms (500ms after user stops typing)
+        let minCharLength = 3;          // Minimum character length to trigger suggestion
+
+        // Function to handle keyup events
+        function handleKeyUp(event) {
+            clearTimeout(typingTimer);  // Clear the previous timer
+            let text = document.getElementById('notes').value;
+
+            if (event.key === ' ' || text.length >= minCharLength) {
+                typingTimer = setTimeout(getSuggestions, doneTypingInterval);
+            }
+        }
+
+        // Function to fetch suggestions from the server
+        function getSuggestions() {
+            let text = document.getElementById('notes').value;
+            fetch('http://localhost:5000/predict', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ text: text }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('suggestions').innerText = data.generated_text;
+            })
+            .catch((error) => {
+                console.error('Error:', error);
+            });
+        }
+    </script>
+</body>
+</html>
+
