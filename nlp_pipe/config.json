@@ -1,0 +1,14 @@
+{
+  "csv_file_path": "notes.csv",
+  "pretrained_model": "sentence-transformers/all-MiniLM-L6-v2",
+  "synonyms": {
+    "fup": "follow up",
+    "misrouted": "misrouted",
+    "terminated": "terminated",
+    "eligibility": "eligibility"
+  },
+  "search_results_count": 5,
+  "model_save_path": "nlp_pipeline/model.faiss",
+  "batch_size": 1000,
+  "num_workers": 4
+}
