@@ -1,0 +1,10 @@
+{
+    "username": {
+        "old_username1": "new_username1",
+        "old_username2": "new_username2"
+    },
+    "contact": {
+        "old_contact1@example.com": "new_contact1@example.com",
+        "old_contact2@example.com": "new_contact2@example.com"
+    }
+}
