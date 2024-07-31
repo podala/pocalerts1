@@ -1,0 +1,41 @@
+{
+    "name": {
+        "John Doe": "Johnathan Doe"
+    },
+    "email": {
+        "johndoe@example.com": "john.doe@newdomain.com"
+    }
+}
+
+
+{
+    "columns": [
+        {"name": "id", "type": "int"},
+        {"name": "name", "type": "string"},
+        {"name": "age", "type": "int"},
+        {"name": "email", "type": "string"},
+        {"name": "custom_email", "type": "string"}
+    ],
+    "concatenations": [
+        {
+            "field": "custom_email",
+            "parts": ["literal:ocm-", "email"]
+        }
+    ]
+}
+
+
+{
+    "columns": [
+        {"name": "username", "type": "string"},
+        {"name": "contact", "type": "string"},
+        {"name": "account_status", "type": "string"},
+        {"name": "full_contact_info", "type": "string"}
+    ],
+    "concatenations": [
+        {
+            "field": "full_contact_info",
+            "parts": ["literal:Account: ", "username", "literal:, Email: ", "contact"]
+        }
+    ]
+}
