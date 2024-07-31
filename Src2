@@ -1,0 +1,130 @@
+import json
+import csv
+
+def read_schema(schema_file):
+    print(f"Reading schema from {schema_file}")
+    try:
+        with open(schema_file, 'r') as file:
+            schema = json.load(file)
+        print("Schema loaded:", schema)
+        return schema
+    except FileNotFoundError:
+        print(f"Error: The schema file {schema_file} was not found.")
+        exit(1)
+    except json.JSONDecodeError:
+        print(f"Error: The schema file {schema_file} is not a valid JSON.")
+        exit(1)
+    except Exception as e:
+        print(f"Unexpected error while reading schema: {e}")
+        exit(1)
+
+def read_data(data_file):
+    print(f"Reading data from {data_file}")
+    try:
+        with open(data_file, 'r') as file:
+            reader = csv.DictReader(file)
+            data = [row for row in reader]
+        print("Data loaded:", data)
+        return data
+    except FileNotFoundError:
+        print(f"Error: The data file {data_file} was not found.")
+        exit(1)
+    except csv.Error as e:
+        print(f"Error: The data file {data_file} could not be read as a CSV. Details: {e}")
+        exit(1)
+    except Exception as e:
+        print(f"Unexpected error while reading data: {e}")
+        exit(1)
+
+def read_replacements(replacement_file):
+    print(f"Reading replacements from {replacement_file}")
+    try:
+        with open(replacement_file, 'r') as file:
+            replacements = json.load(file)
+        print("Replacements loaded:", replacements)
+        return replacements
+    except FileNotFoundError:
+        print(f"Error: The replacement file {replacement_file} was not found.")
+        exit(1)
+    except json.JSONDecodeError:
+        print(f"Error: The replacement file {replacement_file} is not a valid JSON.")
+        exit(1)
+    except Exception as e:
+        print(f"Unexpected error while reading replacements: {e}")
+        exit(1)
+
+def replace_values(data, replacements):
+    replaced_count = 0
+    try:
+        print("Replacing values in the data")
+        for row in data:
+            for column, value in row.items():
+                if column in replacements and value in replacements[column]:
+                    print(f"Replacing {value} with {replacements[column][value]} in column {column}")
+                    row[column] = replacements[column][value]
+                    replaced_count += 1
+    except Exception as e:
+        print(f"Error during value replacement: {e}")
+    return data, replaced_count
+
+def apply_concatenations(data, schema):
+    try:
+        print("Applying concatenations as specified in the schema")
+        for row in data:
+            for concat_rule in schema.get('concatenations', []):
+                target_field = concat_rule['field']
+                parts = []
+                for part in concat_rule['parts']:
+                    if part.startswith('literal:'):
+                        parts.append(part.split('literal:')[1])
+                    else:
+                        parts.append(row.get(part, ''))
+                row[target_field] = ''.join(parts)
+                print(f"{target_field}: {row[target_field]}")
+    except Exception as e:
+        print(f"Error during concatenation: {e}")
+    return data
+
+def generate_insert_statements(table_name, schema, data):
+    columns = [col['name'] for col in schema['columns']]
+    insert_statements = []
+    try:
+        print("Generating insert statements")
+        for row in data:
+            values = []
+            for col in columns:
+                value = row.get(col, '')
+                if schema['columns'][columns.index(col)]['type'] == 'string':
+                    value = f"'{value}'"
+                values.append(value)
+                print(f"Column: {col}, Value: {value}")  # Debugging each value
+            insert_statement = f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES ({', '.join(map(str, values))});"
+            insert_statements.append(insert_statement)
+    except Exception as e:
+        print(f"Error during insert statement generation: {e}")
+    return insert_statements
+
+def main():
+    schema_file = 'schema.json'
+    data_file = 'new_data.csv'
+    replacement_file = 'new_replacements.json'
+    table_name = 'your_table_name'
+    
+    schema = read_schema(schema_file)
+    data = read_data(data_file)
+    replacements = read_replacements(replacement_file)
+    
+    updated_data, replaced_count = replace_values(data, replacements)
+    concatenated_data = apply_concatenations(updated_data, schema)
+    insert_statements = generate_insert_statements(table_name, schema, concatenated_data)
+    
+    # Displaying results
+    print(f"\nNumber of values replaced: {replaced_count}")
+    print(f"Number of insert statements created: {len(insert_statements)}")
+    
+    # Print or save insert statements
+    for statement in insert_statements:
+        print(statement)
+
+if __name__ == "__main__":
+    main()
