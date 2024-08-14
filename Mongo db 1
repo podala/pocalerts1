@@ -1,0 +1,90 @@
+When designing the other tables mentioned in the diagram for MongoDB, the decision to use individual collections, embedding, or references depends on the relationships between the data, the query patterns, and the specific use cases. Here's a breakdown of how each table can be designed:
+
+1. P&L Standard (PLStandard) Collection
+Design Choice: Individual Collection
+Reason: PLStandard represents a master data entity, which might be referenced by other collections (e.g., UNV_Map). Keeping it as a separate collection allows for easy management, updates, and potential reuse across other collections.
+Schema:
+json
+Copy code
+{
+  "_id": ObjectId("..."),
+  "Dir_ID": "...",
+  "Name": "...",
+  "CreatedBy": "...",
+  "CreationDate": ISODate("..."),
+  "LastUpdated": ISODate("..."),
+  "IsActive": true
+}
+2. Header Collection
+Design Choice: Individual Collection
+Reason: Similar to PLStandard, Header is also a master data entity that could be referenced by other collections, making it a good candidate for its own collection.
+Schema:
+json
+Copy code
+{
+  "_id": ObjectId("..."),
+  "Head_ID": "...",
+  "Name": "...",
+  "CreatedBy": "...",
+  "CreationDate": ISODate("..."),
+  "LastUpdated": ISODate("..."),
+  "IsActive": true
+}
+3. Channel Collection
+Design Choice: Individual Collection
+Reason: Channel could be referenced by multiple entities (e.g., UNV_Map), and keeping it separate allows for flexible management and updates.
+Schema:
+json
+Copy code
+{
+  "_id": ObjectId("..."),
+  "Chan_ID": "...",
+  "Name": "...",
+  "CreatedBy": "...",
+  "CreationDate": ISODate("..."),
+  "LastUpdated": ISODate("..."),
+  "IsActive": true
+}
+4. BrandName Collection
+Design Choice: Individual Collection
+Reason: Like the other master data entities, BrandName should be its own collection to facilitate easy referencing and updates.
+Schema:
+json
+Copy code
+{
+  "_id": ObjectId("..."),
+  "B_ID": "...",
+  "Name": "...",
+  "CreatedBy": "...",
+  "CreationDate": ISODate("..."),
+  "LastUpdated": ISODate("..."),
+  "IsActive": true
+}
+5. SimPOS Collection
+Design Choice: Individual Collection
+Reason: As with other master data entities, keeping SimPOS separate allows for straightforward referencing and updates.
+Schema:
+json
+Copy code
+{
+  "_id": ObjectId("..."),
+  "S_ID": "...",
+  "Name": "...",
+  "CreatedBy": "...",
+  "CreationDate": ISODate("..."),
+  "LastUpdated": ISODate("..."),
+  "IsActive": true
+}
+6. PLRun Collection
+Design Choice: Individual Collection
+Reason: PLRun represents a specific run or instance and may have many relationships with other entities. It's best to keep it as an individual collection for better management.
+Schema:
+json
+Copy code
+{
+  "_id": ObjectId("..."),
+  "PLVersion": "...",
+  "PLID": "...",
+  "PLRunDate": ISODate("..."),
+  "PLRunRepositoryLocation": "..."
+}
