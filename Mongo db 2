@@ -1,0 +1,107 @@
+OneRowPerBidData Collection
+Design Choice: Individual Collection
+Reason: This collection seems to represent transactional data. Since each record might be large or frequently updated, it should be in its own collection.
+Schema:
+json
+Copy code
+{
+  "_id": ObjectId("..."),
+  "Number": "...",
+  "PLInformation": "...",
+  "PLVersion": "...",
+  "PLID": "...",
+  "PLRunDate": ISODate("...")
+}
+8. Channel Level Data Collection
+Design Choice: Individual Collection
+Reason: Since this represents detailed data specific to channels, it should be separate to allow for flexible querying.
+Schema:
+json
+Copy code
+{
+  "_id": ObjectId("..."),
+  "PLID": "...",
+  "PLVersion": "...",
+  "ClientName": "...",
+  "OpportunityID": "...",
+  "BidRounds": "..."
+}
+9. Specialty Data Collection
+Design Choice: Individual Collection
+Reason: Like Channel Level Data, Specialty Data should be separate to maintain flexibility and enable detailed querying.
+Schema:
+json
+Copy code
+{
+  "_id": ObjectId("..."),
+  "PLID": "...",
+  "PLVersion": "...",
+  "ClientName": "...",
+  "OpportunityID": "...",
+  "BidRounds": "..."
+}
+10. UNV_Map and Related Collections
+Design Choice: Depending on the data access patterns:
+
+Embedded Design: If StandardValues, YearValues, and CounterValues are always accessed together with UNV_Map, embedding is the best approach.
+Referenced Design: If these sub-collections are large, change independently, or are accessed separately, use references.
+For example, if using references:
+
+UNV_Map Schema:
+
+json
+Copy code
+{
+  "_id": ObjectId("..."),
+  "Map_ID": "...",
+  "Dir_ID": "...",
+  "Head_ID": "...",
+  "Chan_ID": "...",
+  "PLID": "...",
+  "Cap_ID": "...",
+  "Counter_Flag": "...",
+  "Year_Flag": "...",
+  "Year_Count": "...",
+  "Telecom": "...",
+  "StandardValues": [ObjectId("..."), ObjectId("...")],
+  "YearValues": [ObjectId("..."), ObjectId("...")],
+  "CounterValues": [ObjectId("..."), ObjectId("...")]
+}
+StandardValue Schema:
+
+json
+Copy code
+{
+  "_id": ObjectId("..."),
+  "Map_ID": "...",
+  "PLID": "...",
+  "Value": "..."
+}
+YearValue Schema:
+
+json
+Copy code
+{
+  "_id": ObjectId("..."),
+  "Map_ID": "...",
+  "PLID": "...",
+  "Counter_Year": "...",
+  "Counter_Value": "..."
+}
+CounterValue Schema:
+
+json
+Copy code
+{
+  "_id": ObjectId("..."),
+  "Map_ID": "...",
+  "PLID": "...",
+  "Counter": "...",
+  "Value": "..."
+}
+Summary of Best Practices:
+Embed Data: When the related data is always accessed together, and the size of the embedded documents will not exceed MongoDB's 16MB document limit.
+Reference Data: When related data is large, changes independently, or when there is a need to query or update the related data separately.
+Use Indexes: Index fields that are commonly queried to improve performance, especially on _id, Map_ID, PLID, or other frequently searched fields.
+Sharding Considerations: If the data volume is large, consider sharding based on appropriate keys to ensure scalability and performance.
+By following these guidelines, you can design an efficient MongoDB data model that accommodates your specific requirements while leveraging MongoDB's strengths.
