@@ -1,0 +1,191 @@
+Given your use case, where you need to handle 287 headers with varying numbers of map variables (ranging from 5 to 150) and potentially large datasets, we'll design an end-to-end (E2E) implementation using the following strategies:
+
+Partition Key (Sharding): To handle scalability and large datasets.
+Hybrid Pattern: Combining the Outlier Pattern and the Attribute Pattern for optimal storage and query performance.
+Asynchronous Processing: For parallel processing of inserts.
+Index Optimization: For efficient queries.
+Step 1: Setting Up the Sharded Cluster
+Objective: Enable sharding to distribute data across multiple shards, ensuring scalability.
+
+Implementation:
+
+javascript
+Copy code
+// Enable sharding on the database
+sh.enableSharding("yourDatabase")
+
+// Shard the `pl_groups` collection using `pl_id` as the shard key
+sh.shardCollection("yourDatabase.pl_groups", { pl_id: "hashed" })
+
+// Shard the `pl_headers` collection using `_id` as the shard key
+sh.shardCollection("yourDatabase.pl_headers", { _id: "hashed" })
+Step 2: Designing the Data Model
+Main Collection: pl_groups
+Purpose: Store grouped headers along with references to large headers.
+Hybrid Pattern: Use the Outlier Pattern to reference large headers in a separate collection, and the Attribute Pattern to manage dynamic fields.
+Schema:
+
+json
+Copy code
+{
+  "_id": ObjectId,  // MongoDB generated ID
+  "pl_id": String,  // Shard key
+  "group_id": String,  // Logical group identifier (e.g., Revenue, Expenses)
+  "headers": [
+    {
+      "header_id": String,  // Unique identifier for the header
+      "name": String,  // Name of the header
+      "channel_id": String,  // Channel ID (optional)
+      "brand_generic": String,  // Brand generic (optional)
+      "spnonsp": String,  // SP/Non-SP (optional)
+      "pl_standard": String,  // PL Standard
+      "reference_id": ObjectId,  // Reference to large header in `pl_headers`
+      "attributes": {
+        "key1": "value1",
+        "key2": "value2"
+        // Dynamic attributes
+      }
+    }
+    // Additional headers...
+  ],
+  "created_at": Date,
+  "updated_at": Date
+}
+Secondary Collection: pl_headers
+Purpose: Store large headers separately to optimize document size.
+Schema:
+
+json
+Copy code
+{
+  "_id": ObjectId,  // MongoDB generated ID (reference_id in `pl_groups`)
+  "header_id": String,  // Unique identifier for the header
+  "pl_id": String,  // P&L ID
+  "name": String,  // Name of the header
+  "map_variables": [
+    {
+      "variable_id": String,  // Unique identifier for the map variable
+      "value": Mixed,  // Value of the map variable
+      "additional_info": Object  // Any additional nested information
+    }
+    // More map variables...
+  ],
+  "created_at": Date,
+  "updated_at": Date
+}
+
+Step 3: Insertion Logic with Asynchronous Processing
+Objective: Insert headers into both pl_groups and pl_headers collections efficiently, ensuring references are properly maintained.
+
+Code:
+
+javascript
+Copy code
+async function insertHeader(plData, headerData) {
+    try {
+        // Insert the large header into `pl_headers` collection
+        const headerInsert = db.pl_headers.insertOne(headerData);
+
+        // Once the large header is inserted, get the ObjectId
+        const headerResult = await headerInsert;
+
+        // Prepare the document for `pl_groups` with the correct `reference_id`
+        plData.headers.push({
+            "header_id": headerData.header_id,
+            "name": headerData.name,
+            "channel_id": headerData.channel_id,
+            "brand_generic": headerData.brand_generic,
+            "spnonsp": headerData.spnonsp,
+            "pl_standard": headerData.pl_standard,
+            "reference_id": headerResult.insertedId,  // Reference to the large header
+            "attributes": headerData.attributes || {}  // Dynamic attributes
+        });
+
+        // Insert into `pl_groups` collection
+        await db.pl_groups.insertOne(plData);
+
+        console.log("Insert operations completed successfully.");
+    } catch (error) {
+        console.error("Error during insert operations:", error);
+    }
+}
+
+// Example Data
+const plData = {
+    "pl_id": "PL12345",
+    "group_id": "RevenueGroup",
+    "headers": [],  // Will be populated during insertion
+    "created_at": ISODate("2024-08-19T00:00:00Z"),
+    "updated_at": ISODate("2024-08-19T00:00:00Z")
+};
+
+const headerData = {
+    "header_id": "H002",
+    "pl_id": "PL12345",
+    "name": "Service Revenue",
+    "map_variables": [
+        {
+            "variable_id": "V003",
+            "value": 500000,
+            "additional_info": {
+                "currency": "EUR"
+            }
+        }
+        // More map variables...
+    ],
+    "created_at": ISODate("2024-08-19T00:00:00Z"),
+    "updated_at": ISODate("2024-08-19T00:00:00Z")
+};
+
+// Execute the function
+insertHeader(plData, headerData);
+Step 4: Querying the Data
+Objective: Efficiently retrieve data using the appropriate partition key and design patterns.
+
+Example Query: Retrieve all headers for a specific pl_id and group_id.
+
+javascript
+Copy code
+const result = db.pl_groups.findOne({ "pl_id": "PL12345", "group_id": "RevenueGroup" });
+printjson(result);
+Example Query: Retrieve the large header referenced in pl_groups.
+
+javascript
+Copy code
+const largeHeader = db.pl_headers.findOne({ "_id": ObjectId("64e56c7d8e2d3c0a5f000002") });
+printjson(largeHeader);
+Step 5: Indexing for Performance
+Objective: Ensure that queries are efficient and scalable, even as the dataset grows.
+
+Indexes:
+
+Primary Index on pl_id for pl_groups:
+
+javascript
+Copy code
+db.pl_groups.createIndex({ pl_id: 1 });
+Compound Index on pl_id and group_id for pl_groups:
+
+javascript
+Copy code
+db.pl_groups.createIndex({ pl_id: 1, group_id: 1 });
+Index on _id for pl_headers (automatically created, but included here for clarity):
+
+javascript
+Copy code
+db.pl_headers.createIndex({ _id: 1 });
+
+Step 6: Monitoring and Maintenance
+Objective: Continuously monitor document sizes and database performance to ensure scalability.
+
+Tools:
+
+MongoDB Atlas Monitoring: Use built-in tools to monitor shard distribution, query performance, and document sizes.
+Custom Scripts: Implement scripts that check document sizes and alert if they approach the 16MB limit.
+Summary of the E2E Implementation
+Partition Key (Sharding): Distribute data across shards using pl_id to handle large datasets efficiently.
+Hybrid Pattern: Use a combination of embedded documents and references to manage both small and large headers, applying the Outlier and Attribute Patterns.
+Asynchronous Processing: Insert headers in parallel to improve performance, while maintaining references between collections.
+Index Optimization: Ensure queries are efficient by indexing the most commonly queried fields.
+Monitoring: Regularly monitor document sizes and performance to maintain scalability.
+This comprehensive approach ensures that your system is scalable, efficient, and capable of handling the complexity of managing 287 headers with varying map variables. It balances the need for parallel processing, query efficiency, and data integrity.
