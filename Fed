@@ -1,0 +1,74 @@
+Full-Stack Application Solution Walkthrough Feedback Form
+We appreciate your time in reviewing the recent solution walk-through. Please provide your feedback on the proposed solution and share your thoughts on moving forward with the implementation.
+
+1. Clarity of the Solution
+How clearly was the solution explained?
+ Very Clear
+ Somewhat Clear
+ Unclear
+ Very Unclear
+Additional Comments:
+Proposed Tech Stack Details
+Technology Stack Overview:
+Frontend: React.js (for building a dynamic and responsive UI)
+Backend: Azure Functions with Webhooks (for real-time event handling)
+Storage: Azure Blob Storage (for file upload and storage management)
+Approval Workflow: Integration with DoA (Delegation of Authority) application (via Webhooks or REST API for approval workflows)
+Performance: Ensuring zero latency between file upload and DoA approval process, with dynamic configurations for different clients
+User Experience: Focused on seamless integration with real-time feedback and updates after document uploads and approvals
+Dynamic Configurations: Enabling dynamic configurations for different clients based on their custom needs (selecting headers, variables, and processing logic)
+2. Suitability of the Technology Stack
+Does the proposed tech stack (React.js, Azure Blob, Webhooks, DoA integration) seem appropriate for the solution?
+ Strongly Agree
+ Agree
+ Neutral
+ Disagree
+ Strongly Disagree
+Additional Comments:
+3. Feasibility of Implementation with Proposed Tech Stack
+Do you think the proposed tech stack is technically feasible given the current team skills and resources?
+ Definitely
+ Probably
+ Not Sure
+ Probably Not
+Additional Comments:
+4. User Experience and Zero-Latency Proposal
+Do you think the solution will provide a smooth user experience, ensuring real-time feedback and zero-latency between file upload and DoA approval?
+ Strongly Agree
+ Agree
+ Neutral
+ Disagree
+ Strongly Disagree
+Additional Comments:
+5. Dynamic Configurations Proposal
+Does the dynamic configuration proposal (allowing clients to configure headers, variables, etc.) meet the requirements for flexibility and scalability?
+ Strongly Agree
+ Agree
+ Neutral
+ Disagree
+ Strongly Disagree
+Additional Comments:
+6. Potential Risks
+Are there any significant risks or concerns associated with the proposed tech stack (performance, integration with DoA, etc.)?
+ No Risks
+ Minimal Risks
+ Some Risks
+ High Risks
+Please elaborate on any concerns:
+7. Resource Availability
+Do we have the necessary resources (time, team skills, etc.) to implement this solution with the proposed tech stack?
+ Yes
+ Likely
+ Uncertain
+ No
+Additional Comments:
+8. Readiness for Implementation
+Based on the tech stack proposal, should we move forward with the implementation of this solution?
+ Yes, move forward
+ Yes, with some modifications
+ No, needs further analysis
+ No, do not proceed
+Additional Comments:
+9. Open Feedback
+Do you have any additional feedback or suggestions on the proposed solution or tech stack?
+ (Open text box)
