@@ -1,0 +1,21 @@
+{
+  "name": "file-processing-app",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "axios": "^0.21.1",
+    "exceljs": "^4.2.0",
+    "formidable": "^2.0.1",
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "worker_threads": ">=12.11.0"
+  }
+}
