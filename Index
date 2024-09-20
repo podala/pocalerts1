@@ -1,0 +1,33 @@
+Use Case Scenarios:
+Querying by PLID:
+
+You can query documents with a specific PLID to get all related data.
+javascript
+Copy code
+db.HeadersCollection.find({ "PLID": "PL123456" });
+Filtering by Category and Subcategory:
+
+Retrieve a document that contains a specific category and subcategory.
+javascript
+Copy code
+db.HeadersCollection.find({
+  "PLID": "PL123456",
+  "categories.categoryName": "Mail",
+  "categories.subCategories.subCategoryName": "Brand"
+});
+Fetching Yearly Data:
+
+Filter documents to get yearly data for a specific subcategory under a category.
+javascript
+Copy code
+db.HeadersCollection.find({
+  "PLID": "PL123456",
+  "categories.categoryName": "Mail",
+  "categories.subCategories": {
+    "$elemMatch": {
+      "subCategoryName": "Brand",
+      "yearlyData.year": 2021
+    }
+  }
+});
+This example document and the associated explanations provide a clear and comprehensive structure to store and retrieve data using a single collection. Let me know if you need further details or have additional questions!
