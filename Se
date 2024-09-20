@@ -1,0 +1,23 @@
+Schema Explanation
+Types:
+
+YearlyData: Represents yearly data with year and value fields.
+SubCategory: Represents a subcategory with subCategoryName and an array of YearlyData.
+Category: Represents a category with categoryName and an array of SubCategory.
+Header: Represents the main header document containing PLID, OpportunityID, CaseID, headerName, and an array of Category.
+Inputs:
+
+YearlyDataInput: Input type for adding yearly data.
+SubCategoryInput: Input type for adding a subcategory, which includes a name and an array of yearly data.
+CategoryInput: Input type for adding a category, which includes a name and an array of subcategories.
+HeaderInput: Input type for creating or updating a header document with all nested data.
+CombinedCategoryFilterInput: New input type to allow combined category and subcategory filtering. It includes:
+categoryNames: An array of category names to filter.
+subCategories: An array of subcategory names to include under these categories.
+Queries:
+
+getFilteredHeaders: This query allows fetching headers based on PLID, OpportunityID, optional headerNames, and combined category/subcategory filters using CombinedCategoryFilterInput.
+Mutations:
+
+createHeader: Creates a new header document with the given HeaderInput.
+updateHeader: Updates an existing header document identified by id with the given HeaderInput.
