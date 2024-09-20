@@ -1,0 +1,92 @@
+# Type definition for yearly data
+type YearlyData {
+  year: Int!          # Year of the data (e.g., 2021, 2022)
+  value: Float!       # Value associated with the year (e.g., 1500.75)
+}
+
+# Type definition for a subcategory within a category
+type SubCategory {
+  subCategoryName: String!   # Name of the subcategory (e.g., "Brand", "Generic")
+  yearlyData: [YearlyData!]  # List of yearly data entries for this subcategory
+}
+
+# Type definition for a category within a header
+type Category {
+  categoryName: String!        # Name of the category (e.g., "Mail", "Retail 30")
+  subCategories: [SubCategory!] # List of subcategories within this category
+}
+
+# Type definition for the main header document
+type Header {
+  id: ID!                     # Unique identifier for the document
+  PLID: String!               # Profit and Loss ID
+  OpportunityID: String!      # Opportunity ID
+  CaseID: String!             # Case ID
+  headerName: String!         # Header name (e.g., "Scripts Revenue")
+  categories: [Category!]     # List of categories under this header
+  Metadata: Metadata!         # Metadata information for the document
+}
+
+# Type definition for metadata
+type Metadata {
+  CreatedBy: String!          # Username or ID of the document creator
+  CreatedAt: String!          # Timestamp when the document was created
+  UpdatedBy: String!          # Username or ID of the last person to update the document
+  UpdatedAt: String!          # Timestamp when the document was last updated
+}
+
+# Input type definition for adding or updating yearly data
+input YearlyDataInput {
+  year: Int!
+  value: Float!
+}
+
+# Input type definition for adding or updating a subcategory
+input SubCategoryInput {
+  subCategoryName: String!
+  yearlyData: [YearlyDataInput!]!
+}
+
+# Input type definition for adding or updating a category
+input CategoryInput {
+  categoryName: String!
+  subCategories: [SubCategoryInput!]!
+}
+
+# Input type definition for creating or updating a header
+input HeaderInput {
+  PLID: String!
+  OpportunityID: String!
+  CaseID: String!
+  headerName: String!
+  categories: [CategoryInput!]!
+}
+
+# Input type definition for combined categories and subcategories
+input CombinedCategoryFilterInput {
+  categoryNames: [String!]     # List of category names to filter (e.g., ["Mail", "Retail 30"])
+  subCategories: [String!]     # List of subcategory names to include under these categories (e.g., ["Brand", "Generic"])
+}
+
+# Root Query Type for fetching data with combined category filters
+type Query {
+  # Query to get headers based on PLID, OpportunityID, headerName, and combined category/subcategory filters
+  getFilteredHeaders(
+    PLID: String!,                         # Required filter for PLID
+    OpportunityID: String!,                # Required filter for Opportunity ID
+    headerNames: [String],                 # Optional list of header names to filter
+    combinedCategoriesFilter: [CombinedCategoryFilterInput!] # Optional combined category and subcategory filters
+  ): [Header]
+}
+
+# Root Mutation Type for creating and updating data
+type Mutation {
+  createHeader(input: HeaderInput!): Header
+  updateHeader(id: ID!, input: HeaderInput!): Header
+}
+
+# The main schema definition
+schema {
+  query: Query
+  mutation: Mutation
+}
