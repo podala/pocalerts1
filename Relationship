@@ -1,0 +1,70 @@
+{
+  "PLID": "PL123456",
+  "OpportunityID": "OP7890",
+  "CaseID": "CA2345",
+  "headerName": "Scripts Revenue",
+  "categories": [
+    {
+      "categoryName": "Mail",
+      "subCategories": [
+        {
+          "subCategoryName": "Brand",
+          "yearlyData": [
+            {
+              "year": 2021,
+              "value": 1500.75
+            },
+            {
+              "year": 2022,
+              "value": 1700.50
+            }
+          ]
+        },
+        {
+          "subCategoryName": "Generic",
+          "yearlyData": [
+            {
+              "year": 2021,
+              "value": 800.25
+            },
+            {
+              "year": 2022,
+              "value": 900.00
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "categoryName": "Retail 30",
+      "subCategories": [
+        {
+          "subCategoryName": "Brand",
+          "yearlyData": [
+            {
+              "year": 2021,
+              "value": 2000.00
+            },
+            {
+              "year": 2022,
+              "value": 2200.25
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+In this document:
+
+The headerName is "Scripts Revenue", which has multiple categories.
+One Category is "Mail", which contains two subCategories named "Brand" and "Generic".
+Each SubCategory has its own yearlyData array representing values for different years.
+These types (YearlyData, SubCategory, Category) are used in the GraphQL schema to define how to interact with this data structure, providing a way to query and modify each level of the hierarchy.
+
+Practical Use in GraphQL:
+In the GraphQL schema, these types allow you to:
+
+Query data: Retrieve specific categories, subcategories, and yearly data based on your filters.
+Create or update data: Add new categories, subcategories, and yearly data as needed.
+Mutate data: Modify existing entries in a structured way, ensuring data integrity.'
