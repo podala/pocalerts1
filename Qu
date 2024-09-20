@@ -1,0 +1,131 @@
+q1
+
+query {
+  getFilteredHeaders(
+    PLID: "PL123456",                       # Required filter for PLID
+    OpportunityID: "OP7890",                # Required filter for Opportunity ID
+    headerNames: ["Scripts Revenue"],       # Optional: Filter by specific header names
+    categoriesFilter: [                     # Optional: List of category and subcategory filters
+      {                                     
+        categoryName: "Mail",               # Include only "Mail" category
+        subCategories: ["Brand", "Generic"] # Include only "Brand" and "Generic" subcategories under "Mail"
+      },
+      {
+        categoryName: "Retail 30",          # Include only "Retail 30" category
+        subCategories: ["Brand"]            # Include only "Brand" subcategory under "Retail 30"
+      }
+    ]
+  ) {
+    headerName
+    PLID
+    categories {
+      categoryName
+      subCategories {
+        subCategoryName
+        yearlyData {
+          year
+          value
+        }
+      }
+    }
+  }
+}
+
+q2
+mutation {
+  createHeader(
+    input: {
+      PLID: "PL123456",
+      OpportunityID: "OP7890",
+      CaseID: "CA2345",
+      headerName: "Scripts Revenue",
+      categories: [
+        {
+          categoryName: "Mail",
+          subCategories: [
+            {
+              subCategoryName: "Brand",
+              yearlyData: [
+                { year: 2021, value: 1500.75 },
+                { year: 2022, value: 1700.50 }
+              ]
+            },
+            {
+              subCategoryName: "Generic",
+              yearlyData: [
+                { year: 2021, value: 800.25 },
+                { year: 2022, value: 900.00 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ) {
+    id
+    headerName
+  }
+}
+mutation {
+  updateHeader(
+    id: "6508a10d4b6f8e5a5d6c3b12",        # ID of the existing header document to update
+    input: {
+      PLID: "PL123456",
+      OpportunityID: "OP7890",
+      CaseID: "CA2345",
+      headerName: "Scripts Revenue Updated",
+      categories: [
+        {
+          categoryName: "Mail",
+          subCategories: [
+            {
+              subCategoryName: "Brand",
+              yearlyData: [
+                { year: 2021, value: 1500.75 },
+                { year: 2022, value: 1700.50 }
+              ]
+            },
+            {
+              subCategoryName: "Generic",
+              yearlyData: [
+                { year: 2021, value: 800.25 },
+                { year: 2022, value: 900.00 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ) {
+    id
+    headerName
+  }
+}
+
+query {
+  getFilteredHeaders(
+    PLID: "PL123456",                       # Required filter for PLID
+    OpportunityID: "OP7890",                # Required filter for Opportunity ID
+    headerNames: ["Scripts Revenue", "AWP"],# Filter by specific header names
+    combinedCategoriesFilter: [             # Combined category and subcategory filters
+      {
+        categoryNames: ["Mail", "Retail 30"], # Include both "Mail" and "Retail 30" categories
+        subCategories: ["Brand", "Generic"]   # Include only "Brand" and "Generic" subcategories for both categories
+      }
+    ]
+  ) {
+    headerName
+    PLID
+    categories {
+      categoryName
+      subCategories {
+        subCategoryName
+        yearlyData(filter: { year: 2024 }) { # Filter yearly data for year 2024
+          year
+          value
+        }
+      }
+    }
+  }
+}
+
