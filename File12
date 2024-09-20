@@ -1,0 +1,64 @@
+{
+  "_id": "6508a10d4b6f8e5a5d6c3b12",        // MongoDB's unique identifier for the document
+  "PLID": "PL123456",                      // Unique identifier for Profit and Loss
+  "OpportunityID": "OP7890",               // Unique identifier for the business opportunity
+  "CaseID": "CA2345",                      // Unique identifier for the specific case
+  "headerName": "Scripts Revenue",         // Name of the header (e.g., "Scripts Revenue")
+  "categories": [                          // Array of categories under the header
+    {
+      "categoryName": "Mail",              // Name of the category (e.g., "Mail")
+      "subCategories": [                   // Array of subcategories under the category
+        {
+          "subCategoryName": "Brand",      // Name of the subcategory (e.g., "Brand")
+          "yearlyData": [                  // Array of yearly data objects
+            {
+              "year": 2021,                // Year for the data entry (e.g., 2021)
+              "value": 1500.75             // Value associated with the subcategory for the given year
+            },
+            {
+              "year": 2022,                // Year for the data entry (e.g., 2022)
+              "value": 1700.50             // Value associated with the subcategory for the given year
+            }
+          ]
+        },
+        {
+          "subCategoryName": "Generic",    // Another subcategory under the same category
+          "yearlyData": [
+            {
+              "year": 2021,
+              "value": 800.25
+            },
+            {
+              "year": 2022,
+              "value": 900.00
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "categoryName": "Retail 30",         // Another category under the same header
+      "subCategories": [
+        {
+          "subCategoryName": "Brand",
+          "yearlyData": [
+            {
+              "year": 2021,
+              "value": 2000.00
+            },
+            {
+              "year": 2022,
+              "value": 2200.25
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "Metadata": {                            // Metadata for tracking document creation and updates
+    "CreatedBy": "user123",                // Username or ID of the document creator
+    "CreatedAt": "2023-01-01T12:00:00Z",   // Timestamp when the document was created
+    "UpdatedBy": "adminUser",              // Username or ID of the last person to update the document
+    "UpdatedAt": "2023-09-25T08:30:00Z"    // Timestamp when the document was last updated
+  }
+}
