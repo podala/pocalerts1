@@ -1,0 +1,25 @@
+Explanation of the Schema:
+Types:
+
+YearlyData: Represents the data for a particular year and its value.
+SubCategory: Represents a subcategory, containing the subCategoryName and a list of yearlyData entries.
+Category: Represents a category, containing the categoryName and a list of subCategories.
+Header: The main document type, containing PLID, OpportunityID, CaseID, headerName, categories, and Metadata.
+Metadata: Stores information about the document's creation and updates.
+Inputs:
+
+YearlyDataInput: Input type for adding or updating yearly data.
+SubCategoryInput: Input type for adding or updating subcategories.
+CategoryInput: Input type for adding or updating categories.
+HeaderInput: Input type for creating or updating a header document.
+Queries:
+
+getHeaderByPLID(PLID: String!): Retrieves a specific header document by PLID.
+getHeadersByOpportunityID(OpportunityID: String!): Retrieves a list of headers associated with a given OpportunityID.
+getHeadersByCaseID(CaseID: String!): Retrieves a list of headers associated with a given CaseID.
+Mutations:
+
+createHeader(input: HeaderInput!): Creates a new header document using the provided input.
+updateHeader(id: ID!, input: HeaderInput!): Updates an existing header document identified by the id.
+addCategoryToHeader(id: ID!, categoryInput: CategoryInput!): Adds a new category to an existing header.
+addSubCategoryToCategory(id: ID!, categoryName: String!, subCategoryInput: SubCategoryInput!): Adds a new subcategory to a specific category within a header.
