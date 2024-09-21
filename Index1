@@ -1,3 +1,4 @@
 db.headers.createIndex({ "PLID": 1, "OpportunityID": 1, "categories.subCategories.subCategoryName": 1 })
 db.headers.createIndex({ "PLID": 1, "OpportunityID": 1, "categories.categoryName": 1 })
 db.headers.createIndex({ "PLID": 1, "OpportunityID": 1, "categories.subCategories.subCategoryName": 1 })
+db.headers.createIndex({ "PLID": 1, "OpportunityID": 1, "categories.categoryName": 1, "categories.subCategories.subCategoryName": 1 })
