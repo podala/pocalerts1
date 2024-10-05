@@ -1,0 +1,69 @@
+import pandas as pd
+
+# Sample data creation based on your fields
+data = {
+    'status': ['Completed', 'In Progress', 'Delayed', 'Completed', 'In Progress'],
+    'tat': [12, 20, 30, 10, 25],
+    'start_date': pd.to_datetime(['2023-01-01', '2023-01-05', '2023-01-07', '2023-01-02', '2023-01-08']),
+    'end_date': pd.to_datetime(['2023-01-13', '2023-01-25', '2023-02-05', '2023-01-12', '2023-02-01']),
+    'case_id': ['C1', 'C2', 'C3', 'C4', 'C5'],
+    'opportunity_name': ['Opportunity A', 'Opportunity B', 'Opportunity C', 'Opportunity A', 'Opportunity D'],
+    'opportunity_owner': ['Owner 1', 'Owner 2', 'Owner 3', 'Owner 1', 'Owner 2'],
+    'opportunity_id': [101, 102, None, 101, 103],
+    'client': ['Client 1', 'Client 2', 'Client 3', 'Client 1', 'Client 4'],
+    'opportunity_type': ['Type 1', 'Type 2', 'Type 1', 'Type 1', 'Type 3']
+}
+
+# Create a DataFrame
+df = pd.DataFrame(data)
+
+# 1. Average Turnaround Time (TAT) Analysis
+avg_tat = df['tat'].mean()
+print(f"Average TAT: {avg_tat} days")
+
+# 2. Group by Opportunity Owner and get case counts
+owner_case_counts = df.groupby('opportunity_owner')['case_id'].count()
+print("\nNumber of Cases by Opportunity Owner:")
+print(owner_case_counts)
+
+# 3. Group by Opportunity Type and get the average TAT
+tat_by_opportunity_type = df.groupby('opportunity_type')['tat'].mean()
+print("\nAverage TAT by Opportunity Type:")
+print(tat_by_opportunity_type)
+
+# 4. Opportunity Conversion Analysis (Blank Opportunity IDs)
+blank_opportunity_ids = df['opportunity_id'].isna().sum()
+total_opportunity_ids = len(df['opportunity_id'])
+conversion_rate = (1 - blank_opportunity_ids / total_opportunity_ids) * 100
+print(f"\nOpportunity Conversion Rate: {conversion_rate:.2f}%")
+
+# 5. Client Case Count
+client_case_count = df.groupby('client')['case_id'].count()
+print("\nCase Count by Client:")
+print(client_case_count)
+
+# 6. Status Distribution
+status_distribution = df['status'].value_counts()
+print("\nCase Status Distribution:")
+print(status_distribution)
+
+# 7. TAT Analysis by Status
+tat_by_status = df.groupby('status')['tat'].mean()
+print("\nAverage TAT by Case Status:")
+print(tat_by_status)
+
+# 8. Case Lifecycle (Time taken for cases to complete)
+df['case_duration'] = (df['end_date'] - df['start_date']).dt.days
+print("\nCase Durations (in days):")
+print(df[['case_id', 'case_duration']])
+
+# 9. Cases exceeding a certain TAT threshold
+tat_threshold = 20
+cases_exceeding_tat = df[df['tat'] > tat_threshold]
+print(f"\nCases with TAT exceeding {tat_threshold} days:")
+print(cases_exceeding_tat[['case_id', 'tat', 'opportunity_owner']])
+
+# 10. Cases per Request Type (Opportunity Type)
+case_count_by_request_type = df.groupby('opportunity_type')['case_id'].count()
+print("\nCase Count by Opportunity Type (Request Type):")
+print(case_count_by_request_type)
