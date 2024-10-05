@@ -1,0 +1,30 @@
+import pandas as pd
+
+# Sample data creation based on your fields
+data = {
+    'status': ['Completed', 'In Progress', 'Delayed', 'Completed', 'In Progress'],
+    'tat': [12, 20, 30, 10, 25],
+    'start_date': pd.to_datetime(['2023-01-01', '2023-01-05', '2023-01-07', '2023-01-02', '2023-01-08']),
+    'end_date': pd.to_datetime(['2023-01-13', '2023-01-25', '2023-02-05', '2023-01-12', '2023-02-01']),
+    'case_id': ['C1', 'C2', 'C3', 'C4', 'C5'],
+    'opportunity_name': ['Opportunity A', 'Opportunity B', 'Opportunity C', 'Opportunity A', 'Opportunity D'],
+    'opportunity_owner': ['Owner 1', 'Owner 2', 'Owner 3', 'Owner 1', 'Owner 2'],
+    'opportunity_id': [101, 102, None, 101, 103],
+    'client': ['Client 1', 'Client 2', 'Client 3', 'Client 1', 'Client 4'],
+    'opportunity_type': ['Type 1', 'Type 2', 'Type 1', 'Type 1', 'Type 3'],
+    'assigned_underwriter': ['Underwriter 1', None, 'Underwriter 2', 'Underwriter 1', None],
+    'is_pl_required': ['Yes', 'No', 'Yes', 'Yes', 'No']
+}
+
+# Create a DataFrame
+df = pd.DataFrame(data)
+
+# Report based on Assigned Underwriter, Is P&L Required, Opportunity, and Client
+report = df.groupby(['assigned_underwriter', 'is_pl_required', 'opportunity_name', 'client']).size().reset_index(name='case_count')
+
+# Filter out cases where no underwriter is assigned
+report_with_underwriter = report[report['assigned_underwriter'].notna()]
+
+# Show the report
+print("\nAssigned Underwriter Report at Opportunity and Client Level:")
+print(report_with_underwriter)
