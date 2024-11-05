@@ -1,0 +1,5 @@
+I would like to extend my heartfelt appreciation to Satyam and Games for their exceptional efforts in optimizing our data pipeline. Their recent improvements have reduced the pipeline execution time from 6 minutes to 2.5 minutes, saving the business valuable time in processing.
+
+Using PySpark, they identified and addressed key performance bottlenecks, achieving a 3-minute reduction in processing time. This enhancement not only increases our operational efficiency but also contributes directly to meeting our business SLAs, giving us more flexibility and responsiveness in handling data workflows.
+
+Thank you once again, Satyam and Games, for your dedication and technical expertise in making this happen. Your hard work is greatly appreciated, and this achievement sets a benchmark for our ongoing optimization efforts. Let’s continue to keep up the excellent work!
