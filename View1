@@ -1,0 +1,37 @@
+CREATE VIEW dbo.AscView AS
+WITH LatestVersion AS (
+    SELECT PL_ID, MAX(PL_DATA_VERSION) AS LatestVersion
+    FROM [dbo].[8UWStandardValue]
+    GROUP BY PL_ID
+),
+FilteredData AS (
+    SELECT a.PL_ID, c.Name, a.value
+    FROM [dbo].[8UWStandardValue] AS a
+    INNER JOIN LatestVersion AS lv
+        ON a.PL_ID = lv.PL_ID AND a.PL_DATA_VERSION = lv.LatestVersion
+    INNER JOIN [dbo].[11UWMap] AS b
+        ON a.Map_ID = b.Map_ID
+    INNER JOIN [dbo].[7PLStandard] AS c
+        ON b.Dir_ID = c.Dir_ID
+    WHERE b.Map_ID IN ('35', '36', '50', '2222', '2223')
+),
+PivotedData AS (
+    SELECT
+        [PL_ID],
+        [Opportunity ID],
+        [Client Name],
+        [Case ID],
+        [Effective Date],
+        [Sold Indicator]
+    FROM FilteredData
+    PIVOT (
+        MAX(value) FOR Name IN ([Opportunity ID], [Client Name], [Case ID], [Effective Date], [Sold Indicator])
+    ) AS pvt
+)
+SELECT DISTINCT
+    [Opportunity ID],
+    [Client Name],
+    [Case ID],
+    [Effective Date],
+    [Sold Indicator]
+FROM PivotedData;
