@@ -1,0 +1,11 @@
+Reflecting on the goals you had for this year, what were your key accomplishments?
+
+In my role as an Enterprise Architect, I focused on solutioning for both behavioral health (BH) and TOC clients, collaborating closely with capability managers to understand and implement requirements. Key accomplishments included enhancing care management functionalities like bulk assignment, care plan builder, practice dashboard, and establishing onshore and offshore roles. I also implemented an on-the-fly broadcast channel, redesigned Camunda workflows, optimized EventHub and reporting systems, and addressed complex reporting issues. Notably, I delivered enterprise solutions in BH, including a bulk assignment feature widely adopted across task and case management systems. These efforts have streamlined operations and supported enterprise-wide adoption.
+
+What challenges did you face and how did you develop?
+
+One of the major challenges was with TOC, where my team and I worked tirelessly to align care team application requirements with business needs. This involved around-the-clock dedication, ensuring our solutions met the high standards and expectations set by the enterprise. The care team solution has since been well-received, underscoring the value of our commitment. Facing these challenges has reinforced my resilience and adaptability, and improved my ability to coordinate with cross-functional teams under tight deadlines.
+
+What do you want to continue to work towards in the coming year?
+
+Looking ahead, I am eager to take on more complex challenges on the enterprise side and enhance my communication with leadership to align more closely with strategic goals. In my new role as Senior Architect at Optum Rx, I have already started to make impactful changes, such as reducing API calls by 40% in the CMT application and redesigning Camunda processes. Additionally, on the data engineering front, I’ve successfully reduced the batch pipeline processing time from 6 minutes to 2.5 minutes. I plan to build on these achievements and continue driving optimization and innovation.
