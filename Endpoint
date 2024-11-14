@@ -1,0 +1,64 @@
+import pandas as pd
+
+# Define the data
+data = {
+    "Feature": [
+        "Batch Endpoint Design", "Payload Validation", "Batch Processing Logic", "Rate Limiting", 
+        "Retry Mechanism", "Circuit Breaker", "Logging and Monitoring", "Error Handling", 
+        "Response Aggregation", "Asynchronous Processing", "Idempotency", "Monitoring and Alerts", 
+        "Fallback Mechanism"
+    ],
+    "Responsibility": [
+        "Design batch API endpoint and response structure", 
+        "Validate payload size and structure", 
+        "Process individual items within the batch", 
+        "Enforce rate limits to prevent excessive requests", 
+        "Retry failed items with exponential backoff", 
+        "Manage dependency failures; define states and fallback", 
+        "Log retry attempts, rate limiting, and circuit breaker", 
+        "Handle errors for individual batch items", 
+        "Aggregate results of batch processing for response", 
+        "Offload long-running tasks to queues (if needed)", 
+        "Ensure unique processing to handle retries safely", 
+        "Configure monitoring and alerting", 
+        "Define alternative responses or handling when failures occur"
+    ],
+    "Batch Job Owner Team": [
+        "-", "-", 
+        "Process each item; define logic for success/failure", 
+        "-", 
+        "Implement retry logic for batch processing items", 
+        "-", 
+        "Log batch processing results and retry status", 
+        "Implement item-level error handling", 
+        "Aggregate and structure item results", 
+        "Set up message queue for async processing", 
+        "Assign unique IDs for batch items", 
+        "Monitor batch job execution; handle retries", 
+        "-"
+    ],
+    "API Owner Team": [
+        "Design API endpoint, structure batch size limits", 
+        "Implement payload validation (batch size, required fields)", 
+        "-", 
+        "Implement rate limiting middleware or use Redis-based limiter", 
+        "Handle API-level retries; configure retryable status codes", 
+        "Implement circuit breaker using Resilience4j/Hystrix", 
+        "Log rate limit triggers, circuit breaker states, retries", 
+        "Handle API-level errors (429, 503); return detailed response", 
+        "Return aggregated response for each batch request", 
+        "-", 
+        "Enforce idempotency in API requests", 
+        "Monitor API requests, rate limiting, and circuit breaker", 
+        "Implement fallbacks when circuit breaker is triggered"
+    ]
+}
+
+# Create DataFrame
+df = pd.DataFrame(data)
+
+# Save to Excel
+file_path = "/mnt/data/Batch_API_Responsibilities.xlsx"
+df.to_excel(file_path, index=False)
+
+file_path
