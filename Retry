@@ -1,0 +1,22 @@
+The retry logic responsibilities for each team focus on different stages and types of errors within the overall processing pipeline:
+
+Batch Job Owner Team: "Retry failed items with backoff"
+
+Scope: The Batch Job Owner Team is responsible for processing individual items in the batch.
+Focus: Their retry logic focuses on reprocessing items within the batch when there are transient processing errors (e.g., network issues, temporary service unavailability).
+Action: If an item fails during processing, it’s retried with exponential backoff, which introduces a delay between retry attempts to prevent overwhelming resources.
+API (Topic Owner) Team: "Retry persistence errors with backoff"
+
+Scope: The API (Topic Owner) Team is responsible for consuming messages from Kafka and persisting the data to a database or another storage layer.
+Focus: Their retry logic is specifically for database or persistence errors (e.g., database connectivity issues or transaction failures).
+Action: If data cannot be saved to the database due to a transient error, the consumer retries with backoff, allowing time for potential database recovery.
+Feedback Loop: "Manage retries and reprocessing from errors topics"
+
+Scope: The Feedback Loop encompasses both teams and is used to manage items that have been published to the batch_processing_errors or data_persistence_errors topics.
+Focus: The feedback loop handles persistent or complex errors that require inspection, resolution, and reprocessing. These may include items that failed all retries or non-transient errors that need manual intervention.
+Action: Once the issue is resolved, the feedback loop manages reprocessing from the error topics, feeding items back into the main processing pipeline when they’re ready.
+Each responsibility addresses errors at a different level:
+
+The Batch Job Owner Team manages retries during initial processing.
+The API Team handles retries for data persistence.
+The Feedback Loop is a broader mechanism for reprocessing any unresolved issues flagged by either team.
