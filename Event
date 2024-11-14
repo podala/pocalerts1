@@ -1,0 +1,105 @@
+# Re-import necessary library after environment reset
+
+import pandas as pd
+
+
+
+# Define the updated data for responsibilities in table format
+
+updated_data = {
+
+    "Feature": [
+
+        "Process and Publish to Kafka", "Kafka Topic Configuration", "Consume and Save Data",
+
+        "Error Handling in Processing", "Error Handling in Persistence", "Dead-Letter Queue",
+
+        "Retry Logic", "Logging and Monitoring", "Automated Feedback"
+
+    ],
+
+    "Batch Job Owner Team": [
+
+        "Process data items and publish to `processed_data`", 
+
+        "Configure `processed_data` with partitions and replication", 
+
+        "-", 
+
+        "Retry transient errors, publish non-recoverable errors to `batch_processing_errors`", 
+
+        "-", 
+
+        "-", 
+
+        "Retry failed items with backoff", 
+
+        "Log processing attempts, publish errors", 
+
+        "Monitor error topics and address issues"
+
+    ],
+
+    "API (Topic Owner) Team": [
+
+        "-", 
+
+        "-", 
+
+        "Consume from `processed_data` and persist data", 
+
+        "-", 
+
+        "Retry saving data; publish failures to `data_persistence_errors`", 
+
+        "-", 
+
+        "Retry persistence errors with backoff", 
+
+        "Log persistence attempts, publish errors to `data_persistence_errors`", 
+
+        "Monitor error topics and address issues"
+
+    ],
+
+    "Feedback Loop": [
+
+        "-", 
+
+        "-", 
+
+        "-", 
+
+        "Monitor and reprocess `batch_processing_errors`", 
+
+        "Monitor and reprocess `data_persistence_errors`", 
+
+        "Monitor `dead_letter_queue` for final inspection", 
+
+        "Manage retries and reprocessing from errors topics", 
+
+        "Monitor error topics and resolve issues", 
+
+        "Automatically reprocess resolved errors"
+
+    ]
+
+}
+
+
+
+# Create DataFrame for the updated data
+
+df_updated = pd.DataFrame(updated_data)
+
+
+
+# Save to Excel
+
+file_path_updated = "/mnt/data/Decoupled_Kafka_Batch_Processing_Responsibilities.xlsx"
+
+df_updated.to_excel(file_path_updated, index=False)
+
+
+
+file_path_updated
