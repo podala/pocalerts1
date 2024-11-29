@@ -1,0 +1,34 @@
+The primary objective of this project is the research and development of a GUI-Based Customer Network Issue Resolution Portal for AT&T. This web-based platform will enable AT&T engineers and customers to identify, diagnose, and resolve network issues in real-time. The portal aims to streamline the resolution process by offering a user-friendly interface, automated diagnostics, and detailed insights into network performance.
+
+The project will focus on improving network reliability, minimizing downtime, and enhancing the customer experience by providing proactive solutions to common network issues. The portal will integrate with AT&T’s existing network infrastructure and tools to offer seamless operations.
+
+The key expectations from this project include:
+
+Investigating the feasibility and benefits of automated network issue diagnosis and resolution.
+Enhancing the reliability and scalability of network monitoring and troubleshooting processes.
+Reducing costs associated with manual interventions and support calls.
+Improving customer satisfaction through faster response times and transparency.
+Additionally, the project will address challenges such as integration with existing systems, data privacy, and ensuring security compliance.
+
+1.3 Project Scope
+Project High Level
+The Customer Network Issue Resolution Portal will provide the following capabilities:
+
+Automated Diagnostics: Detect and diagnose network issues for residential and enterprise customers using AI/ML algorithms.
+Real-Time Monitoring: Display live network performance metrics and historical trends.
+Self-Service for Customers: Offer customers a self-service module to resolve common issues such as connectivity drops, latency, and bandwidth problems.
+Issue Escalation Management: Automatically escalate unresolved issues to technical teams with detailed logs and insights.
+Integration with AT&T Tools: Seamlessly connect with AT&T's traffic management and network simulation tools to validate solutions.
+Role-Based Access: Allow role-based access for customers, support agents, and engineers to ensure secure usage.
+Proactive Alerts: Notify customers and support teams about potential issues before they escalate.
+Additional Features
+Interactive dashboards for both customers and internal teams.
+Advanced reporting to identify recurring network issues and root causes.
+A feedback loop to enhance diagnostic algorithms over time.
+Scalability and Customization
+The portal will be designed to handle AT&T’s extensive customer base, supporting both LTE and 5G network standards.
+Flexible architecture to adapt to evolving AT&T priorities and future technology upgrades.
+Expected Benefits
+Reduction in customer complaints and call center load.
+Faster issue resolution and reduced downtime.
+Enhanced customer loyalty through improved transparency and service quality.
