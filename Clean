@@ -1,0 +1,166 @@
+import fireducks.pandas as pd
+import logging
+from pathlib import Path
+
+# Configure logging to console only
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+# Module: Data Fetcher
+class DataFetcher:
+    """Handles loading data from different file types."""
+
+    @staticmethod
+    def fetch_data(file_path, file_type="csv", sheet_name=None, na_values=None):
+        """Fetch data based on file type."""
+        logging.info(f"Fetching data from file: {file_path} (type: {file_type})")
+        try:
+            if file_type == "excel":
+                return pd.read_excel(file_path, sheet_name=sheet_name, na_values=na_values)
+            elif file_type == "csv":
+                return pd.read_csv(file_path, na_values=na_values)
+            else:
+                raise ValueError(f"Unsupported file type: {file_type}")
+        except Exception as e:
+            logging.error(f"Error fetching data from file {file_path}: {e}")
+            raise
+
+
+# Module: Data Transformation
+class DataTransformer:
+    """Handles data cleaning and transformations."""
+
+    def __init__(self, df):
+        self.df = df
+
+    def drop_empty_rows(self):
+        """Drop rows where all columns are NULL."""
+        logging.info("Dropping empty rows...")
+        self.df = self.df.dropna(how="all")
+        return self
+
+    def drop_unnecessary_columns(self, cols_to_drop):
+        """Drop unnecessary columns."""
+        logging.info(f"Dropping unnecessary columns: {cols_to_drop}")
+        self.df = self.df.drop(columns=cols_to_drop, errors="ignore")
+        return self
+
+    def fill_missing_values(self, fill_value=0):
+        """Fill missing values with a default value."""
+        logging.info("Filling missing values...")
+        self.df = self.df.fillna(value=fill_value)
+        return self
+
+    def rename_columns(self):
+        """Rename columns to lowercase."""
+        logging.info("Renaming columns...")
+        self.df.columns = [col.lower().strip() for col in self.df.columns]
+        return self
+
+    def clean_header(self):
+        """Clean the 'header' column if it exists."""
+        logging.info("Cleaning 'header' column...")
+        if "header" in self.df.columns:
+            self.df["header"] = self.df["header"].str.lower().str.strip()
+        return self
+
+    def format_dates(self, date_columns):
+        """Format date columns."""
+        logging.info(f"Formatting date columns: {date_columns}")
+        for col in date_columns:
+            if col in self.df.columns:
+                self.df[col] = pd.to_datetime(self.df[col], errors="coerce")
+        return self
+
+    def drop_duplicates(self, subset):
+        """Drop duplicate rows based on a subset of columns."""
+        logging.info(f"Dropping duplicates based on columns: {subset}")
+        self.df = self.df.drop_duplicates(subset=subset, keep="last")
+        return self
+
+    def get_transformed_data(self):
+        """Return the transformed DataFrame."""
+        return self.df
+
+
+# Module: Data Saver
+class DataSaver:
+    """Handles saving transformed data to a file."""
+
+    @staticmethod
+    def save_data(df, output_file):
+        """Save the cleaned data to the output file."""
+        logging.info(f"Saving cleaned data to {output_file}")
+        try:
+            df.to_csv(output_file, index=False, compression="gzip")
+        except Exception as e:
+            logging.error(f"Failed to save data to {output_file}: {e}")
+            raise
+
+
+# Pipeline Module
+def process_file(input_file, output_file, file_type="csv", sheet_name=None, cols_to_drop=None, date_columns=None, dedup_columns=None):
+    """
+    Orchestrates the processing of a single file through the pipeline.
+    """
+    cols_to_drop = cols_to_drop or []
+    date_columns = date_columns or []
+    dedup_columns = dedup_columns or []
+
+    try:
+        # Step 1: Fetch Data
+        na_values = ['', '#N/A', '#NA', 'NULL', 'null', 'NaN', 'nan', '-1.#IND', '1.#IND']
+        df = DataFetcher.fetch_data(file_path=input_file, file_type=file_type, sheet_name=sheet_name, na_values=na_values)
+
+        # Step 2: Transform Data
+        transformer = DataTransformer(df)
+        transformed_df = (
+            transformer
+            .drop_empty_rows()
+            .drop_unnecessary_columns(cols_to_drop)
+            .fill_missing_values(fill_value=0)
+            .rename_columns()
+            .clean_header()
+            .format_dates(date_columns)
+            .drop_duplicates(dedup_columns)
+            .get_transformed_data()
+        )
+
+        # Step 3: Save Transformed Data
+        DataSaver.save_data(transformed_df, output_file)
+
+    except Exception as e:
+        logging.error(f"Error processing file {input_file}: {e}")
+
+
+# Main Module
+def main():
+    """Main entry point for the script."""
+    file_configs = [
+        {
+            "input_file": "/path/to/input1.csv",
+            "output_file": "/path/to/output_cleaned1.csv",
+            "file_type": "csv",
+            "cols_to_drop": ["key", "lookup 9"],
+            "date_columns": ["date"],
+            "dedup_columns": ["header", "kpi"]
+        },
+        {
+            "input_file": "/path/to/input2.xlsb",
+            "output_file": "/path/to/output_cleaned2.csv",
+            "file_type": "excel",
+            "sheet_name": "Repository Data",
+            "cols_to_drop": ["key", "lookup 9"],
+            "date_columns": ["date"],
+            "dedup_columns": ["header", "kpi"]
+        }
+    ]
+
+    for config in file_configs:
+        process_file(**config)
+
+
+if __name__ == "__main__":
+    main()
