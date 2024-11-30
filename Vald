@@ -1,0 +1,147 @@
+import fireducks.pands as pd  # Replace pandas
+import glob
+import os
+import json
+import sys
+import datetime as dt
+import warnings
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from some_database_module import SingletonDBConnection  # Replace with actual DB module
+
+# Suppress warnings
+warnings.filterwarnings("ignore")
+
+
+# Singleton Pattern for Database Connection
+class DatabaseConnection:
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(DatabaseConnection, cls).__new__(cls)
+            cls._instance._connection = cls._connect(*args, **kwargs)
+        return cls._instance
+
+    @staticmethod
+    def _connect(env_name, branch_name):
+        # Replace with the actual connection logic
+        print(f"Establishing connection for {env_name}, {branch_name}...")
+        return SingletonDBConnection.establish_connection(env_name, branch_name)
+
+    def get_connection(self):
+        return self._connection
+
+
+# Utility functions
+def load_reference_data(db_conn, ref_tables_list):
+    """Loads reference data from the database."""
+    db_ref_tables = {}
+    for table_name in ref_tables_list:
+        query = f"SELECT * FROM dbo.{table_name} WHERE isActive = 'Y'"
+        data = pd.read_sql(query, db_conn)
+        db_ref_tables[table_name] = data
+    return db_ref_tables
+
+
+def data_cleaning(pl_df):
+    """Performs data cleaning operations on the given DataFrame."""
+    noise_kpi = ['Placeholder']
+    pl_df = pl_df[~pl_df['kpi'].isin(noise_kpi)]
+    pl_df.dropna(subset=['kpi'], inplace=True)
+    pl_df['pl_row'] = pl_df['pl_row'].str.extract(r'(\d+)')
+    pl_df['kpi'] = pl_df['kpi'].str.contains(r'(Year|Rate|Name|Pharmacy)', regex=True)
+    pl_df.reset_index(drop=True, inplace=True)
+    return pl_df
+
+
+def write_to_db(conn, diff, tbl_name):
+    """Writes mismatched data to the database."""
+    created_by = "ADB"
+    creation_ts = dt.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    last_updated_ts = creation_ts
+    is_active_flag = 'N'
+
+    cursor = conn.cursor()
+    try:
+        for new_item in diff:
+            insert_query = f"""
+            INSERT INTO dbo.{tbl_name} (name, created_by, creation_ts, last_updated_ts, is_active_flag)
+            VALUES (%s, %s, %s, %s, %s)
+            """
+            cursor.execute(insert_query, (new_item, created_by, creation_ts, last_updated_ts, is_active_flag))
+        conn.commit()
+    except Exception as e:
+        print(f"Error inserting duplicate record: {e}")
+    finally:
+        cursor.close()
+
+
+def validate_table(table_name, cleaned_data, ref_data):
+    """Validates a single table's data."""
+    mismatches = {}
+    cleaned_column = cleaned_data[table_name].unique()
+    reference_column = ref_data[table_name]['name'].unique()
+
+    # Compare the unique values
+    diff = set(cleaned_column).difference(reference_column)
+    if diff:
+        mismatches[table_name] = list(diff)
+    return mismatches
+
+
+# Main Function
+def main():
+    env_name = "prod_env"
+    branch_name = "master_branch"
+    folder_path = "/path/to/azure/blob"
+
+    # Step 1: Initialize database connection
+    db_conn = DatabaseConnection(env_name, branch_name).get_connection()
+
+    # Step 2: Load reference data
+    reference_tables = ["Header", "Channel", "BrandGeneric", "spnonsp"]
+    db_ref_tables = load_reference_data(db_conn, reference_tables)
+
+    # Step 3: File reader and processing
+    files_found = glob.glob(os.path.join(folder_path, "*_cleaned.csv"))
+    if not files_found:
+        print("No cleaned CSV files found in Azure Blob. Please rerun the pipeline.")
+        return
+
+    for file in files_found:
+        print(f"Processing file: {file}")
+        pl_df = pd.read_csv(file)
+        cleaned_df = data_cleaning(pl_df)
+
+        # Parallel Validation using ThreadPoolExecutor
+        mismatches = {}
+        with ThreadPoolExecutor(max_workers=len(reference_tables)) as executor:
+            futures = {
+                executor.submit(validate_table, table, cleaned_df, db_ref_tables): table
+                for table in reference_tables
+            }
+            for future in as_completed(futures):
+                table = futures[future]
+                try:
+                    result = future.result()
+                    if result:
+                        mismatches.update(result)
+                except Exception as e:
+                    print(f"Error processing table {table}: {e}")
+
+        # Handle validation results
+        if mismatches:
+            print("Validation mismatches found:")
+            print(json.dumps(mismatches, indent=4))
+
+            # Write mismatches to DB
+            write_to_db(db_conn, mismatches, "mismatch_table")
+        else:
+            print("No mismatches found. Data is valid.")
+
+        # Notify and cleanup
+        print(f"File {file} processed successfully.")
+
+
+if __name__ == "__main__":
+    main()
