@@ -1,0 +1,136 @@
+from abc import ABC, abstractmethod
+from pyspark.sql import DataFrame
+
+class CleanupStrategy(ABC):
+    @abstractmethod
+    def execute(self, raw_data: DataFrame, rules: dict) -> DataFrame:
+        pass
+
+class ValidationStrategy(ABC):
+    @abstractmethod
+    def execute(self, cleaned_data: DataFrame, rules: dict) -> DataFrame:
+        pass
+
+class InsertionStrategy(ABC):
+    @abstractmethod
+    def execute(self, validated_data: DataFrame, table_name: str, jdbc_config: dict):
+        pass
+
+
+class DefaultCleanupStrategy(CleanupStrategy):
+    def execute(self, raw_data: DataFrame, rules: dict) -> DataFrame:
+        filter_column = rules["filter_column"]
+        filter_value = rules["filter_value"]
+        return raw_data.filter(f"{filter_column} = '{filter_value}'")
+
+class DefaultValidationStrategy(ValidationStrategy):
+    def execute(self, cleaned_data: DataFrame, rules: dict) -> DataFrame:
+        validation_column = rules["column"]
+        condition = rules["condition"]
+        return cleaned_data.filter(f"{validation_column} {condition}")
+
+class DefaultInsertionStrategy(InsertionStrategy):
+    def execute(self, validated_data: DataFrame, table_name: str, jdbc_config: dict):
+        validated_data.write.jdbc(
+            url=jdbc_config["url"],
+            table=table_name,
+            mode="append",
+            properties={
+                "user": jdbc_config["user"],
+                "password": jdbc_config["password"],
+                "driver": jdbc_config["driver"]
+            }
+        )
+class TablePipeline:
+    def __init__(self, cleanup_strategy, validation_strategy, insertion_strategy):
+        self.cleanup_strategy = cleanup_strategy
+        self.validation_strategy = validation_strategy
+        self.insertion_strategy = insertion_strategy
+
+    def execute(self, spark, table_config, jdbc_config):
+        # Step 1: Read raw data
+        raw_data = spark.read.format("csv").option("header", "true").load(f"{table_config['name']}_raw.csv")
+
+        # Step 2: Cleanup
+        cleaned_data = self.cleanup_strategy.execute(raw_data, table_config["cleanup_rules"])
+        cleaned_data.write.mode("overwrite").parquet(f"temp/{table_config['name']}_cleaned")
+
+        # Step 3: Validation
+        validated_data = self.validation_strategy.execute(cleaned_data, table_config["validation_rules"])
+        validated_data.write.mode("overwrite").parquet(f"temp/{table_config['name']}_validated")
+
+        # Step 4: Insertion
+        validated_data = spark.read.parquet(f"temp/{table_config['name']}_validated")
+        self.insertion_strategy.execute(validated_data, table_config["target_table"], jdbc_config)
+
+        print(f"Pipeline completed for {table_config['name']}")
+
+
+class StrategyFactory:
+    @staticmethod
+    def create_cleanup_strategy(strategy_type: str) -> CleanupStrategy:
+        if strategy_type == "default":
+            return DefaultCleanupStrategy()
+        raise ValueError(f"Unsupported cleanup strategy: {strategy_type}")
+
+    @staticmethod
+    def create_validation_strategy(strategy_type: str) -> ValidationStrategy:
+        if strategy_type == "default":
+            return DefaultValidationStrategy()
+        raise ValueError(f"Unsupported validation strategy: {strategy_type}")
+
+    @staticmethod
+    def create_insertion_strategy(strategy_type: str) -> InsertionStrategy:
+        if strategy_type == "default":
+            return DefaultInsertionStrategy()
+        raise ValueError(f"Unsupported insertion strategy: {strategy_type}")
+
+
+class TableCommand:
+    def __init__(self, pipeline: TablePipeline, table_config: dict, jdbc_config: dict):
+        self.pipeline = pipeline
+        self.table_config = table_config
+        self.jdbc_config = jdbc_config
+
+    def execute(self, spark):
+        self.pipeline.execute(spark, self.table_config, self.jdbc_config)
+
+import json
+from concurrent.futures import ThreadPoolExecutor
+from pyspark.sql import SparkSession
+
+def main():
+    # Load configuration
+    with open("config.json") as config_file:
+        config = json.load(config_file)
+
+    spark = SparkSession.builder.appName("ETL_Pipeline").getOrCreate()
+
+    # Initialize JDBC config
+    jdbc_config = config["jdbc"]
+
+    # Create commands for each table
+    commands = []
+    for table_config in config["tables"]:
+        cleanup_strategy = StrategyFactory.create_cleanup_strategy("default")
+        validation_strategy = StrategyFactory.create_validation_strategy("default")
+        insertion_strategy = StrategyFactory.create_insertion_strategy("default")
+
+        pipeline = TablePipeline(cleanup_strategy, validation_strategy, insertion_strategy)
+        command = TableCommand(pipeline, table_config, jdbc_config)
+        commands.append(command)
+
+    # Execute commands in parallel
+    with ThreadPoolExecutor() as executor:
+        futures = [executor.submit(command.execute, spark) for command in commands]
+        for future in futures:
+            future.result()
+
+    spark.stop()
+    print("All tables processed successfully!")
+
+if __name__ == "__main__":
+    main()
+
+
+
