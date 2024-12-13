@@ -1,0 +1,77 @@
+import pandas as pd
+import json
+
+def extract_excel_data(file_path):
+    """
+    Extract data from the Excel file, associating vectors with their respective headers.
+
+    Parameters:
+        file_path (str): Path to the Excel file.
+
+    Returns:
+        dict: Extracted data as a JSON-like structure.
+    """
+    # Load the Excel file
+    excel_data = pd.read_excel(file_path, sheet_name=0, header=None)
+
+    # Normalize column names and cell content
+    excel_data = excel_data.applymap(lambda x: str(x).strip().lower() if isinstance(x, str) else x)
+
+    # Initialize result dictionary
+    extracted_data = {}
+
+    # Define headers to locate (convert to lowercase for normalization)
+    headers = ["pl information", "rpt information"]
+
+    # Iterate through each header
+    for header in headers:
+        try:
+            # Locate the header row
+            header_row_idx = excel_data[excel_data.iloc[:, 0].str.contains(header, na=False)].index[0]
+
+            # Extract rows below the header
+            section_data = []
+            for i in range(header_row_idx + 1, len(excel_data)):
+                # Stop if we encounter another header or an empty row
+                if pd.isna(excel_data.iloc[i, 0]) or any(
+                    excel_data.iloc[i, 0].strip().lower() in headers
+                ):
+                    break  # Stop at the next header or an empty row
+
+                # Extract field-value pairs and vector data
+                field_name = excel_data.iloc[i, 0]
+                field_value = excel_data.iloc[i, 1] if len(excel_data.columns) > 1 else None
+                vectors = {
+                    f"Vector {j - 1}": excel_data.iloc[i, j]
+                    for j in range(2, len(excel_data.columns))
+                    if not pd.isna(excel_data.iloc[i, j])
+                }
+
+                section_data.append({
+                    "Field": field_name,
+                    "Value": field_value,
+                    "Vectors": vectors
+                })
+
+            # Store the section data
+            extracted_data[header] = section_data
+
+        except IndexError:
+            print(f"Header '{header}' not found in the Excel file.")
+            continue
+
+    return extracted_data
+
+
+# Specify the file path
+file_path = "Pnl.xlsx"
+
+# Extract data from the Excel file
+result = extract_excel_data(file_path)
+
+# Save the result to JSON
+output_file = "extracted_data.json"
+with open(output_file, "w") as f:
+    json.dump(result, f, indent=4)
+
+print(f"Data extraction complete. JSON saved to {output_file}.")
