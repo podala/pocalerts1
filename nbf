@@ -1,0 +1,76 @@
+import dask.dataframe as dd
+import pandas as pd
+import json
+
+
+def extract_data_with_dask(file_path, headers):
+    """
+    Extract header data using Dask for large Excel files.
+
+    Parameters:
+        file_path (str): Path to the Excel file.
+        headers (list): List of header names (e.g., "PL Information", "RPT Information").
+
+    Returns:
+        dict: JSON-like structure containing all header data.
+    """
+    # Step 1: Read the Excel file using pandas to load into a Dask DataFrame
+    # Dask does not natively support Excel, so we preprocess using pandas and convert to Dask
+    excel_data = pd.read_excel(file_path, sheet_name=0, header=None)
+    dask_data = dd.from_pandas(excel_data, npartitions=4)  # Partition into 4 for parallelism
+
+    # Step 2: Preprocess to remove empty rows
+    dask_data = dask_data.dropna(how="all").reset_index(drop=True)
+
+    # Step 3: Initialize result dictionary
+    extracted_data = {}
+
+    # Step 4: Extract headers dynamically
+    excel_data = dask_data.compute()  # Bring the data back into memory for row-wise operations
+
+    for header in headers:
+        try:
+            # Locate the start row for the header
+            start_row = excel_data[excel_data.iloc[:, 0].str.contains(header, na=False)].index[0] + 1
+
+            # Extract all rows under this header
+            header_data = []
+            for i in range(start_row, len(excel_data)):
+                # Stop if we encounter another header or an empty row
+                if pd.isna(excel_data.iloc[i, 0]) or any(
+                    str(excel_data.iloc[i, 0]).startswith(h) for h in headers
+                ):
+                    break
+                header_data.append(
+                    {
+                        "Field": excel_data.iloc[i, 0],  # Field name
+                        "Value": excel_data.iloc[i, 1] if len(excel_data.columns) > 1 else None,  # Value
+                    }
+                )
+
+            # Step 5: Store header data in result dictionary
+            extracted_data[header] = {
+                "header_data": header_data
+            }
+
+        except IndexError:
+            print(f"Header '{header}' not found in the Excel file.")
+            continue
+
+    return extracted_data
+
+
+# Specify the file path and headers to extract
+file_path = "path_to_your_excel_file.xlsx"
+headers_to_extract = ["PL Information", "RPT Information"]
+
+# Extract the data
+result = extract_data_with_dask(file_path, headers_to_extract)
+
+# Save the result to JSON
+output_file = "header_data_dask.json"
+with open(output_file, "w") as f:
+    json.dump(result, f, indent=4)
+
+print(f"Data extraction complete. JSON saved to {output_file}.")
+/
