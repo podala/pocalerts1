@@ -1,0 +1,99 @@
+import yaml
+from kafka import KafkaProducer
+from kafka.errors import KafkaError
+import json
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("KafkaProducer")
+
+class SecureKafkaProducer:
+    def __init__(self, config_file):
+        """
+        Initialize Kafka Producer with parameters from a configuration file.
+        """
+        # Load configuration
+        with open(config_file, "r") as file:
+            self.config = yaml.safe_load(file)["kafka"]
+
+        # Initialize Kafka producer
+        self.producer = KafkaProducer(
+            bootstrap_servers=self.config["bootstrap.servers"],
+            security_protocol=self.config["security.protocol"],
+            ssl_cafile=self.config["ssl.truststore.location"],
+            ssl_certfile=self.config["ssl.keystore.location"],
+            ssl_keyfile=self.config["ssl.keystore.location"],
+            ssl_password=self.config["ssl.keystore.password"],
+            acks=self.config.get("acks", "all"),
+            retries=self.config.get("retries", 5),
+            linger_ms=self.config.get("linger.ms", 5),
+            batch_size=self.config.get("batch.size", 16384),
+            compression_type=self.config.get("compression.type", "gzip"),
+            key_serializer=lambda k: json.dumps(k).encode("utf-8"),
+            value_serializer=lambda v: json.dumps(v).encode("utf-8"),
+            client_id=self.config.get("client.id", "default-client"),
+            max_block_ms=self.config.get("max.block.ms", 5000)
+        )
+        self.topic_name = self.config["topic.name"]
+        self.dead_letter_topic = self.config["dead_letter_topic"]
+
+    def send_json_payload(self, payload, key=None):
+        """
+        Send a JSON payload to the Kafka topic.
+        """
+        try:
+            future = self.producer.send(self.topic_name, key=key, value=payload)
+            result = future.get(timeout=10)
+            logger.info(f"Message sent successfully to {self.topic_name} | Offset: {result.offset}")
+        except KafkaError as e:
+            logger.error(f"Failed to send message to topic {self.topic_name}: {e}")
+            logger.info("Sending the message to the Dead-Letter Queue topic...")
+            self._send_to_dead_letter_queue(payload, key)
+
+    def _send_to_dead_letter_queue(self, payload, key=None):
+        """
+        Send the failed message to the Dead-Letter Queue topic.
+        """
+        try:
+            dlq_future = self.producer.send(self.dead_letter_topic, key=key, value=payload)
+            dlq_result = dlq_future.get(timeout=10)
+            logger.info(f"Message successfully sent to DLQ: {self.dead_letter_topic} | Offset: {dlq_result.offset}")
+        except KafkaError as e:
+            logger.error(f"Failed to send message to DLQ {self.dead_letter_topic}: {e}")
+
+    def close(self):
+        """
+        Flush and close the Kafka producer.
+        """
+        try:
+            self.producer.flush()
+            self.producer.close()
+            logger.info("Kafka producer closed successfully.")
+        except Exception as e:
+            logger.error(f"Error while closing Kafka producer: {e}")
+
+if __name__ == "__main__":
+    # Path to Kafka producer configuration file
+    CONFIG_FILE = "kafka_producer_config.yaml"
+
+    # Example JSON payload
+    json_payload = {
+        "id": 12345,
+        "name": "John Doe",
+        "action": "create",
+        "timestamp": "2024-12-18T12:30:00Z"
+    }
+
+    # Initialize the Kafka producer
+    producer = SecureKafkaProducer(CONFIG_FILE)
+
+    try:
+        # Publish JSON payload
+        logger.info("Publishing JSON payload to Kafka topic...")
+        producer.send_json_payload(payload=json_payload)
+    except Exception as e:
+        logger.error(f"An unexpected error occurred: {e}")
+    finally:
+        # Ensure producer is closed
+        producer.close()
