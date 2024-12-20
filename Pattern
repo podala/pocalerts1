@@ -1,0 +1,207 @@
+import fireducks.pandas as pd
+import logging
+import json  # For configuration file
+from pathlib import Path
+from time import time
+
+# Configure logging to console only
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+
+# Observer Pattern
+class EventManager:
+    """Manages observers for specific pipeline events."""
+    def __init__(self):
+        self.listeners = {}
+
+    def subscribe(self, event_type, listener):
+        if event_type not in self.listeners:
+            self.listeners[event_type] = []
+        self.listeners[event_type].append(listener)
+
+    def notify(self, event_type, data=None):
+        if event_type in self.listeners:
+            for listener in self.listeners[event_type]:
+                listener.update(event_type, data)
+
+
+class ConsoleLogger:
+    """Logs events to the console."""
+    def update(self, event_type, data):
+        logging.info(f"Event: {event_type} | Data: {data}")
+
+
+class ErrorNotifier:
+    """Handles error notifications."""
+    def update(self, event_type, data):
+        if event_type == "error":
+            logging.error(f"Error occurred: {data}")
+
+
+# Decorator Pattern
+def log_execution_time(func):
+    """A decorator to log the execution time of a method."""
+    def wrapper(*args, **kwargs):
+        start_time = time()
+        logging.info(f"Starting {func.__name__}...")
+        result = func(*args, **kwargs)
+        end_time = time()
+        logging.info(f"Completed {func.__name__} in {end_time - start_time:.2f} seconds.")
+        return result
+    return wrapper
+
+
+# Factory Pattern
+class DataFetcher:
+    """Handles loading data from different file types."""
+    @staticmethod
+    @log_execution_time
+    def fetch_data(file_path, file_type="csv", sheet_name=None, na_values=None):
+        """Fetch data based on file type."""
+        logging.info(f"Fetching data from file: {file_path} (type: {file_type})")
+        try:
+            if file_type == "excel":
+                return pd.read_excel(file_path, sheet_name=sheet_name, na_values=na_values)
+            elif file_type == "csv":
+                return pd.read_csv(file_path, na_values=na_values)
+            else:
+                raise ValueError(f"Unsupported file type: {file_type}")
+        except Exception as e:
+            raise ValueError(f"Error fetching data from file {file_path}: {e}")
+
+
+# Pipeline Pattern
+class DataTransformer:
+    """Handles data cleaning and transformations."""
+
+    def __init__(self, df):
+        self.df = df
+
+    @log_execution_time
+    def drop_empty_rows(self):
+        logging.info("Dropping empty rows...")
+        self.df = self.df.dropna(how="all")
+        return self
+
+    @log_execution_time
+    def drop_unnecessary_columns(self, cols_to_drop):
+        logging.info(f"Dropping unnecessary columns: {cols_to_drop}")
+        self.df = self.df.drop(columns=cols_to_drop, errors="ignore")
+        return self
+
+    @log_execution_time
+    def fill_missing_values(self, fill_value=0):
+        logging.info("Filling missing values...")
+        self.df = self.df.fillna(value=fill_value)
+        return self
+
+    @log_execution_time
+    def rename_columns(self):
+        logging.info("Renaming columns...")
+        self.df.columns = [col.lower().strip() for col in self.df.columns]
+        return self
+
+    @log_execution_time
+    def clean_header(self):
+        logging.info("Cleaning 'header' column...")
+        if "header" in self.df.columns:
+            self.df["header"] = self.df["header"].str.lower().str.strip()
+        return self
+
+    @log_execution_time
+    def format_dates(self, date_columns):
+        logging.info(f"Formatting date columns: {date_columns}")
+        for col in date_columns:
+            if col in self.df.columns:
+                self.df[col] = pd.to_datetime(self.df[col], errors="coerce")
+        return self
+
+    @log_execution_time
+    def drop_duplicates(self, subset):
+        logging.info(f"Dropping duplicates based on columns: {subset}")
+        self.df = self.df.drop_duplicates(subset=subset, keep="last")
+        return self
+
+    def get_transformed_data(self):
+        return self.df
+
+
+# Command Pattern
+class DataSaver:
+    """Handles saving transformed data to a file."""
+    @staticmethod
+    @log_execution_time
+    def save_data(df, output_file):
+        """Save the cleaned data to the output file."""
+        logging.info(f"Saving cleaned data to {output_file}")
+        try:
+            df.to_csv(output_file, index=False, compression="gzip")
+        except Exception as e:
+            raise ValueError(f"Failed to save data to {output_file}: {e}")
+
+
+# Template Method Pattern
+def process_file(input_file, output_file, file_type="csv", sheet_name=None, cols_to_drop=None, date_columns=None, dedup_columns=None):
+    """
+    Orchestrates the processing of a single file through the pipeline.
+    """
+    event_manager.notify("info", f"Processing started for {input_file}")
+
+    cols_to_drop = cols_to_drop or []
+    date_columns = date_columns or []
+    dedup_columns = dedup_columns or []
+
+    try:
+        # Step 1: Fetch Data
+        na_values = ['', '#N/A', '#NA', 'NULL', 'null', 'NaN', 'nan', '-1.#IND', '1.#IND']
+        df = DataFetcher.fetch_data(file_path=input_file, file_type=file_type, sheet_name=sheet_name, na_values=na_values)
+
+        # Step 2: Transform Data
+        transformer = DataTransformer(df)
+        transformed_df = (
+            transformer
+            .drop_empty_rows()
+            .drop_unnecessary_columns(cols_to_drop)
+            .fill_missing_values(fill_value=0)
+            .rename_columns()
+            .clean_header()
+            .format_dates(date_columns)
+            .drop_duplicates(dedup_columns)
+            .get_transformed_data()
+        )
+
+        # Step 3: Save Transformed Data
+        DataSaver.save_data(transformed_df, output_file)
+
+        event_manager.notify("info", f"Processing completed for {input_file}")
+
+    except Exception as e:
+        event_manager.notify("error", f"Error processing file {input_file}: {e}")
+
+
+# Configuration Provider
+class ConfigProvider:
+    """Loads configuration dynamically."""
+    @staticmethod
+    def load_config(file_path):
+        with open(file_path, 'r') as file:
+            return json.load(file)
+
+
+# Main
+if __name__ == "__main__":
+    # Initialize event manager and register observers
+    event_manager = EventManager()
+    event_manager.subscribe("info", ConsoleLogger())
+    event_manager.subscribe("error", ErrorNotifier())
+
+    # Load dynamic configuration
+    config_file = "config.json"  # Configuration file path
+    file_configs = ConfigProvider.load_config(config_file)
+
+    # Process files based on configuration
+    for config in file_configs:
+        process_file(**config)
