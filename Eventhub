@@ -1,0 +1,7 @@
+Question	Event Hub	Kafka
+Are you handling high-level business events?	✅ Yes	Possible but less efficient.
+Are you handling low-level data changes?	Limited	✅ Best suited.
+Do you need indefinite retention?	❌ No	✅ Yes
+Are you integrating into an Azure ecosystem?	✅ Best choice	Possible, with custom work.
+Do you need cross-cloud or on-prem support?	❌ Limited	✅ Yes
+Do you need complex data pipelines?	❌ Limited	✅ Excellent fit.
