@@ -1,0 +1,120 @@
+import logging
+
+class DatabaseInsertCommand:
+    """Encapsulates the logic for inserting data into a database table."""
+    def __init__(self, conn, table_name, insert_columns):
+        """
+        Initialize with database connection, table name, and insert column names.
+        Args:
+            conn: Database connection object.
+            table_name (str): Name of the table to insert data into.
+            insert_columns (list): List of column names for the insert query.
+        """
+        self.conn = conn
+        self.table_name = table_name
+        self.insert_columns = insert_columns
+        self.insert_query = self._generate_insert_query()
+
+    def _generate_insert_query(self):
+        """Generate the SQL INSERT query dynamically."""
+        placeholders = ", ".join(["?" for _ in self.insert_columns])
+        column_names = ", ".join(self.insert_columns)
+        return f"INSERT INTO {self.table_name} ({column_names}) VALUES ({placeholders})"
+
+    def execute(self, data):
+        """
+        Execute the insert query for a batch of data.
+        Args:
+            data (list of tuples): The data to be inserted.
+        """
+        cursor = self.conn.cursor()
+        try:
+            logging.info(f"Inserting data into table: {self.table_name}")
+            cursor.fast_executemany = True
+            cursor.executemany(self.insert_query, data)
+            self.conn.commit()
+            logging.info(f"Data successfully inserted into {self.table_name}")
+        except Exception as e:
+            logging.error(f"Failed to insert data into {self.table_name}: {e}")
+            self.conn.rollback()
+            raise
+        finally:
+            cursor.close()
+
+class TableInsertFactory:
+    """Factory to create DatabaseInsertCommand for specific tables."""
+    @staticmethod
+    def get_insert_command(conn, table_name, insert_columns):
+        """
+        Create a DatabaseInsertCommand for the given table.
+        Args:
+            conn: Database connection object.
+            table_name (str): Name of the table.
+            insert_columns (list): List of column names to insert.
+        Returns:
+            DatabaseInsertCommand: Command object for inserting data.
+        """
+        return DatabaseInsertCommand(conn, table_name, insert_columns)
+
+def prepare_data_for_insert(df, insert_columns):
+    """
+    Prepare data from a DataFrame for insertion into the database.
+    Args:
+        df (DataFrame): The DataFrame containing data.
+        insert_columns (list): The columns to include in the insertion.
+    Returns:
+        list of tuples: Prepared data ready for database insertion.
+    """
+    logging.info("Preparing data for insertion...")
+    df = df[insert_columns].copy()  # Select only the necessary columns
+    df.fillna("NULL", inplace=True)  # Replace NaN values with 'NULL'
+    return [tuple(row) for row in df.to_numpy()]
+
+
+import pandas as pd
+
+# Example pipeline function
+def insert_data_pipeline(conn, df, table_name, insert_columns):
+    """
+    Pipeline to insert data into a database table.
+    Args:
+        conn: Database connection object.
+        df (DataFrame): The DataFrame containing data.
+        table_name (str): The name of the target table.
+        insert_columns (list): List of columns for the insertion.
+    """
+    try:
+        # Step 1: Prepare data
+        prepared_data = prepare_data_for_insert(df, insert_columns)
+
+        # Step 2: Create insert command using factory
+        insert_command = TableInsertFactory.get_insert_command(conn, table_name, insert_columns)
+
+        # Step 3: Execute the insert command
+        insert_command.execute(prepared_data)
+
+        logging.info(f"Data successfully inserted into table {table_name}.")
+    except Exception as e:
+        logging.error(f"Failed to insert data for table {table_name}: {e}")
+if __name__ == "__main__":
+    import pyodbc
+
+    # Example connection setup
+    conn = pyodbc.connect('Driver={SQL Server};Server=your_server;Database=your_db;Trusted_Connection=yes;')
+
+    # Example DataFrame for insertion
+    data = {
+        "pl_id": [1, 2, 3],
+        "map_id": [101, 102, 103],
+        "value": [1000, 2000, 3000],
+        "pl_data_version": [1, 1, 1]
+    }
+    df = pd.DataFrame(data)
+
+    # Table-specific settings
+    table_name = "counter_kpi_output"
+    insert_columns = ["pl_id", "map_id", "value", "pl_data_version"]
+
+    # Run the pipeline
+    insert_data_pipeline(conn, df, table_name, insert_columns)
+
