@@ -1,0 +1,206 @@
+import fireducks.pandas as pd
+import logging
+from azure.storage.blob import BlobServiceClient
+from io import StringIO
+from time import time
+from pathlib import Path
+
+# Configure logging to both console and Azure Blob
+class AzureBlobHandler(logging.Handler):
+    """Custom logging handler to write logs to Azure Blob Storage."""
+    def __init__(self, connection_string, container_name, blob_name):
+        super().__init__()
+        self.connection_string = connection_string
+        self.container_name = container_name
+        self.blob_name = blob_name
+        self.buffer = StringIO()
+
+        # Initialize BlobServiceClient
+        self.blob_service_client = BlobServiceClient.from_connection_string(self.connection_string)
+        self.container_client = self.blob_service_client.get_container_client(self.container_name)
+        self._ensure_container_exists()
+
+    def _ensure_container_exists(self):
+        if not self.container_client.exists():
+            self.container_client.create_container()
+
+    def emit(self, record):
+        log_entry = self.format(record)
+        self.buffer.write(log_entry + "\n")
+
+    def flush(self):
+        """Uploads logs to Azure Blob Storage."""
+        self.buffer.seek(0)
+        blob_client = self.container_client.get_blob_client(self.blob_name)
+        blob_client.upload_blob(self.buffer.getvalue(), overwrite=True)
+        self.buffer.truncate(0)
+        self.buffer.seek(0)
+
+# Set up logging
+def setup_logging():
+    connection_string = "<your_connection_string>"
+    container_name = "logs"
+    blob_name = "pipeline_logs.log"
+
+    azure_blob_handler = AzureBlobHandler(connection_string, container_name, blob_name)
+    azure_blob_handler.setLevel(logging.INFO)
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    azure_blob_handler.setFormatter(formatter)
+
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    logger.addHandler(logging.StreamHandler())  # Console logs
+    logger.addHandler(azure_blob_handler)  # Azure Blob logs
+    return logger
+
+logger = setup_logging()
+
+# Observer Pattern: Event Manager
+class EventManager:
+    """Manages pipeline events and notifies observers."""
+    def __init__(self):
+        self.listeners = {}
+
+    def subscribe(self, event_type, listener):
+        if event_type not in self.listeners:
+            self.listeners[event_type] = []
+        self.listeners[event_type].append(listener)
+
+    def notify(self, event_type, data=None):
+        if event_type in self.listeners:
+            for listener in self.listeners[event_type]:
+                listener.update(event_type, data)
+
+class ConsoleLogger:
+    """Logs informational messages to the console."""
+    def update(self, event_type, data):
+        logger.info(f"Event: {event_type} | Data: {data}")
+
+class ErrorNotifier:
+    """Handles error notifications."""
+    def update(self, event_type, data):
+        if event_type == "error":
+            logger.error(f"Error: {data}")
+
+# Retry logic with Decorator Pattern
+def retry_logic(retries=3, delay=2, exceptions=(Exception,)):
+    """Decorator to retry a function in case of failure."""
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            attempts = 0
+            while attempts < retries:
+                try:
+                    logger.info(f"Attempting {func.__name__} (Attempt {attempts + 1}/{retries})")
+                    return func(*args, **kwargs)
+                except exceptions as e:
+                    attempts += 1
+                    logger.warning(f"{func.__name__} failed: {e}")
+                    if attempts < retries:
+                        logger.info(f"Retrying {func.__name__} in {delay} seconds...")
+                        time.sleep(delay)
+                    else:
+                        logger.error(f"All retries for {func.__name__} failed.")
+                        raise
+        return wrapper
+    return decorator
+
+# Factory Pattern for data fetching
+class DataFetcher:
+    @staticmethod
+    @retry_logic(retries=3, delay=1)
+    def fetch_data(file_path, file_type="csv", sheet_name=None, na_values=None):
+        logger.info(f"Fetching data from {file_path} (type: {file_type})")
+        try:
+            if file_type == "excel":
+                return pd.read_excel(file_path, sheet_name=sheet_name, na_values=na_values)
+            elif file_type == "csv":
+                return pd.read_csv(file_path, na_values=na_values)
+            else:
+                raise ValueError(f"Unsupported file type: {file_type}")
+        except Exception as e:
+            logger.error(f"Failed to fetch data: {e}")
+            raise
+
+# Pipeline Pattern for data transformations
+class DataTransformer:
+    def __init__(self, df):
+        self.df = df
+
+    def drop_empty_rows(self):
+        logger.info("Dropping empty rows...")
+        self.df = self.df.dropna(how="all")
+        return self
+
+    def drop_unnecessary_columns(self, cols_to_drop):
+        logger.info(f"Dropping columns: {cols_to_drop}")
+        self.df = self.df.drop(columns=cols_to_drop, errors="ignore")
+        return self
+
+    def fill_missing_values(self, fill_value=0):
+        logger.info("Filling missing values...")
+        self.df = self.df.fillna(value=fill_value)
+        return self
+
+    def rename_columns(self):
+        logger.info("Renaming columns...")
+        self.df.columns = [col.lower().strip() for col in self.df.columns]
+        return self
+
+    def get_transformed_data(self):
+        return self.df
+
+# Command Pattern for saving data
+class DataSaver:
+    @staticmethod
+    @retry_logic(retries=3, delay=1)
+    def save_data(df, output_file):
+        logger.info(f"Saving data to {output_file}")
+        try:
+            df.to_csv(output_file, index=False, compression="gzip")
+        except Exception as e:
+            logger.error(f"Failed to save data: {e}")
+            raise
+
+# Template Method Pattern for orchestrating the pipeline
+def process_file(input_file, output_file, file_type="csv", sheet_name=None, cols_to_drop=None):
+    event_manager.notify("info", f"Starting pipeline for {input_file}")
+    try:
+        # Step 1: Fetch data
+        df = DataFetcher.fetch_data(file_path=input_file, file_type=file_type, sheet_name=sheet_name)
+
+        # Step 2: Transform data
+        transformer = DataTransformer(df)
+        transformed_df = (
+            transformer
+            .drop_empty_rows()
+            .drop_unnecessary_columns(cols_to_drop)
+            .fill_missing_values(fill_value=0)
+            .rename_columns()
+            .get_transformed_data()
+        )
+
+        # Step 3: Save data
+        DataSaver.save_data(transformed_df, output_file)
+
+        event_manager.notify("info", f"Pipeline completed for {input_file}")
+    except Exception as e:
+        event_manager.notify("error", str(e))
+
+# Main entry point
+if __name__ == "__main__":
+    event_manager = EventManager()
+    event_manager.subscribe("info", ConsoleLogger())
+    event_manager.subscribe("error", ErrorNotifier())
+
+    # Example configuration
+    file_configs = [
+        {
+            "input_file": "/path/to/input1.csv",
+            "output_file": "/path/to/output_cleaned1.csv",
+            "file_type": "csv",
+            "cols_to_drop": ["key", "lookup 9"]
+        }
+    ]
+
+    for config in file_configs:
+        process_file(**config)
