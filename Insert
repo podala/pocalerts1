@@ -1,0 +1,196 @@
+**GraphQL Queries and Mutations for Data Tables**
+
+This document provides the necessary GraphQL queries and mutations for the following tables: `PLInfo`, `UWStandardValue`, `UWYearValue`, and `UWCounterValue`. These queries and mutations are designed based on the `PL_ID` and `PL_DATA_VERSION` keys.
+
+---
+
+### **GraphQL Queries**
+
+#### 1. **Select from ****`PLInfo`**
+
+```graphql
+query GetPLInfo($plId: String!) {
+  plInfo(pl_id: $plId) {
+    PL_ID
+    PLVersion
+    ClientName
+    PLRunDate
+    PLRepositoryLocation
+    START_TS
+    END_TS
+    STATUS
+    PL_DATA_VERSION
+  }
+}
+```
+
+#### 2. **Select from ****`UWStandardValue`**
+
+```graphql
+query GetUWStandardValue($plId: String!, $plDataVersion: Int!) {
+  uwStandardValue(pl_id: $plId, pl_data_version: $plDataVersion) {
+    Map_ID
+    PL_ID
+    VALUE
+    PL_DATA_VERSION
+  }
+}
+```
+
+#### 3. **Select from ****`UWYearValue`**
+
+```graphql
+1query GetUWYearValue($plId: String!, $plDataVersion: Int!) {
+  uwYearValue(pl_id: $plId, pl_data_version: $plDataVersion) {
+    Map_ID
+    PL_ID
+    COUNTER_YR
+    YEAR
+    VALUE
+    PL_DATA_VERSION
+  }
+}
+```
+
+#### 4. **Select from ****`UWCounterValue`**
+
+```graphql
+query GetUWCounterValue($plId: String!, $plDataVersion: Int!) {
+  uwCounterValue(pl_id: $plId, pl_data_version: $plDataVersion) {
+    Map_ID
+    PL_ID
+    COUNTER
+    VALUE
+    PL_DATA_VERSION
+  }
+}
+```
+
+---
+
+### **GraphQL Mutations**
+
+#### 1. **Insert into ****`PLInfo`**
+
+```graphql
+mutation InsertPLInfo($input: PLInfoInput!) {
+  insertPLInfo(input: $input) {
+    PL_ID
+    PLVersion
+    ClientName
+    PLRunDate
+    PLRepositoryLocation
+    START_TS
+    END_TS
+    STATUS
+    PL_DATA_VERSION
+  }
+}
+```
+
+**Input Example**:
+
+```json
+{
+  "input": {
+    "PL_ID": "12345",
+    "PLVersion": "v1.0",
+    "ClientName": "Test Client",
+    "PLRunDate": "2025-01-13T00:00:00Z",
+    "PLRepositoryLocation": "/repository/path",
+    "START_TS": "2025-01-13T01:00:00Z",
+    "END_TS": null,
+    "STATUS": "Pending",
+    "PL_DATA_VERSION": 1
+  }
+}
+```
+
+#### 2. **Insert into ****`UWStandardValue`**
+
+```graphql
+mutation InsertUWStandardValue($input: UWStandardValueInput!) {
+  insertUWStandardValue(input: $input) {
+    Map_ID
+    PL_ID
+    VALUE
+    PL_DATA_VERSION
+  }
+}
+```
+
+**Input Example**:
+
+```json
+{
+  "input": {
+    "Map_ID": 1,
+    "PL_ID": "12345",
+    "VALUE": "Standard Value",
+    "PL_DATA_VERSION": 1
+  }
+}
+```
+
+#### 3. **Insert into ****`UWYearValue`**
+
+```graphql
+mutation InsertUWYearValue($input: UWYearValueInput!) {
+  insertUWYearValue(input: $input) {
+    Map_ID
+    PL_ID
+    COUNTER_YR
+    YEAR
+    VALUE
+    PL_DATA_VERSION
+  }
+}
+```
+
+**Input Example**:
+
+```json
+{
+  "input": {
+    "Map_ID": 1,
+    "PL_ID": "12345",
+    "COUNTER_YR": 2025,
+    "YEAR": 1,
+    "VALUE": "Year Value",
+    "PL_DATA_VERSION": 1
+  }
+}
+```
+
+#### 4. **Insert into ****`UWCounterValue`**
+
+```graphql
+mutation InsertUWCounterValue($input: UWCounterValueInput!) {
+  insertUWCounterValue(input: $input) {
+    Map_ID
+    PL_ID
+    COUNTER
+    VALUE
+    PL_DATA_VERSION
+  }
+}
+```
+
+**Input Example**:
+
+```json
+{
+  "input": {
+    "Map_ID": 1,
+    "PL_ID": "12345",
+    "COUNTER": 10,
+    "VALUE": "Counter Value",
+    "PL_DATA_VERSION": 1
+  }
+}
+```
+
+---
+
+Let me know if further modifications are needed!
+
