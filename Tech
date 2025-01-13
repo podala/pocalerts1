@@ -1,0 +1,14 @@
+Here’s a concise breakdown of the tech stack for the system:
+
+Frontend
+React.js: For building the interactive user interface.
+Next.js: To enable server-side rendering and improve application performance.
+Backend
+Spring Boot: A robust framework for building the backend API.
+Java: The core programming language for backend development.
+GraphQL: For flexible and efficient data querying and mutation.
+Deployment & Infrastructure
+Docker: Containerization for easy deployment and scalability.
+Azure/AWS/GCP: Cloud platform options for hosting and managing the application.
+Authentication
+JWT: For secure user authentication and session management.
