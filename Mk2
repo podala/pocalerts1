@@ -1,0 +1,25 @@
+## Common Error Scenarios
+
+| Scenario                                         | Status Code | Error Type         | Message                                                          |
+|--------------------------------------------------|------------|--------------------|------------------------------------------------------------------|
+| Missing, Invalid or Expired access token         | 401        | -                  | <code style={{ background: "#f8d7da", color: "#721c24", padding: "4px 8px", borderRadius: "5px" }}>Exception while fetching data: Denied.</code> |
+| Missing allowed roles                            | 200        | PERMISSION_DENIED  | <code style={{ background: "#f8d7da", color: "#721c24", padding: "4px 8px", borderRadius: "5px" }}>Missing Request Parameters</code> |
+| Input Parameters - null                          | 200        | BAD_REQUEST        | <code style={{ background: "#f8d7da", color: "#721c24", padding: "4px 8px", borderRadius: "5px" }}>Invalid Request</code> |
+| Input Parameter - invalid                        | 200        | BAD_REQUEST        | <code style={{ background: "#f8d7da", color: "#721c24", padding: "4px 8px", borderRadius: "5px" }}>The upstream service is experiencing an issue. Please try again.</code> |
+| Server Errors from External Service (5xx)        | 200        | INTERNAL           | <code style={{ background: "#f8d7da", color: "#721c24", padding: "4px 8px", borderRadius: "5px" }}>Client Error from External Service.</code> |
+| Client Errors from External Service (4xx)        | 200        | INTERNAL           | <code style={{ background: "#f8d7da", color: "#721c24", padding: "4px 8px", borderRadius: "5px" }}>Exception while fetching data</code> |
+
+---
+
+## Why this works?
+- The `<code>` tag allows inline formatting.
+- The `style` property provides:
+  - `background: "#f8d7da"` → Light red background
+  - `color: "#721c24"` → Dark red text
+  - `padding: "4px 8px"` → Space inside the box
+  - `border-radius: "5px"` → Rounded corners for better UI
+
+### **Final Output**
+This will render messages in **a light red box with dark red text**, matching the UI in your screenshot.
+
+Let me know if you need further adjustments! 🚀
