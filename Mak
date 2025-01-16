@@ -1,0 +1,21 @@
+## Common Error Scenarios
+
+| Scenario                                      | Status Code | Error Type         | Message  |
+|-----------------------------------------------|------------|--------------------|-------------------------------------------------------------|
+| Missing, Invalid or Expired access token      | 401        |                    |                                                             |
+| Missing allowed roles                         | 200        | PERMISSION_DENIED  | Exception while fetching data: Denied.                     |
+| Input Parameters - null                       | 200        | BAD_REQUEST        | Missing Request Parameters                                  |
+| Input Parameter - invalid                     | 200        | BAD_REQUEST        | Invalid Request                                             |
+| Server Errors from External Service (5xx)     | 200        | INTERNAL           | The upstream service is experiencing an issue. Please try again. |
+| Client Errors from External Service (4xx)     | 200        | INTERNAL           | Client Error from External Service.                         |
+| Runtime Exceptions while processing the response | 200     | INTERNAL           | Exception while fetching data                               |
+
+## Possible List of `errorTypes` in the response:
+
+- UNKNOWN
+- INTERNAL
+- NOT_FOUND
+- UNAUTHENTICATED
+- PERMISSION_DENIED
+- BAD_REQUEST
+- UNAVAILABLE
