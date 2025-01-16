@@ -1,0 +1,19 @@
+## Common Error Scenarios
+
+| Scenario                                         | Status Code | Error Type         | Message                                                          |
+|--------------------------------------------------|------------|--------------------|------------------------------------------------------------------|
+| Missing, Invalid or Expired access token         | 401        | -                  | <span style={{ color: "red" }}>Exception while fetching data: Denied.</span> |
+| Missing allowed roles                            | 200        | PERMISSION_DENIED  | <span style={{ color: "red" }}>Missing Request Parameters</span>        |
+| Input Parameters - null                          | 200        | BAD_REQUEST        | <span style={{ color: "red" }}>Invalid Request</span>                  |
+| Input Parameter - invalid                        | 200        | BAD_REQUEST        | <span style={{ color: "red" }}>The upstream service is experiencing an issue. Please try again.</span> |
+| Server Errors from External Service (5xx)        | 200        | INTERNAL           | <span style={{ color: "red" }}>Client Error from External Service.</span> |
+| Client Errors from External Service (4xx)        | 200        | INTERNAL           | <span style={{ color: "red" }}>Exception while fetching data</span>     |
+
+---
+
+### Explanation:
+1. **Docusaurus (or React-based frameworks like MDX) require inline styles to be objects.**
+2. **Instead of `style="color:red"`, you need to use `style={{ color: "red" }}`.**
+3. **This will work inside `.mdx` files.** If you are using a `.md` file, you may need to switch to `.mdx`.
+
+Let me know if you need more help! 🚀
