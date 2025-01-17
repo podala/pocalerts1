@@ -1,0 +1,66 @@
+header_groups:
+  PL_Information:
+    headers:
+      - "PL Information"
+      - "RPT Information"
+      - "Repricing Information"
+      - "Bid Round Information"
+      - "Opportunity Information"
+      - "Pricing Setup"
+      - "Specialty Pricing Setup"
+      - "Rebates Setup"
+      - "Benefit Plan Design"
+  Other_Groups:
+    common_headers:
+      - "PL_ID"
+      - "Opportunity_ID"
+      - "Case_ID"
+    groups:
+      PL_Revenue:
+        headers:
+          - "PL Revenue - Ingredient Cost"
+          - "PL Revenue - Dispensing Fees"
+          - "PL Revenue - Rebates"
+          - "PL Revenue - Admin Fees"
+          - "PL Revenue - Click Fees"
+          - "PL Revenue - Guarantee Miss"
+          - "PL Revenue - Misc Rev Credits"
+          - "PL Revenue - Expected Rebate Payout"
+          - "PL Revenue - Network Value Creation"
+          - "PL Revenue - Total"
+      PL_Cost:
+        headers:
+          - "PL Cost - Ingredient Cost"
+          - "PL Cost - Dispensing Fees"
+          - "PL Cost - Rebates"
+          - "PL Cost - Admin Fees"
+          - "PL Cost - Click Fees"
+          - "PL Cost - Guarantee Miss"
+          - "PL Cost - Misc Rev Credits"
+          - "PL Cost - Expected Rebate Payout"
+          - "PL Cost - Network Value Creation"
+          - "PL Cost - Total"
+      PL_Gross_Profit:
+        headers:
+          - "PL Gross Profit - Ingredient Cost"
+          - "PL Gross Profit - Dispensing Fees"
+          - "PL Gross Profit - Rebates"
+          - "PL Gross Profit - Admin Fees"
+          - "PL Gross Profit - Click Fees"
+          - "PL Gross Profit - Guarantee Miss"
+          - "PL Gross Profit - Misc Rev Credits"
+          - "PL Gross Profit - Expected Rebate Payout"
+          - "PL Gross Profit - Network Value Creation"
+          - "PL Gross Profit - Total"
+      PL_GP_Rx:
+        headers:
+          - "PL GP/Rx - Ingredient Cost"
+          - "PL GP/Rx - Dispensing Fees"
+          - "PL GP/Rx - Rebates"
+          - "PL GP/Rx - Admin Fees"
+          - "PL GP/Rx - Click Fees"
+          - "PL GP/Rx - Guarantee Miss"
+          - "PL GP/Rx - Misc Rev Credits"
+          - "PL GP/Rx - Expected Rebate Payout"
+          - "PL GP/Rx - Network Value Creation"
+          - "PL GP/Rx - Total"
