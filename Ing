@@ -1,0 +1,122 @@
+import pandas as pd
+import yaml
+import pymongo
+from pymongo import MongoClient
+import multiprocessing
+import logging
+from retrying import retry
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Load Configuration
+class ConfigLoader:
+    @staticmethod
+    def load_config(config_path="config.yaml"):
+        with open(config_path, "r") as file:
+            return yaml.safe_load(file)
+
+# MongoDB Connector
+class MongoDBConnector:
+    def __init__(self, uri, database):
+        self.client = MongoClient(uri)
+        self.db = self.client[database]
+
+    @retry(stop_max_attempt_number=3, wait_fixed=2000)
+    def insert_documents(self, collection_name, documents):
+        if documents:
+            self.db[collection_name].insert_many(documents)
+            logging.info(f"Inserted {len(documents)} documents into {collection_name}")
+
+# Data Processor for PL_Information
+class PLInformationProcessor:
+    def __init__(self, config, db_connector):
+        self.config = config
+        self.db_connector = db_connector
+        self.collection_name = "pl_information"
+
+    def process_chunk(self, chunk):
+        processed_data = []
+        for _, row in chunk.iterrows():
+            for vector_index in range(1, 6):  # Iterate over vector1 to vector5
+                vector_key = f"vector{vector_index}"
+                pl_id_key = f"PL_ID_vector{vector_index}"
+                
+                document = {
+                    "PL_ID": row.get(pl_id_key, row.get("PL_ID", "unknown")),
+                    "Opportunity_ID": row.get("Opportunity_ID", "unknown"),
+                    "Case_ID": row.get("Case_ID", "unknown"),
+                    "PL_group": "PL_Information",
+                    "vector": vector_index,
+                    "data": {}
+                }
+                
+                for header in self.config["header_groups"]["PL_Information"]["headers"]:
+                    vector_header_key = f"{header} vector{vector_index}"
+                    if vector_header_key in row:
+                        document["data"][header] = row.get(vector_header_key, None)
+                
+                processed_data.append(document)
+        
+        self.db_connector.insert_documents(self.collection_name, processed_data)
+
+# Data Processor for Other Groups
+class OtherGroupsProcessor:
+    def __init__(self, config, db_connector):
+        self.config = config
+        self.db_connector = db_connector
+        self.collection_name = "other_groups"
+
+    def process_chunk(self, chunk):
+        processed_data = []
+        for _, row in chunk.iterrows():
+            for group_name, group_config in self.config["header_groups"].items():
+                if group_name != "PL_Information":  # Skip PL_Information since it's handled separately
+                    document = {
+                        "PL_ID": row.get("PL_ID", "unknown"),
+                        "Opportunity_ID": row.get("Opportunity_ID", "unknown"),
+                        "Case_ID": row.get("Case_ID", "unknown"),
+                        "PL_group": group_name,
+                        "data": {}
+                    }
+                    
+                    for header in group_config["headers"]:
+                        if header in row:
+                            document["data"][header] = row.get(header, None)
+                    
+                    processed_data.append(document)
+        
+        self.db_connector.insert_documents(self.collection_name, processed_data)
+
+# CSV Reader
+class CSVReader:
+    def __init__(self, file_path, chunk_size=1000):
+        self.file_path = file_path
+        self.chunk_size = chunk_size
+
+    def read_chunks(self):
+        return pd.read_csv(self.file_path, chunksize=self.chunk_size)
+
+# Parallel Ingestion Controller
+class ParallelIngestion:
+    def __init__(self, csv_reader, processors):
+        self.csv_reader = csv_reader
+        self.processors = processors
+
+    def ingest_data(self):
+        with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+            for processor in self.processors:
+                pool.map(processor.process_chunk, self.csv_reader.read_chunks())
+
+# Main Execution
+if __name__ == "__main__":
+    logging.info("Starting data ingestion process")
+    config = ConfigLoader.load_config()
+    db_connector = MongoDBConnector("your_mongodb_uri", "your_database")
+    csv_reader = CSVReader("your_csv_file.csv")
+    pl_processor = PLInformationProcessor(config, db_connector)
+    other_processor = OtherGroupsProcessor(config, db_connector)
+    
+    ingestion_controller = ParallelIngestion(csv_reader, [pl_processor, other_processor])
+    ingestion_controller.ingest_data()
+    logging.info("Data ingestion process completed")
