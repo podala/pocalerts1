@@ -1,0 +1,94 @@
+import pandas as pd
+import yaml
+import pymongo
+from pymongo import MongoClient
+import multiprocessing
+import logging
+import time
+from retrying import retry
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Load Configuration
+class ConfigLoader:
+    @staticmethod
+    def load_config(config_path="config.yaml"):
+        with open(config_path, "r") as file:
+            return yaml.safe_load(file)
+
+# MongoDB Connector
+class MongoDBConnector:
+    def __init__(self, config):
+        self.client = MongoClient(config["mongodb"]["uri"])
+        self.db = self.client[config["mongodb"]["database"]]
+
+    @retry(stop_max_attempt_number=3, wait_fixed=2000)
+    def insert_documents(self, collection_name, documents):
+        if documents:
+            self.db[collection_name].insert_many(documents)
+            logging.info(f"Inserted {len(documents)} documents into {collection_name}")
+
+# Data Processor for PL_Information
+class PLInformationProcessor:
+    def __init__(self, config, db_connector):
+        self.config = config
+        self.db_connector = db_connector
+        self.collection_name = "pl_information"
+        self.valid_headers = set(self.config["header_groups"].get("PL_Information", {}).get("headers", []))
+
+    def process_chunk(self, chunk):
+        processed_data = []
+        for _, row in chunk.iterrows():
+            for vector_index in range(1, 6):  # Iterate over vector1 to vector5
+                vector_key = f"vector{vector_index}"
+                
+                document = {
+                    "PL_ID": row.get(vector_key, "unknown"),
+                    "PL_group": "PL_Information",
+                    "vector": vector_index,
+                    "data": {}
+                }
+                
+                for header in self.valid_headers:
+                    if header in row:
+                        document["data"][header] = row.get(vector_key, None)
+                
+                if document["data"]:
+                    processed_data.append(document)
+                
+                # Stop processing further once all specified headers are processed
+                if len(document["data"]) == len(self.valid_headers):
+                    break
+        
+        self.db_connector.insert_documents(self.collection_name, processed_data)
+
+# CSV Reader
+class CSVReader:
+    def __init__(self, file_path, chunk_size=1000):
+        self.file_path = file_path
+        self.chunk_size = chunk_size
+
+    def read_chunks(self):
+        return pd.read_csv(self.file_path, chunksize=self.chunk_size)
+
+# Parallel Processing Function
+def parallel_process(file_path, config, db_connector):
+    csv_reader = CSVReader(file_path)
+    pl_processor = PLInformationProcessor(config, db_connector)
+    
+    with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+        pool.map(pl_processor.process_chunk, csv_reader.read_chunks())
+
+# Main Execution for PL Information
+if __name__ == "__main__":
+    logging.info("Starting PL Information ingestion process")
+    start_time = time.time()
+    
+    config = ConfigLoader.load_config()
+    db_connector = MongoDBConnector(config)
+    
+    parallel_process(config["csv"]["file_path"], config, db_connector)
+    
+    end_time = time.time()
+    logging.info(f"PL Information ingestion process completed in {end_time - start_time:.2f} seconds")
