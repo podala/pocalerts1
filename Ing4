@@ -1,0 +1,112 @@
+import pandas as pd
+import yaml
+import logging
+import time
+from io import StringIO
+from functools import wraps
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Load Configuration Inline
+config = {
+    "header_groups": {
+        "PL_Information": {
+            "headers": [
+                "PL Information",
+                "RPT Information",
+                "Repricing Information",
+                "Bid Round Information",
+                "Opportunity Information",
+                "Pricing Setup",
+                "Specialty Pricing Setup",
+                "Rebates Setup",
+                "Benefit Plan Design"
+            ]
+        }
+    }
+}
+
+# Retry Decorator for Resilience
+def retry_on_failure(retries=3, delay=2):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            attempt = 0
+            while attempt < retries:
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    attempt += 1
+                    logging.error(f"Error in {func.__name__}: {str(e)}. Retrying {attempt}/{retries}")
+                    time.sleep(delay)
+            logging.error(f"Max retries reached for {func.__name__}. Exiting.")
+        return wrapper
+    return decorator
+
+# Data Processor for PL_Information
+class PLInformationProcessor:
+    def __init__(self, config):
+        self.config = config
+        self.valid_headers = set(self.config["header_groups"].get("PL_Information", {}).get("headers", []))
+
+    @retry_on_failure()
+    def process_chunk(self, chunk):
+        processed_data = []
+        for _, row in chunk.iterrows():
+            header_name = row.get("header", "Unknown")
+            kpi_name = row.get("kpi", "Unknown")
+            
+            if header_name == "PL Information" and kpi_name in self.valid_headers:
+                document = {
+                    "PL_group": "PL_Information",
+                    "kpi": kpi_name,
+                    "data": {}
+                }
+                
+                if "Model Year" in kpi_name:  # Store all model years efficiently
+                    year_index = int(kpi_name.split(" ")[-1])  # Extract the year index
+                    if "modelYears" not in document["data"]:
+                        document["data"]["modelYears"] = []
+                    
+                    for vector_index in range(1, 6):  # Iterate over vector1 to vector5
+                        vector_key = f"vector {vector_index}"
+                        document["data"]["modelYears"].append({
+                            "year": 2022 + year_index - 1,  # Derive year dynamically
+                            "value": row.get(vector_key, None)
+                        })
+                else:
+                    for vector_index in range(1, 6):  # Iterate over vector1 to vector5
+                        vector_key = f"vector {vector_index}"
+                        document["data"][vector_key] = row.get(vector_key, None)
+                
+                processed_data.append(document)
+        
+        self.save_to_file(processed_data)
+
+    @retry_on_failure()
+    def save_to_file(self, data):
+        if data:
+            with open("pl_information_output.json", "w") as f:
+                import json
+                json.dump(data, f, indent=4)
+                logging.info(f"Saved {len(data)} documents to pl_information_output.json for verification.")
+
+# Process Single Group for PL Information
+def process_pl_information(csv_data, config):
+    csv_reader = pd.read_csv(StringIO(csv_data))
+    pl_processor = PLInformationProcessor(config)
+    pl_processor.process_chunk(csv_reader)
+
+# Main Execution for PL Information
+if __name__ == "__main__":
+    logging.info("Starting PL Information ingestion process")
+    start_time = time.time()
+    
+    # Sample CSV data with corrected format
+    csv_data = """header,kpi,vector 1,vector 2,vector 3,vector 4,vector 5\nPL Information,PL Version,v3.8,v3.8,v3.8,v3.8,v3.8\nPL Information,PLID,PL0226141921TMPXYX,PL0226271415ISTWBPU,PL0226299238STWGDXL,PL0226154956THWNZW,PL0223113465MD5MXK\nPL Information,PL Run Date,07-14-2022 09:16:21,07-27-2022 09:45:14,07-29-2022 18:32:36,08-15-2022 15:45:25,09-13-2022 12:46:49\nPL Information,PL Model Year 1,2023,2023,2023,2023,2023\nPL Information,PL Model Year 2,2024,2024,2024,2024,2024\nPL Information,PL Model Year 3,2025,2025,2025,2025,2025\nPL Information,PL Model Year 4,2026,2026,2026,2026,2026\nPL Information,PL Model Year 5,2027,2027,2027,2027,2027\nRPT Information,RPT Model Year 1,2023,2023,2023,2023,2023\nRPT Information,RPT Model Year 2,2024,2024,2024,2024,2024\nRPT Information,RPT Model Year 3,2025,2025,2025,2025,2025\nRPT Information,RPT Model Year 4,2026,2026,2026,2026,2026\nRPT Information,RPT Model Year 5,2027,2027,2027,2027,2027"""
+    
+    process_pl_information(csv_data, config)
+    
+    end_time = time.time()
+    logging.info(f"PL Information ingestion process completed in {end_time - start_time:.2f} seconds")
