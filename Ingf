@@ -1,0 +1,78 @@
+import pandas as pd
+import json
+import logging
+import numpy as np
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+class PLInformationProcessor:
+    def __init__(self, config):
+        self.config = config
+        self.headers = config["header_groups"]["PL_Information"]["headers"]  # Dynamically fetch headers
+        logging.info(f"Initialized PLInformationProcessor with headers: {self.headers}")
+
+    def process_vector(self, df, vector_index):
+        """Processes a single vector and includes both 'PL Information' and 'Rpt Information'."""
+        logging.info(f"Processing vector {vector_index}")
+
+        document = {
+            "PL_group": "PL_Information",
+            "vector": vector_index,
+            "modelYears": [],
+            "headers": {}  # Dictionary to store both PL Information & Rpt Information under the same vector
+        }
+
+        for header_name in self.headers:
+            header_data = {}
+
+            for _, row in df.iterrows():
+                if row["header"] == header_name:  # Ensure correct header is matched
+                    kpi_name = row["kpi"]
+                    value = row.get(f"vector {vector_index}", "")
+
+                    # Handle missing values (replace NaN with an empty string)
+                    if isinstance(value, float) and np.isnan(value):
+                        value = ""
+
+                    # Special case: Handling model years separately
+                    if "Model Year" in kpi_name and str(value).isdigit():
+                        document["modelYears"].append({"year": int(value)})
+                    else:
+                        header_data[kpi_name] = value
+
+            # Store the processed header data under the respective header name
+            document["headers"][header_name] = header_data
+
+        return document
+
+    def process_all_vectors(self, df):
+        """Processes all vectors and saves them into a single JSON file per vector."""
+        for vector_index in range(1, 6):  # Assuming 5 vectors
+            processed_data = self.process_vector(df, vector_index)
+
+            # Save as a separate JSON file for each vector
+            filename = f"pl_information_vector_{vector_index}.json"
+            with open(filename, "w") as f:
+                json.dump([processed_data], f, indent=4)  # Save as a list
+            logging.info(f"Saved {filename} successfully")
+
+
+def process_pl_information(csv_file, config):
+    logging.info("Starting PL Information CSV Processing")
+    df = pd.read_csv(csv_file)
+    processor = PLInformationProcessor(config)
+    processor.process_all_vectors(df)
+
+
+if __name__ == "__main__":
+    csv_file = "input_data.csv"
+    config = {
+        "header_groups": {
+            "PL_Information": {
+                "headers": ["PL Information", "Rpt Information"]  # Supports multiple headers dynamically
+            }
+        }
+    }
+    logging.info("Starting PLInformationProcessor Execution")
+    process_pl_information(csv_file, config)
