@@ -1,0 +1,139 @@
+import pandas as pd
+import json
+import logging
+from collections import defaultdict
+
+# Configure Logging for Debugging
+logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
+
+# Config YAML Structure
+config = {
+    "header_groups": {
+        "PL_Information": {
+            "structure_type": "default",
+            "pattern": "flat",
+            "headers": ["PL Information", "Rpt Information"]
+        },
+        "Scripts": {
+            "structure_type": "hierarchical",
+            "pattern": "header-categories-subCategories-yearlyData",
+            "headers": ["Scripts", "Eligibility Scripts"],
+            "categories": ["Mail", "Retail 30", "Specialty"],
+            "subCategories": ["Brand", "Generic", "Total"]
+        }
+    }
+}
+
+# JSON Template
+json_templates = {
+    "flat": {
+        "PL_group": "",
+        "vector": "",
+        "PL_ID": "",
+        "PL Run Date": "",
+        "modelYears": []
+    },
+    "header-categories-subCategories-yearlyData": {
+        "headerName": "",
+        "categories": []
+    }
+}
+
+# Function to Validate JSON Structure
+def validate_structure(group_name, document):
+    expected_pattern = config["header_groups"][group_name]["pattern"]
+    return "categories" in document if expected_pattern == "header-categories-subCategories-yearlyData" else "modelYears" in document
+
+# Base Processor Class
+class BaseProcessor:
+    def __init__(self, group_name, config):
+        self.group_name = group_name
+        self.config = config
+        self.structure_type = config["header_groups"][group_name]["structure_type"]
+        self.template = json_templates[self.config["header_groups"][group_name]["pattern"]]
+        logging.info(f"Initialized Processor for {group_name}")
+
+    def process_row(self, row):
+        raise NotImplementedError("Each processor must implement its own row processing")
+
+# PL Information Processor
+class PLInformationProcessor(BaseProcessor):
+    def process_row(self, row):
+        logging.info(f"Processing PL_Information row: {row}")
+
+        document = self.template.copy()
+        document["PL_group"] = "PL_Information"
+        document["vector"] = row["vector"]
+        document["PL_ID"] = row["PL ID"]
+        document["PL Run Date"] = row["PL Run Date"]
+
+        # Process model years dynamically
+        document["modelYears"] = [{"year": int(row[f"vector {i}"])} for i in range(1, 6) if f"vector {i}" in row]
+
+        logging.debug(f"Generated PL Information JSON: {json.dumps(document, indent=2)}")
+        return document if validate_structure(self.group_name, document) else None
+
+# Unified Processor for Scripts & Eligibility Scripts
+class ScriptsProcessor(BaseProcessor):
+    def process_row(self, row):
+        logging.info(f"Processing Scripts row: {row}")
+
+        document = self.template.copy()
+        document["headerName"] = row["header"]
+        categories_dict = defaultdict(lambda: defaultdict(list))
+
+        for category in self.config["header_groups"]["Scripts"]["categories"]:
+            for subCategory in self.config["header_groups"]["Scripts"]["subCategories"]:
+                column_key = f"{category} - {subCategory}"
+                if column_key in row:
+                    for i in range(1, 6):
+                        year_value = row.get(f"vector {i}", None)
+                        if year_value:
+                            categories_dict[category][subCategory].append({
+                                "year": 2020 + i, "value": float(year_value)
+                            })
+
+        for category, subCategories in categories_dict.items():
+            category_obj = {"categoryName": category, "subCategories": []}
+            for subName, yearly_data in subCategories.items():
+                category_obj["subCategories"].append({"subCategoryName": subName, "yearlyData": yearly_data})
+            document["categories"].append(category_obj)
+
+        logging.debug(f"Generated Scripts JSON: {json.dumps(document, indent=2)}")
+        return document if validate_structure(self.group_name, document) else None
+
+# CSV Processing Engine
+def process_csv(csv_file, config):
+    logging.info("Starting CSV Processing")
+    
+    df = pd.read_csv(csv_file)
+    logging.debug(f"CSV Data Sample:\n{df.head()}")
+
+    processors = {
+        "PL_Information": PLInformationProcessor("PL_Information", config),
+        "Scripts": ScriptsProcessor("Scripts", config)
+    }
+    
+    processed_documents = []
+    
+    for _, row in df.iterrows():
+        group_name = row["header"]
+        logging.info(f"Processing row under group {group_name}")
+
+        if group_name in processors:
+            document = processors[group_name].process_row(row)
+            if document:
+                processed_documents.append(document)
+
+    logging.info(f"Total documents processed: {len(processed_documents)}")
+    
+    with open("output.json", "w") as f:
+        json.dump(processed_documents, f, indent=4)
+
+    logging.info("Saved output.json successfully")
+
+# Execute Script
+if __name__ == "__main__":
+    csv_file = "input_data.csv"
+    logging.info("Starting Main Execution")
+    process_csv(csv_file, config)
