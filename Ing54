@@ -1,0 +1,73 @@
+import pandas as pd
+import json
+import logging
+
+# ✅ Configure Logging (Detailed Debugging)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+class PLInformationProcessor:
+    def __init__(self, config):
+        self.config = config
+        logging.info("✅ Initialized PLInformationProcessor")
+
+    def process_rows(self, df, vector_index):
+        """Processes only PL_Information rows and stops once done."""
+        logging.info(f"🚀 Processing PL Information for vector {vector_index}")
+
+        pl_output = []
+        pl_section_started = False
+
+        for _, row in df.iterrows():
+            if row["header"] == "PL Information":
+                pl_section_started = True  # ✅ Start processing only after PL Information header appears
+                document = {"PL_group": "PL_Information", "vector": vector_index, "modelYears": []}
+                
+                for column, value in row.items():
+                    if column.startswith("PL Model Year") and str(value).isdigit():
+                        document["modelYears"].append({"year": int(value)})
+                    else:
+                        document[column] = value  # ✅ Store all other KPI values as key-value pairs
+                
+                pl_output.append(document)
+            
+            elif pl_section_started:  
+                logging.info("✅ PL Information section processed, stopping further iteration.")
+                break  # ✅ Exit loop once PL Information rows are processed
+
+        return pl_output
+
+
+def process_pl_information(csv_file, config):
+    """Processes CSV file and generates separate JSON files per vector."""
+    logging.info("🚀 Starting PL Information CSV Processing")
+    
+    df = pd.read_csv(csv_file)
+    logging.info(f"📌 CSV File Loaded Successfully:\n{df.head(10)}")  # ✅ Debug CSV data
+
+    processor = PLInformationProcessor(config)
+
+    for vector_index in range(1, 6):  # ✅ Assuming 5 vectors
+        pl_output = processor.process_rows(df, vector_index)
+
+        if pl_output:
+            json_filename = f"pl_information_vector_{vector_index}.json"
+            with open(json_filename, "w") as f:
+                json.dump(pl_output, f, indent=4)
+            logging.info(f"✅ Successfully saved: {json_filename}")
+        else:
+            logging.warning(f"⚠️ No PL Information data found for vector {vector_index}")
+
+if __name__ == "__main__":
+    csv_file = "input_data.csv"
+    
+    # ✅ Embedded Config
+    config = {
+        "header_groups": {
+            "PL_Information": {
+                "headers": ["PL Information", "Rpt Information"]  # ✅ Define allowed headers dynamically
+            }
+        }
+    }
+    
+    logging.info("🎯 Starting PLInformationProcessor Execution")
+    process_pl_information(csv_file, config)
