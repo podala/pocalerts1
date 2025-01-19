@@ -1,0 +1,49 @@
+import pandas as pd
+import json
+import logging
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+class PLInformationProcessor:
+    def __init__(self, config):
+        self.config = config
+        logging.info("Initialized PLInformationProcessor")
+
+    def process_row(self, row, vector_index):
+        logging.info(f"Processing PL_Information row for vector {vector_index}: {row}")
+
+        document = {"PL_group": "PL_Information", "vector": vector_index, "modelYears": []}
+        
+        for column, value in row.items():
+            if column.startswith("PL Model Year") and str(value).isdigit():
+                document["modelYears"].append({"year": int(value)})
+            else:
+                document[column] = value
+
+        return document
+
+
+def process_pl_information(csv_file, config):
+    logging.info("Starting PL Information CSV Processing")
+    df = pd.read_csv(csv_file)
+    processor = PLInformationProcessor(config)
+
+    for vector_index in range(1, 6):  # Assuming 5 vectors
+        pl_output = []
+        
+        for _, row in df.iterrows():
+            if row["header"] == "PL Information":
+                document = processor.process_row(row, vector_index)
+                if document:
+                    pl_output.append(document)
+        
+        with open(f"pl_information_vector_{vector_index}.json", "w") as f:
+            json.dump(pl_output, f, indent=4)
+        logging.info(f"Saved pl_information_vector_{vector_index}.json successfully")
+
+if __name__ == "__main__":
+    csv_file = "input_data.csv"
+    config = {"header_groups": {"PL_Information": {"headers": ["PL Information", "Rpt Information"]}}}
+    logging.info("Starting PLInformationProcessor Execution")
+    process_pl_information(csv_file, config)
