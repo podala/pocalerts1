@@ -1,0 +1,160 @@
+import pandas as pd
+import yaml
+import json
+import logging
+from collections import defaultdict
+from functools import wraps
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+# Load YAML Config
+config = {
+    "header_groups": {
+        "PL_Information": {
+            "structure_type": "default",
+            "pattern": "flat",
+            "headers": ["PL Information", "Rpt Information"]
+        },
+        "Scripts": {
+            "structure_type": "hierarchical",
+            "pattern": "header-categories-subCategories-yearlyData",
+            "headers": ["Scripts", "Eligibility Scripts"],
+            "categories": ["Mail", "Retail 30", "Specialty"],
+            "subCategories": ["Brand", "Generic", "Total"]
+        }
+    }
+}
+
+# JSON Template Mapping
+json_templates = {
+    "flat": {
+        "PL_group": "",
+        "vector": "",
+        "PL_ID": "",
+        "PL Run Date": "",
+        "modelYears": []
+    },
+    "header-categories-subCategories-yearlyData": {
+        "headerName": "",
+        "categories": []
+    }
+}
+
+# Retry Decorator for Fault Tolerance
+def retry_on_failure(retries=3, delay=2):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            attempt = 0
+            while attempt < retries:
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    attempt += 1
+                    logging.error(f"Error in {func.__name__}: {str(e)}. Retrying {attempt}/{retries}")
+            logging.error(f"Max retries reached for {func.__name__}. Skipping.")
+        return wrapper
+    return decorator
+
+# Validator Function
+def validate_structure(group_name, document):
+    """ Ensures the generated JSON follows the expected pattern """
+    expected_pattern = config["header_groups"][group_name]["pattern"]
+    return "categories" in document and isinstance(document["categories"], list)
+
+# Base Processor Class
+class BaseProcessor:
+    def __init__(self, group_name, config):
+        self.group_name = group_name
+        self.config = config
+        self.structure_type = config["header_groups"][group_name]["structure_type"]
+        self.template = json_templates[self.config["header_groups"][group_name]["pattern"]]
+        logging.info(f"Initialized Processor for {group_name}")
+
+    def process_row(self, row):
+        raise NotImplementedError("Each processor must implement its own row processing")
+
+# Processor for PL Information
+class PLInformationProcessor(BaseProcessor):
+    def process_row(self, row):
+        logging.info(f"Processing PL_Information row: {row}")
+        document = self.template.copy()
+        document["PL_group"] = "PL_Information"
+        document["vector"] = row["vector"]
+        document["PL_ID"] = row["PL_ID"]
+        document["PL Run Date"] = row["PL Run Date"]
+        
+        # Processing model years dynamically
+        document["modelYears"] = []
+        for i in range(1, 6):
+            year_key = f"Year {i}"
+            if year_key in row and row[year_key]:
+                document["modelYears"].append({"year": row[year_key]})
+
+        logging.info(f"Processed PL Information document: {document}")
+        return document if validate_structure(self.group_name, document) else None
+
+# Unified Processor for Scripts and Eligibility Scripts
+class ScriptsProcessor(BaseProcessor):
+    def process_row(self, row):
+        logging.info(f"Processing Scripts row: {row}")
+        document = self.template.copy()
+        document["headerName"] = row["header"]
+        categories_dict = defaultdict(lambda: defaultdict(list))
+
+        # Iterate over categories and subcategories to extract data
+        for category in self.config["header_groups"]["Scripts"]["categories"]:
+            for subCategory in self.config["header_groups"]["Scripts"]["subCategories"]:
+                column_key = f"{category} - {subCategory}"
+                if column_key in row:
+                    for i in range(1, 6):
+                        year_key = f"Year {i}"
+                        if year_key in row and row[year_key]:
+                            categories_dict[category][subCategory].append({
+                                "year": row[year_key], "value": float(row[column_key]) if row[column_key] else None
+                            })
+
+        # Check if data exists, else log missing values
+        if not categories_dict:
+            logging.warning(f"No valid data found for row: {row}")
+
+        # Build the final JSON structure
+        for category, subCategories in categories_dict.items():
+            category_obj = {"categoryName": category, "subCategories": []}
+            for subName, yearly_data in subCategories.items():
+                category_obj["subCategories"].append({"subCategoryName": subName, "yearlyData": yearly_data})
+            document["categories"].append(category_obj)
+
+        logging.info(f"Processed Scripts document: {document}")
+        return document if validate_structure(self.group_name, document) else None
+
+# Processing Engine
+def process_csv(csv_data, config):
+    logging.info("Starting CSV Processing")
+    df = pd.read_csv(csv_data, chunksize=1000)  # Process in chunks for large files
+    processors = {
+        "PL_Information": PLInformationProcessor("PL_Information", config),
+        "Scripts": ScriptsProcessor("Scripts", config)
+    }
+    processed_documents = []
+    
+    for chunk in df:
+        logging.info(f"Processing chunk with {len(chunk)} rows")
+        for _, row in chunk.iterrows():
+            group_name = row["header"]
+            logging.info(f"Processing row under group {group_name}")
+            if group_name in processors:
+                document = processors[group_name].process_row(row)
+                if document:
+                    processed_documents.append(document)
+
+    logging.info(f"Total documents processed: {len(processed_documents)}")
+    with open("output.json", "w") as f:
+        json.dump(processed_documents, f, indent=4)
+    logging.info("Saved output.json successfully")
+
+if __name__ == "__main__":
+    csv_file = "input_data.csv"
+    logging.info("Starting Main Execution")
+    process_csv(csv_file, config)
