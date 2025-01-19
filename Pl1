@@ -1,0 +1,76 @@
+import pandas as pd
+import json
+import logging
+from functools import wraps
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+# Retry Decorator for Fault Tolerance
+def retry_on_failure(retries=3, delay=2):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            attempt = 0
+            while attempt < retries:
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    attempt += 1
+                    logging.error(f"Error in {func.__name__}: {str(e)}. Retrying {attempt}/{retries}")
+            logging.error(f"Max retries reached for {func.__name__}. Skipping.")
+        return wrapper
+    return decorator
+
+# PL Information Processor Class
+class PLInformationProcessor:
+    def __init__(self, config, output_file):
+        self.config = config
+        self.output_file = output_file
+        self.processed_documents = []
+        logging.info("Initialized PL Information Processor")
+
+    def process_row(self, row):
+        logging.info(f"Processing PL_Information row: {row}")
+
+        # Dynamically create document structure
+        document = {"PL_group": "PL_Information", "modelYears": []}
+
+        # Extract all fields dynamically
+        for column, value in row.items():
+            if "Model Year" in column and isinstance(value, (int, float, str)) and str(value).isdigit():
+                document["modelYears"].append({"year": int(value)})  # Store in modelYears
+            else:
+                document[column] = value  # Store all other fields dynamically
+
+        # Ensure document is valid before appending
+        if document:
+            self.processed_documents.append(document)
+
+    @retry_on_failure()
+    def save_to_file(self):
+        """ Save processed JSON output to file """
+        if self.processed_documents:
+            with open(self.output_file, "w") as f:
+                json.dump(self.processed_documents, f, indent=4)
+            logging.info(f"Saved {len(self.processed_documents)} documents to {self.output_file}")
+
+# Processing Function
+def process_pl_information(csv_file):
+    logging.info("Starting PL Information Processing")
+    df = pd.read_csv(csv_file)
+
+    # Initialize processor
+    processor = PLInformationProcessor({}, "pl_information_output.json")
+
+    # Process rows for PL Information dynamically
+    for _, row in df.iterrows():
+        if "PL Information" in row["header"]:
+            processor.process_row(row)
+
+    # Save output
+    processor.save_to_file()
+
+if __name__ == "__main__":
+    csv_file = "input_data.csv"
+    process_pl_information(csv_file)
