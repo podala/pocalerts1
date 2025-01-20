@@ -1,0 +1,147 @@
+import pandas as pd
+import json
+import logging
+import time
+from functools import wraps
+
+# Configure Logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+# Decorators
+
+def log_execution(func):
+    """ Logs function execution details. """
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        logging.info(f"Executing: {func.__name__}")
+        try:
+            result = func(*args, **kwargs)
+            logging.info(f"Completed: {func.__name__} in {time.time() - start_time:.4f} seconds")
+            return result
+        except Exception as e:
+            logging.error(f"Error in {func.__name__}: {e}")
+            raise
+    return wrapper
+
+class ScriptsProcessor:
+    def __init__(self, config):
+        self.config = config
+        self.field_names = config["field_names"]
+        logging.info("Initialized ScriptsProcessor")
+
+    @log_execution
+    def extract_pl_id(self, df, vector_index):
+        """ Extracts the PL ID from the 'PL Information' header. """
+        for _, row in df.iterrows():
+            if row["header"] == "PL Information" and row["kpi"] == "PL ID":
+                pl_id = row.get(f"vector {vector_index}", "")
+                logging.info(f"Extracted PL ID: {pl_id}")
+                return pl_id
+        return ""
+
+    @log_execution
+    def process_vector(self, df, vector_index):
+        logging.info(f"Processing vector {vector_index}")
+
+        headers_list = []
+        pl_id = self.extract_pl_id(df, vector_index)
+
+        for _, row in df.iterrows():
+            header_name = row["header"]
+            
+            if header_name in self.config["header_groups"]["Scripts"]["headers"]:
+                kpi_name = row["kpi"]
+                value = row.get(f"vector {vector_index}", "")
+
+                # Handling complex KPI splitting
+                category_parts = kpi_name.rsplit("-", 2)  # Ensure correct split preserving brand names
+                category, subCategory, year = None, None, None
+
+                if len(category_parts) == 3:
+                    category, subCategory, year = category_parts
+                elif len(category_parts) == 2:
+                    category, year = category_parts
+                    subCategory = None
+
+                if year and str(year).isdigit():
+                    year = int(year.strip())
+
+                    category_key = self.field_names["categories"]
+                    category_name_key = self.field_names["categoryName"]
+                    subcategory_name_key = self.field_names["subCategoryName"]
+                    yearly_data_key = self.field_names["yearlyData"]
+                    year_key = self.field_names["year"]
+                    value_key = self.field_names["value"]
+
+                    header_obj = next((h for h in headers_list if h[self.field_names["headerName"]] == header_name), None)
+                    if not header_obj:
+                        header_obj = {
+                            self.field_names["headerName"]: header_name,
+                            "vector": vector_index,
+                            category_key: []
+                        }
+                        headers_list.append(header_obj)
+
+                    category_obj = next((c for c in header_obj[category_key] if c[category_name_key] == category), None)
+                    if not category_obj:
+                        category_obj = {category_name_key: category, subcategory_name_key: []}
+                        header_obj[category_key].append(category_obj)
+
+                    if subCategory:
+                        subcategory_obj = next((sc for sc in category_obj[subcategory_name_key] if sc[subcategory_name_key] == subCategory), None)
+                        if not subcategory_obj:
+                            subcategory_obj = {subcategory_name_key: subCategory, yearly_data_key: []}
+                            category_obj[subcategory_name_key].append(subcategory_obj)
+
+                        subcategory_obj[yearly_data_key].append({year_key: year, value_key: value})
+                    else:
+                        category_obj[subcategory_name_key].append({yearly_data_key: [{year_key: year, value_key: value}]})
+
+        final_document = {
+            "PL ID": pl_id,
+            "vector": vector_index,
+            "headers": headers_list
+        }
+
+        output_file = f"scripts_vector_{vector_index}.json"
+        with open(output_file, "w") as f:
+            json.dump(final_document, f, indent=4)
+        logging.info(f"Saved JSON output to {output_file}")
+
+        return final_document
+
+@log_execution
+def process_scripts(csv_file, config):
+    logging.info("Starting Scripts CSV Processing")
+    df = pd.read_csv(csv_file)
+    processor = ScriptsProcessor(config)
+
+    for vector_index in range(1, 6):
+        processor.process_vector(df, vector_index)
+
+if __name__ == "__main__":
+    csv_file = "input_data.csv"
+    
+    config = {
+        "header_groups": {
+            "Scripts": {
+                "headers": ["Scripts", "Eligibility Scripts"]
+            },
+            "PL_Information": {
+                "headers": ["PL Information"]
+            }
+        },
+        "field_names": {
+            "headerName": "headerName",
+            "categories": "categories",
+            "categoryName": "categoryName",
+            "subCategoryName": "subCategories",
+            "yearlyData": "yearlyData",
+            "year": "year",
+            "value": "value"
+        }
+    }
+
+    logging.info("Starting ScriptsProcessor Execution")
+    process_scripts(csv_file, config)
