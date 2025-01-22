@@ -1,0 +1,10 @@
+Feature,Standard,Premium,Dedicated
+Capacity Cost,$0.03/hour per TU,$1.233/hour per PU,$6.849/hour per CU
+Ingress Event Cost,$0.028 per million events,Included,Included
+Capture Cost,$73/month per TU,Included,Included
+Apache Kafka Support,✅ Supported,✅ Supported,✅ Supported
+Schema Registry Support,✅ Supported,✅ Supported,✅ Supported
+Max Retention Period,7 days,90 days,90 days
+Storage Retention,84 GB,1 TB per PU,10 TB per CU
+Extended Retention Cost,Not Available,$0.12/GB/month (1 TB included per PU),$0.12/GB/month (10 TB included per CU)
+Estimated Monthly Cost (5000 messages/day),"$21.60 (without Capture), $94.60 (with Capture)",$887.76,"$4,931.28"
