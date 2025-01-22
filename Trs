@@ -1,0 +1,26 @@
+Hi Jerin,
+
+As discussed, we are providing data to the CPM team, which is currently agreed to be read-only. However, the concern is that Underwriters (UW) can modify data from CPM, and the data store is CPM-owned.
+
+Key Concerns:
+Data Storage & Ownership:
+
+PL does not want CPM to store P&L data due to potential data mismatches between PL databases and downstream dependencies.
+Versioning & Data Consistency:
+
+PL has the capability to store data on a version basis, ensuring that even if an underwriter modifies the data, versioning can be maintained on the PL side.
+This approach helps preserve historical changes and ensures consistency across systems.
+Integration & Responsibility:
+
+In my view, PNL can provide components to CPM, and CPM should only integrate them without modifying the data.
+Even if an underwriter makes changes, PNL should take ownership of managing the data integrity.
+PL as a Microproduct:
+
+We envision PNL as a Microproduct responsible for:
+Creating new MAP variables
+Managing data updates
+Handling data correction activities
+Proposed Solution:
+CPM should only integrate the components provided by PNL instead of modifying or storing PNL data.
+PL should maintain versioned data storage to track underwriter changes without causing discrepancies in downstream systems.
+Let me know your thoughts on this approach.
