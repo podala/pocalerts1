@@ -1,0 +1,41 @@
+Updated Sequence Diagram with Error Handling
+This updated diagram includes failure scenarios and their handling mechanisms:
+
+🔹 Main Flow:
+Producer System (UI / Batch) generates an event.
+The event is published to Azure Event Hub (Kafka API).
+Kafka Consumer (Spring Boot Application) consumes the event.
+The Event Processing Service processes the event.
+The processed data is stored in CosmosDB or another storage.
+The UI / Dashboard fetches processed data for display.
+🔹 Error Handling Scenarios:
+Event Hub Failure → Retry mechanism or move to Dead Letter Queue (DLQ).
+Kafka Consumer Failure → Retry logic, and if still failing, move to DLQ.
+Event Processing Error → Logged and alerted for debugging.
+Data Storage Failure → Logged and alerted to prevent data loss.
+This ensures resilient event processing by implementing retry mechanisms, DLQ, and logging alerts.
+
+Let me know if you need more refinements! 🚀 ​​
+
+
+
+
+
+
+
+You said:
+How do you handle dead queue . Something we need to buy again or event hub will handle 
+ChatGPT said:
+ChatGPT
+Handling Dead Letter Queue (DLQ) in Azure Event Hub with Kafka Consumer
+Dead Letter Queues (DLQ) are used to handle messages that cannot be processed due to errors such as:
+
+Message format issues
+Schema mismatches
+Processing failures
+Expired events (TTL exceeded)
+Consumer failures (e.g., application crash)
+🔹 How DLQ Works in Azure Event Hub
+Event Hub does NOT provide an automatic DLQ like Azure Service Bus.
+You need to manually configure DLQ handling in your Kafka consumer (Spring Boot Application).
+A separate Event Hub or Storage Account is recommended for DLQ messages.
