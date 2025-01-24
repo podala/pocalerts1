@@ -1,0 +1,48 @@
+{
+  "eventId": "9b72c8d1-5d89-4f4f-bb4a-6b77c47ed74d",
+  "eventType": "OpportunityCreated",
+  "eventTimestamp": "2025-01-24T14:30:00Z",
+  "eventVersion": "1.1",
+  "priority": "HIGH",
+  "publisher": {
+    "publisherApplication": "OpportunityService",
+    "publisherService": "OpportunityProcessor",
+    "publisherInstanceId": "opp-svc-1",
+    "publisherRegion": "us-east-1"
+  },
+  "destination": {
+    "destinationApplication": "UnderwriterProcessor",
+    "destinationService": "OpportunityIngestion",
+    "destinationRegion": "us-west-2"
+  },
+  "payload": {
+    "opportunity": {
+      "opportunityId": "OPP-123456",
+      "clientName": "ABC Corp",
+      "status": "Pending Review",
+      "opportunityAmount": 5000000,
+      "currency": "USD",
+      "expectedClosureDate": "2025-02-15",
+      "assignedUnderwriter": {
+        "id": "UWR-98765",
+        "name": "John Doe",
+        "email": "john.doe@insurance.com",
+        "phone": "+1-234-567-8901"
+      }
+    }
+  },
+  "metadata": {
+    "createdBy": "OpportunityService",
+    "createdTimestamp": "2025-01-24T14:30:00Z",
+    "lastUpdatedBy": "OpportunityService",
+    "lastUpdatedTimestamp": "2025-01-24T14:30:00Z",
+    "eventTTL": 86400,
+    "eventSourceIP": "192.168.1.10",
+    "eventProcessingLatency": "15ms"
+  },
+  "audit": {
+    "acknowledged": false,
+    "retries": 0,
+    "failureReason": null
+  }
+}
