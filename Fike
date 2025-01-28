@@ -1,0 +1,32 @@
+<details>
+  <summary>Sample Request</summary>
+
+  ```json
+  {
+    "currentUserId": "ashryf56",
+    "currentUserFirstName": "Alok",
+    "currentUserLastName": "Shrivastava",
+    "caseInput": {
+      "opportunityId": "7777777",
+      "opportunityIdReason": "",
+      "opportunityIdDescription": "",
+      "businessSegment": "PBM",
+      "isClaimsDataReceived": "no",
+      "clientDueDate": "01/31/2025",
+      "pricingDueDate": "01/31/2025",
+      "caseEffectiveDate": "01/31/2025",
+      "ptrf": 1000000,
+      "lifeCount": 1000,
+      "consultant": "Alliant",
+      "rfRequestType": "Carve-In",
+      "supportType": "Client Issued RFI",
+      "requestSubtype": "Initial Request",
+      "requestType": "RFP",
+      "opportunityType": "New Business",
+      "requester": "Alok",
+      "opportunityOwner": "Alok",
+      "opportunityName": "Demo_tst_0127",
+      "client": "Alok",
+      "comments": ""
+    }
+  }
