@@ -1,0 +1,31 @@
+from db_handler import QueryDatabase
+from query_rewriter import QueryRewriter
+from model_evaluator import ModelEvaluator
+
+class QueryManager:
+    """
+    Handles Query Retrieval, Rewriting, and Execution.
+    """
+
+    def __init__(self):
+        self.db = QueryDatabase()
+        self.rewriter = QueryRewriter()
+        self.evaluator = ModelEvaluator()
+
+    def process_query(self, user_query):
+        """
+        Full pipeline for handling query variations, model selection, and execution.
+        """
+        # Step 1: Retrieve stored variations or generate new ones
+        query_variations = self.db.get_query_variations(user_query)
+        if not query_variations:
+            query_variations = self.rewriter.generate_variations(user_query)
+            self.db.store_query_variations(user_query, query_variations)
+
+        # Step 2: Evaluate query execution performance
+        results_df = self.evaluator.evaluate_models(query_variations)
+
+        # Step 3: Generate a performance comparison report
+        self.evaluator.generate_report(results_df)
+
+        return results_df
