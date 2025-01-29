@@ -1,0 +1,37 @@
+from langchain.chat_models import AzureChatOpenAI
+from langchain.prompts import PromptTemplate
+from config import AZURE_OPENAI_DEPLOYMENT_NAME, AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT
+
+class QueryRewriter:
+    """
+    Uses LLMs to generate dynamic query variations based on user phrasing.
+    """
+
+    def __init__(self):
+        self.llm = AzureChatOpenAI(
+            deployment_name=AZURE_OPENAI_DEPLOYMENT_NAME,
+            api_key=AZURE_OPENAI_API_KEY,
+            azure_endpoint=AZURE_OPENAI_ENDPOINT,
+            temperature=0.5,
+            max_tokens=256
+        )
+
+    def generate_variations(self, base_query):
+        """
+        Uses an LLM to dynamically rewrite queries in different variations.
+        """
+        prompt = PromptTemplate(
+            template=f"""
+            Given the following user query: "{base_query}"
+
+            🔹 **Generate multiple phrasing styles:**
+            1. **Original:** Keep the query unchanged.
+            2. **Imperative:** Rewrite as a direct command.
+            3. **Realistic:** Make it more conversational.
+            4. **Metadata-aware:** Add explicit table joins and column names.
+
+            Return the four variations in JSON format.
+            """
+        )
+        response = self.llm.predict(prompt)
+        return response
