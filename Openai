@@ -1,0 +1,211 @@
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Database Connection
+AZURE_SQL_URI = os.getenv("AZURE_SQL_URI")
+
+# Hugging Face API
+HF_API_TOKEN = os.getenv("HF_API_TOKEN")
+
+# LLM Model Pricing (Cost per token)
+MODEL_COST = {
+    "gpt4": 0.05,
+    "mixtral": 0.03,
+    "starcoder": 0.02,
+    "llama2": 0.01
+}
+
+# LLM Model Settings
+MODEL_TEMPERATURE = 0.7
+MAX_TOKENS = 512
+
+PROMPTS = {
+    "generate_sql": """
+        Generate an optimized {sql_dialect} SQL query.
+
+        🔹 **Complexity Level**: {complexity_level}
+
+        **Schema & Tables**:
+        {table_info}
+
+        **User Question**:
+        "{question}"
+
+        Generate a valid, optimized SQL query.
+    """,
+    "validate_sql": """
+        Validate and correct errors in this {sql_dialect} SQL query:
+        {sql_query}
+    """,
+    "debug_sql": """
+        Debug the SQL query error:
+        **Query**: {sql_query}
+        **Error**: {error_message}
+
+        Provide a corrected version.
+    """,
+    "analyze_query": """
+        Analyze the SQL query result:
+
+        **SQL Output**:
+        {query_result}
+
+        **User Question**:
+        "{question}"
+
+        Provide a clear summary.
+    """
+}
+
+from sqlalchemy import create_engine, inspect
+from config import AZURE_SQL_URI
+
+class DatabaseHandler:
+    def __init__(self):
+        self.engine = create_engine(AZURE_SQL_URI)
+        self.conn = self.engine.connect()
+
+    def extract_schema(self, user_query):
+        """
+        Extracts schema dynamically based on the user query.
+        """
+        inspector = inspect(self.engine)
+        schema = {}
+        tables = inspector.get_table_names()
+
+        for table in tables:
+            columns = [col['name'] for col in inspector.get_columns(table)]
+            matched_columns = [col for col in columns if any(word in col.lower() for word in user_query.lower().split())]
+            if matched_columns:
+                schema[table] = matched_columns
+
+        return schema
+
+    def execute_sql(self, sql_query):
+        """
+        Executes SQL query and returns results.
+        """
+        try:
+            return self.conn.execute(sql_query).fetchall()
+        except Exception as e:
+            return f"Error: {str(e)}"
+
+from langchain import HuggingFaceHub
+from langchain.chains import LLMChain
+from langchain.prompts import PromptTemplate
+from config import HF_API_TOKEN
+from prompts import PROMPTS
+
+repo_id = "google/flan-t5-xxl"
+llm = HuggingFaceHub(repo_id=repo_id, huggingfacehub_api_token=HF_API_TOKEN)
+
+class LLMHandler:
+    def __init__(self, model=llm):
+        self.model = model
+
+    def generate_sql(self, sql_dialect, table_info, question, complexity_level="standard"):
+        """
+        Generates SQL query based on complexity level.
+        """
+        prompt = PromptTemplate(template=PROMPTS["generate_sql"].format(
+            sql_dialect=sql_dialect, table_info=table_info, question=question, complexity_level=complexity_level
+        ))
+        return LLMChain(llm=self.model, prompt=prompt).predict()
+
+    def validate_sql(self, sql_query, sql_dialect):
+        """
+        Validates SQL query and corrects errors.
+        """
+        prompt = PromptTemplate(template=PROMPTS["validate_sql"].format(
+            sql_dialect=sql_dialect, sql_query=sql_query
+        ))
+        return LLMChain(llm=self.model, prompt=prompt).predict()
+
+    def debug_error(self, sql_query, error_message):
+        """
+        Debugs SQL errors and corrects them.
+        """
+        prompt = PromptTemplate(template=PROMPTS["debug_sql"].format(
+            sql_query=sql_query, error_message=error_message
+        ))
+        return LLMChain(llm=self.model, prompt=prompt).predict()
+
+
+
+
+import time
+from database_handler import DatabaseHandler
+from llm_handler import LLMHandler
+from config import MODEL_COST
+
+class QueryProcessor:
+    def __init__(self, model_name="gpt4"):
+        self.db = DatabaseHandler()
+        self.llm = LLMHandler(model_name)
+
+    def process_query(self, user_query):
+        schema = self.db.extract_schema(user_query)
+        sql_query = self.llm.generate_sql("SQL", schema, user_query)
+        validated_sql = self.llm.validate_sql(sql_query, "SQL")
+
+        start_time = time.time()
+        execution_results = self.db.execute_sql(validated_sql)
+        execution_time = time.time() - start_time
+
+        best_model = "gpt4"  # Placeholder - Add logic for selecting the best model
+        cost = MODEL_COST[best_model] * len(validated_sql.split())
+
+        return {
+            "query": validated_sql,
+            "execution_time": execution_time,
+            "cost": cost,
+            "rows": len(execution_results),
+            "status": "Success" if "Error" not in execution_results else "Failed"
+        }
+
+class ChartGenerator:
+    @staticmethod
+    def generate_chart_data(results):
+        return {
+            "models": ["GPT-4", "Mixtral", "Starcoder", "Llama-2"],
+            "execution_times": [results["execution_time"]],
+            "costs": [results["cost"]],
+            "tokens_used": [len(results["query"].split())],
+        }
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from query_processor import QueryProcessor
+from chart_generator import ChartGenerator
+
+app = Flask(__name__)
+CORS(app)
+
+@app.route('/query', methods=['POST'])
+def handle_query():
+    data = request.json
+    user_query = data.get("query", "")
+
+    if not user_query:
+        return jsonify({"error": "No query provided."}), 400
+
+    processor = QueryProcessor()
+    execution_results = processor.process_query(user_query)
+    chart_data = ChartGenerator.generate_chart_data(execution_results)
+
+    response = {
+        "status": "success",
+        "user_question": user_query,
+        "query_results": execution_results,
+        "chart_data": chart_data,
+        "summary": f"Executed in {execution_results['execution_time']:.2f}s with cost ${execution_results['cost']:.4f}."
+    }
+
+    return jsonify(response)
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
+
+
