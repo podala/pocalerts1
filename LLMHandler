@@ -1,0 +1,54 @@
+from langchain.chat_models import AzureChatOpenAI
+from langchain.chains import LLMChain
+from langchain.prompts import PromptTemplate
+from config import AZURE_OPENAI_DEPLOYMENT_NAME, AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT
+from prompts import PROMPTS
+
+class LLMHandler:
+    def __init__(self, model_name="gpt-4"):
+        """
+        Initialize Azure OpenAI Model
+        """
+        self.model = AzureChatOpenAI(
+            deployment_name=AZURE_OPENAI_DEPLOYMENT_NAME,
+            api_key=AZURE_OPENAI_API_KEY,
+            azure_endpoint=AZURE_OPENAI_ENDPOINT,
+            temperature=0.7,
+            max_tokens=512
+        )
+
+    def generate_sql(self, sql_dialect, table_info, question, complexity_level="standard"):
+        """
+        Generates SQL query based on complexity level.
+        """
+        prompt = PromptTemplate(template=PROMPTS["generate_sql"].format(
+            sql_dialect=sql_dialect, table_info=table_info, question=question, complexity_level=complexity_level
+        ))
+        return LLMChain(llm=self.model, prompt=prompt).predict()
+
+    def validate_sql(self, sql_query, sql_dialect):
+        """
+        Validates SQL query and corrects errors.
+        """
+        prompt = PromptTemplate(template=PROMPTS["validate_sql"].format(
+            sql_dialect=sql_dialect, sql_query=sql_query
+        ))
+        return LLMChain(llm=self.model, prompt=prompt).predict()
+
+    def debug_error(self, sql_query, error_message):
+        """
+        Debugs SQL errors and corrects them.
+        """
+        prompt = PromptTemplate(template=PROMPTS["debug_sql"].format(
+            sql_query=sql_query, error_message=error_message
+        ))
+        return LLMChain(llm=self.model, prompt=prompt).predict()
+
+    def analyze_query(self, query_result, question):
+        """
+        Analyzes SQL query execution result and provides a summary.
+        """
+        prompt = PromptTemplate(template=PROMPTS["analyze_query"].format(
+            query_result=query_result, question=question
+        ))
+        return LLMChain(llm=self.model, prompt=prompt).predict()
