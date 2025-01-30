@@ -1,0 +1,154 @@
+from langchain.chat_models import AzureChatOpenAI
+from langchain.prompts import PromptTemplate
+from config import AZURE_OPENAI_DEPLOYMENT_NAME, AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT, MODEL_COST
+import logging
+
+class LLMHandler:
+    """
+    Uses Azure OpenAI (GPT-4) to generate, validate, optimize, and debug SQL queries.
+    Tracks performance tuning strategies and cost analysis.
+    """
+
+    def __init__(self):
+        self.llm = AzureChatOpenAI(
+            deployment_name=AZURE_OPENAI_DEPLOYMENT_NAME,
+            api_key=AZURE_OPENAI_API_KEY,
+            azure_endpoint=AZURE_OPENAI_ENDPOINT,
+            temperature=0.5,  # Controlled for deterministic SQL generation
+            max_tokens=1024   # Ensuring sufficient space for complex queries
+        )
+
+    def generate_sql(self, sql_dialect, table_info, question):
+        """
+        Generates an optimized SQL query following best practices.
+        """
+        prompt = PromptTemplate(
+            template=f"""
+            You are an SQL expert. Generate an optimized {sql_dialect} SQL query.
+
+            **Performance Checklist**:
+            ✅ Apply **JOIN conditions** efficiently (avoid Cartesian joins).
+            ✅ Optimize `WHERE` filters **before aggregation**.
+            ✅ Use **INDEXES** for faster query execution.
+            ✅ Avoid `SELECT *`, return only necessary columns.
+            ✅ Replace **subqueries with JOINs** where possible.
+            ✅ Use **window functions** instead of GROUP BY for aggregations.
+            ✅ Optimize sorting (`ORDER BY` with indexing).
+            ✅ Use **partitioning strategies** for large datasets.
+            ✅ Avoid correlated subqueries for better performance.
+
+            **Schema & Tables**:
+            {table_info}
+
+            **User Question**:
+            "{question}"
+
+            Return a single, optimized SQL query following all best performance practices.
+            """
+        )
+        response = self.llm.predict(prompt)
+        tokens_used = self._calculate_tokens(response)
+        cost = self._calculate_cost(tokens_used)
+
+        logging.info(f"Generated SQL Query: {response} | Tokens Used: {tokens_used} | Cost: ${cost}")
+        return response, tokens_used, cost
+
+    def validate_sql(self, sql_query, sql_dialect):
+        """
+        Validates and optimizes SQL query performance while ensuring correctness.
+        """
+        prompt = PromptTemplate(
+            template=f"""
+            Validate, optimize, and correct errors in the following {sql_dialect} SQL query:
+
+            **Query**:
+            {sql_query}
+
+            **Optimization Rules**:
+            ✅ Ensure **INDEXED columns** are used in WHERE filters.
+            ✅ Optimize JOIN conditions for faster execution.
+            ✅ Ensure **aggregations** are performed efficiently.
+            ✅ Remove **unnecessary subqueries** and optimize.
+            ✅ Ensure the use of **window functions** where applicable.
+            ✅ Apply **NULL handling** optimally.
+
+            Return the corrected and optimized SQL query.
+            """
+        )
+        response = self.llm.predict(prompt)
+        tokens_used = self._calculate_tokens(response)
+        cost = self._calculate_cost(tokens_used)
+
+        logging.info(f"Validated SQL Query: {response} | Tokens Used: {tokens_used} | Cost: ${cost}")
+        return response, tokens_used, cost
+
+    def debug_error(self, sql_query, error_message):
+        """
+        Debugs SQL query errors and provides a corrected query.
+        """
+        prompt = PromptTemplate(
+            template=f"""
+            The following SQL query resulted in an error:
+
+            **Query**:
+            {sql_query}
+
+            **Error**:
+            {error_message}
+
+            🔹 **Fix Checklist**:
+            ✅ Resolve incorrect **JOIN conditions**.
+            ✅ Fix **data type mismatches**.
+            ✅ Ensure all **tables and columns exist**.
+            ✅ Correct NULL handling where necessary.
+            ✅ Optimize **index usage in WHERE clauses**.
+            ✅ Avoid **Cartesian joins** and unnecessary subqueries.
+
+            Provide a corrected and optimized version of the SQL query.
+            """
+        )
+        response = self.llm.predict(prompt)
+        tokens_used = self._calculate_tokens(response)
+        cost = self._calculate_cost(tokens_used)
+
+        logging.info(f"Debugged SQL Query: {response} | Tokens Used: {tokens_used} | Cost: ${cost}")
+        return response, tokens_used, cost
+
+    def analyze_query(self, query_result, question):
+        """
+        Analyzes the SQL query execution result and provides meaningful insights.
+        """
+        prompt = PromptTemplate(
+            template=f"""
+            You are a data analyst. Analyze the SQL query result and summarize key insights.
+
+            **Query Output**:
+            {query_result}
+
+            **User Question**:
+            "{question}"
+
+            **Analysis Instructions**:
+            ✅ Extract meaningful insights from the result.
+            ✅ Identify trends and patterns.
+            ✅ Highlight anomalies in the data.
+            ✅ If numeric data, compute comparisons or trends.
+
+            Provide a concise, insightful response.
+            """
+        )
+        response = self.llm.predict(prompt)
+        logging.info(f"Analysis Result: {response}")
+        return response
+
+    def _calculate_tokens(self, response):
+        """
+        Estimates token usage based on word count.
+        """
+        return len(response.split())
+
+    def _calculate_cost(self, tokens_used):
+        """
+        Calculates LLM cost based on token usage.
+        """
+        return round((tokens_used / 1000) * MODEL_COST["gpt-4"], 4)
