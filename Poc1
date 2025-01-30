@@ -1,0 +1,326 @@
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+AZURE_OPENAI_DEPLOYMENT_NAME = os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
+AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
+AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
+
+# Cost per 1000 tokens for different models
+MODEL_COST = {
+    "gpt-4": 0.06,
+}
+
+# SQL Database Configuration
+AZURE_SQL_URI = os.getenv("AZURE_SQL_URI")
+......
+
+from langchain.chat_models import AzureChatOpenAI
+from langchain.prompts import PromptTemplate
+from config import AZURE_OPENAI_DEPLOYMENT_NAME, AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT
+
+class LLMHandler:
+    """
+    Handles SQL query generation, validation, debugging, and cost tracking using Azure OpenAI (GPT-4).
+    """
+
+    def __init__(self):
+        self.llm = AzureChatOpenAI(
+            deployment_name=AZURE_OPENAI_DEPLOYMENT_NAME,
+            api_key=AZURE_OPENAI_API_KEY,
+            azure_endpoint=AZURE_OPENAI_ENDPOINT,
+            temperature=0.5,
+            max_tokens=1024
+        )
+
+    def generate_sql(self, sql_dialect, table_info, question):
+        """
+        Generates an optimized SQL query with best practices.
+        """
+        prompt = PromptTemplate(
+            template=f"""
+            Generate a highly optimized {sql_dialect} SQL query.
+
+            **Optimization Checklist**:
+            ✅ Use proper **JOIN conditions** (avoid cartesian joins).
+            ✅ Use **INDEXES** efficiently in WHERE conditions.
+            ✅ Select **only necessary columns** (avoid `SELECT *`).
+            ✅ Optimize `ORDER BY` and use **LIMIT** where required.
+            ✅ Use **window functions** for better aggregations.
+
+            **Schema & Tables**:
+            {table_info}
+
+            **User Question**:
+            "{question}"
+
+            Return only the best optimized SQL query.
+            """
+        )
+        response = self.llm.predict(prompt)
+        tokens_used = self._calculate_tokens(response)
+        return response, tokens_used
+
+    def validate_sql(self, sql_query, sql_dialect):
+        """
+        Validates and optimizes an SQL query.
+        """
+        prompt = PromptTemplate(
+            template=f"""
+            Validate, correct errors, and optimize this {sql_dialect} SQL query:
+            {sql_query}
+
+            Ensure:
+            ✅ Correct JOIN conditions
+            ✅ Proper indexing
+            ✅ NULL handling
+            ✅ Avoiding unnecessary subqueries
+            """
+        )
+        response = self.llm.predict(prompt)
+        tokens_used = self._calculate_tokens(response)
+        return response, tokens_used
+
+    def debug_error(self, sql_query, error_message):
+        """
+        Debugs an SQL query error and provides a corrected query.
+        """
+        prompt = PromptTemplate(
+            template=f"""
+            Debug the following SQL query error:
+
+            **Query**:
+            {sql_query}
+
+            **Error**:
+            {error_message}
+
+            Provide a corrected and optimized query.
+            """
+        )
+        response = self.llm.predict(prompt)
+        tokens_used = self._calculate_tokens(response)
+        return response, tokens_used
+
+    def _calculate_tokens(self, response):
+        """
+        Mock function to estimate token usage.
+        """
+        return len(response.split())  # Estimate based on word count
+.....
+from langchain.chat_models import AzureChatOpenAI
+from langchain.prompts import PromptTemplate
+from config import AZURE_OPENAI_DEPLOYMENT_NAME, AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT
+
+class LLMHandler:
+    """
+    Handles SQL query generation, validation, debugging, and cost tracking using Azure OpenAI (GPT-4).
+    """
+
+    def __init__(self):
+        self.llm = AzureChatOpenAI(
+            deployment_name=AZURE_OPENAI_DEPLOYMENT_NAME,
+            api_key=AZURE_OPENAI_API_KEY,
+            azure_endpoint=AZURE_OPENAI_ENDPOINT,
+            temperature=0.5,
+            max_tokens=1024
+        )
+
+    def generate_sql(self, sql_dialect, table_info, question):
+        """
+        Generates an optimized SQL query with best practices.
+        """
+        prompt = PromptTemplate(
+            template=f"""
+            Generate a highly optimized {sql_dialect} SQL query.
+
+            **Optimization Checklist**:
+            ✅ Use proper **JOIN conditions** (avoid cartesian joins).
+            ✅ Use **INDEXES** efficiently in WHERE conditions.
+            ✅ Select **only necessary columns** (avoid `SELECT *`).
+            ✅ Optimize `ORDER BY` and use **LIMIT** where required.
+            ✅ Use **window functions** for better aggregations.
+
+            **Schema & Tables**:
+            {table_info}
+
+            **User Question**:
+            "{question}"
+
+            Return only the best optimized SQL query.
+            """
+        )
+        response = self.llm.predict(prompt)
+        tokens_used = self._calculate_tokens(response)
+        return response, tokens_used
+
+    def validate_sql(self, sql_query, sql_dialect):
+        """
+        Validates and optimizes an SQL query.
+        """
+        prompt = PromptTemplate(
+            template=f"""
+            Validate, correct errors, and optimize this {sql_dialect} SQL query:
+            {sql_query}
+
+            Ensure:
+            ✅ Correct JOIN conditions
+            ✅ Proper indexing
+            ✅ NULL handling
+            ✅ Avoiding unnecessary subqueries
+            """
+        )
+        response = self.llm.predict(prompt)
+        tokens_used = self._calculate_tokens(response)
+        return response, tokens_used
+
+    def debug_error(self, sql_query, error_message):
+        """
+        Debugs an SQL query error and provides a corrected query.
+        """
+        prompt = PromptTemplate(
+            template=f"""
+            Debug the following SQL query error:
+
+            **Query**:
+            {sql_query}
+
+            **Error**:
+            {error_message}
+
+            Provide a corrected and optimized query.
+            """
+        )
+        response = self.llm.predict(prompt)
+        tokens_used = self._calculate_tokens(response)
+        return response, tokens_used
+
+    def _calculate_tokens(self, response):
+        """
+        Mock function to estimate token usage.
+        """
+        return len(response.split())  # Estimate based on word count
+.....
+import time
+from sqlalchemy import create_engine, inspect
+from config import AZURE_SQL_URI
+
+class DatabaseHandler:
+    """
+    Handles database operations including schema extraction and query execution.
+    """
+
+    def __init__(self):
+        self.engine = create_engine(AZURE_SQL_URI)
+        self.conn = self.engine.connect()
+
+    def extract_schema(self, user_query):
+        """
+        Extracts relevant tables and columns dynamically based on user query.
+        """
+        inspector = inspect(self.engine)
+        schema = {}
+        tables = inspector.get_table_names()
+
+        for table in tables:
+            columns = [col["name"] for col in inspector.get_columns(table)]
+            matched_columns = [col for col in columns if any(word in col.lower() for word in user_query.lower().split())]
+            if matched_columns:
+                schema[table] = matched_columns
+
+        return schema
+
+    def execute_sql(self, sql_query):
+        """
+        Executes an SQL query and tracks execution time.
+        """
+        start_time = time.time()
+        try:
+            result = self.conn.execute(sql_query).fetchall()
+            execution_time = round(time.time() - start_time, 3)
+            return result, execution_time
+        except Exception as e:
+            return f"Error: {str(e)}", None
+.....
+from llm_handler import LLMHandler
+from db_handler import DatabaseHandler
+from config import MODEL_COST
+
+class QueryProcessor:
+    """
+    Processes user queries end-to-end, including LLM interaction, SQL execution, and cost analysis.
+    """
+
+    def __init__(self):
+        self.db = DatabaseHandler()
+        self.llm = LLMHandler()
+
+    def process_query(self, user_query):
+        """
+        Handles the entire pipeline from query interpretation to execution.
+        """
+        schema = self.db.extract_schema(user_query)
+        sql_query, tokens_used = self.llm.generate_sql("SQL", schema, user_query)
+
+        validated_sql, validation_tokens = self.llm.validate_sql(sql_query, "SQL")
+        execution_results, execution_time = self.db.execute_sql(validated_sql)
+
+        if "Error" in execution_results:
+            debugged_query, debug_tokens = self.llm.debug_error(validated_sql, execution_results)
+            execution_results, execution_time = self.db.execute_sql(debugged_query)
+        
+        total_tokens = tokens_used + validation_tokens
+        cost = round((total_tokens / 1000) * MODEL_COST["gpt-4"], 4)
+
+        return {
+            "query": validated_sql,
+            "execution_results": execution_results,
+            "execution_time": execution_time,
+            "tokens_used": total_tokens,
+            "cost": cost
+        }
+....from flask import Flask, request, jsonify
+from flask_cors import CORS
+from query_processor import QueryProcessor
+
+app = Flask(__name__)
+CORS(app)
+
+query_processor = QueryProcessor()
+
+@app.route('/query', methods=['POST'])
+def handle_query():
+    """
+    Handles incoming query requests from the UI.
+    """
+    data = request.json
+    user_query = data.get("query", "")
+
+    if not user_query:
+        return jsonify({"error": "Query is required"}), 400
+
+    response = query_processor.process_query(user_query)
+    
+    return jsonify(response)
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
+...
+
+class ChartGenerator:
+    """
+    Generates JSON data for dynamic charts to visualize query execution performance.
+    """
+
+    @staticmethod
+    def generate_chart_data(query_results):
+        return {
+            "execution_time": query_results["execution_time"],
+            "tokens_used": query_results["tokens_used"],
+            "cost": query_results["cost"]
+        }
+..
+
+
