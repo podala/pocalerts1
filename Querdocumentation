@@ -1,0 +1,52 @@
+import json
+import os
+from datetime import datetime
+import logging
+
+class QueryDocumentation:
+    """
+    Generates structured documentation for each query execution.
+    This includes the SQL query, cost, performance details, execution insights, and debugging logs.
+    """
+
+    def __init__(self, save_path="query_logs/"):
+        """
+        Initialize query documentation storage directory.
+        """
+        self.save_path = save_path
+        os.makedirs(self.save_path, exist_ok=True)
+
+    def save_query_log(self, query_details):
+        """
+        Saves query execution details as a structured JSON log for UI integration.
+        """
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_filename = f"{self.save_path}query_log_{timestamp}.json"
+
+        try:
+            with open(log_filename, "w", encoding="utf-8") as f:
+                json.dump(query_details, f, indent=4)
+            
+            logging.info(f"Query log saved: {log_filename}")
+        except Exception as e:
+            logging.error(f"Failed to save query log: {str(e)}")
+
+    def generate_query_documentation(self, user_query, sql_query, execution_time, cost, tokens_used, analysis, error_logs=None):
+        """
+        Generates documentation for query execution.
+        """
+        query_doc = {
+            "user_query": user_query,
+            "generated_sql": sql_query,
+            "execution_time_seconds": execution_time,
+            "tokens_used": tokens_used,
+            "cost_estimate": f"${cost:.4f}",
+            "analysis_summary": analysis,
+            "error_logs": error_logs if error_logs else "No errors detected",
+            "timestamp": datetime.now().isoformat()
+        }
+
+        # Save query log for UI access
+        self.save_query_log(query_doc)
+        
+        return query_doc
