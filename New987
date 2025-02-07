@@ -1,0 +1,60 @@
+1. Cost Considerations
+Component	Cost Estimate	Details
+Azure VM Maintenance	$50 - $200/month (depending on size)	VMs are still required to pull files from the new upload folder from the on-prem NAS drive to Azure.
+Azure Blob Storage for CSV Files	$0.0184 per GB/month	Storage for CSV files in Azure. The cost is minimal, depending on file size and retention.
+Azure Data Pipeline (ADF/Spark)	$1 per 1,000 activity runs	Costs associated with running data ingestion pipelines. Spark processing will incur costs based on the cluster size and duration.
+Development Effort (One-time)	$5,000 - $8,000	Initial development cost for setting up the new CSV process, removing the CatLog file, and integrating with the Azure pipeline.
+Maintenance Cost (Annual)	$1,000 - $2,000	Ongoing system monitoring and minor updates.
+2. Benefits Analysis
+Benefit	Estimated Savings / Improvement	Details
+Reduced VM Issues	15-20% reduction in system downtime	Removing the CatLog file minimizes VM-related problems, leading to improved system stability.
+Faster Data Pipeline Execution	25-30% improvement in pipeline performance	Spark Fireworks POC shows that processing is faster and more efficient, reducing overall processing time.
+Improved Underwriter Experience	Indirect savings through efficiency	No negative impact on the underwriter experience, ensuring smooth operations without additional training or adjustments.
+Lower Storage & Processing Costs	$3,000 - $5,000 annually	Moving from on-prem to Azure reduces storage and processing costs over time.
+Operational Efficiency	Saves ~10-15 hours/week in manual work	Simplifying the process reduces manual interventions and increases productivity.
+3. ROI Calculation
+Total Estimated Cost (Year 1): ~$7,000 - $10,000 (development + operational costs)
+Total Annual Savings: ~$10,000 - $15,000
+ROI (Return on Investment) = (Total Benefits - Total Costs) / Total Costs × 100
+Example: 
+(
+12
+,
+500
+−
+8
+,
+500
+)
+/
+8
+,
+500
+×
+100
+=
+47
+%
+(12,500−8,500)/8,500×100=47% ROI within the first year.
+Business Benefits:
+Enhanced Pipeline Performance:
+
+The Spark Fireworks POC demonstrates faster data processing, improving pipeline efficiency.
+Reduced Operational Overhead:
+
+Removing the CatLog file minimizes VM-related issues and reduces maintenance requirements.
+Cost Savings:
+
+Transitioning from on-prem to Azure reduces long-term infrastructure and maintenance costs.
+Scalability:
+
+The new process is better suited for future scaling, as Azure can handle increasing data volumes more effectively.
+Stable Underwriter Workflow:
+
+No disruption to underwriter activities ensures that business operations remain smooth and consistent.
+Conclusion:
+✅ ROI of ~47% in the first year, with increasing savings in subsequent years.
+✅ Pipeline efficiency improved significantly due to the POC on Spark Fireworks.
+✅ Lower operational costs and reduced system issues with the removal of the CatLog file.
+
+Recommendation: Proceed with the new process as the long-term benefits outweigh the initial costs, and operational efficiency will improve significantly.
