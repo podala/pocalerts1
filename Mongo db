@@ -1,0 +1,5 @@
+Results:
+Size per PL_ID (150 headers): ~5.31 MB
+Documents per PL_ID: 10 documents (since 15 headers per document)
+Total Storage for 20,000 PL_IDs: ~103.67 GB
+Annual MongoDB Storage Cost: ~$311 per year (based on $0.25/GB/month for standard storage)
