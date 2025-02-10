@@ -1,0 +1,8 @@
+Rebate Prediction & Net Cost Calculation
+Model Type: Predictive Modeling
+Approach:
+Build a model to predict rebates at a granular level using historical rebate patterns and channel-specific data (retail 30, 90, mail order).
+Use clustering algorithms (like K-Means) to group similar drugs and predict likely rebate structures when PBMs don't provide specific rebate data.
+Net Pricing Calculation:
+Automate the calculation of net cost per script and overall net discount using AI-driven formulas.
+Predict how changes in rebates affect month-to-month drug spend and long-term savings.
