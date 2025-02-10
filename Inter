@@ -1,0 +1,9 @@
+Integrate claims data and EHR data from PBM databases into the AI model.
+
+2. AI Model Prediction	Run predictive models on patient data to forecast upcoming medication needs.	Generate a list of patients likely to require new medications in the near future.
+3. Internal Review (Underwriter/Pharmacist)	Share AI predictions with underwriters and clinical pharmacists.	Underwriters/pharmacists review AI suggestions and prepare for formulary adjustments if needed.
+4. Client Communication	Provide clients with AI-generated reports detailing predicted medication needs and potential cost impacts.	Clients are informed proactively about upcoming medication demands and possible formulary updates.
+5. RFP/RFI Resubmission (If Needed)	If the predicted medication needs significantly alter costs, trigger a repricing request or a new RFP/RFI.	The PBM resubmits updated pricing or formulary proposals to the client.
+6. Repricing Analysis	AI-assisted repricing analysis based on new formulary structure and predicted usage.	Ensure competitive pricing and align formulary with patient needs and client budget constraints.
+7. Client Approval	After review, clients approve or request modifications to the updated formulary.	Once approved, the PBM updates the system and onboards new medications into the pharmacy benefit plans.
+8. Continuous Monitoring	Post-integration, continue using AI to monitor medication usage and adherence.	Adjust formulary and pricing dynamically based on real-time data and patient outcomes.
