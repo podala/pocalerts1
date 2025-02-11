@@ -1,0 +1,76 @@
+directly applied to the core tables. Instead, updates are captured in a separate table, and reconciliation is done between the core table and this new table. If a user misses updating the data through file ingestion, they have an option to re-ingest the file with the latest changes.
+
+Key Objectives:
+Centralized Data Ownership:
+The system owns the primary data, ensuring there's no duplication across other systems, reducing organizational costs related to storage and data management.
+
+Microservices for Updates & Views:
+Microservices will be created to:
+
+Allow other applications to view the current data.
+Enable updates to the data, which will be stored in a separate table.
+Capturing User Updates:
+
+Updates from users via other systems are stored in a secondary table (not in the core data tables).
+This ensures that core data integrity remains intact while tracking external modifications.
+File Ingestion Mechanism:
+
+Users need to re-ingest the file if they make changes in the other system.
+This ensures the ingestion process stays consistent with the latest updates.
+Reconciliation Process:
+
+A reconciliation process compares the core data table and the secondary updates table.
+This ensures data consistency and highlights discrepancies between the two sources.
+Proposed Architecture:
+Microservices Layer:
+
+View Service:
+Allows external systems to query data from the core table using GraphQL.
+Update Service:
+Accepts updates from external applications and stores them in a separate updates table.
+Database Layer:
+
+Core Table:
+Stores the master data owned by your system.
+Updates Table:
+Captures all modifications from external systems for tracking and reconciliation.
+Ingestion Pipeline:
+
+Users re-ingest files with updated data.
+A microservice handles the ingestion process, ensuring data is validated and inserted correctly.
+Reconciliation Process:
+
+Periodically compare the core table and the updates table.
+Generate reports or trigger alerts if discrepancies are found.
+Optionally, automate merging verified updates back into the core table after review.
+Benefits of This Approach:
+Data Consistency:
+Ensures that your system remains the single source of truth without duplication across other systems.
+
+Cost Efficiency:
+Reduces storage and maintenance costs by avoiding duplicate data across multiple systems.
+
+Flexibility for Users:
+Users can update data through microservices or via file ingestion, offering flexibility without compromising data integrity.
+
+Traceability:
+Capturing updates in a separate table allows for better tracking and auditing of changes made by external systems.
+
+Error Handling:
+The reconciliation process helps detect and correct discrepancies, ensuring data accuracy across systems.
+
+Next Steps:
+Design Microservices APIs:
+Define the GraphQL schema and REST endpoints for data updates and views.
+
+Database Design:
+Create the structure for the core table and updates table, ensuring proper indexing for efficient reconciliation.
+
+Ingestion Workflow:
+Build the ingestion pipeline to handle file uploads and process updates.
+
+Reconciliation Mechanism:
+Develop automated scripts or jobs for regular reconciliation between core and updates tables.
+
+Logging & Monitoring:
+Implement logging for all data updates and ingestion processes to track changes and system health.
