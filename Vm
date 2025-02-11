@@ -1,0 +1,129 @@
+1. How to Handle SHIR Failures in the VM
+A. ADF Built-in Error Handling
+Retry Policies in Pipelines:
+In the Copy Data activity or any activity in your pipeline, you can configure retry policies.
+Go to the activity settings in ADF:
+Retry: Set the number of retry attempts (e.g., 3 retries).
+Retry Interval: Set a delay between retries (e.g., 5 minutes).
+On Failure Activities:
+Use conditional paths like ‘On Failure’ in your pipeline to handle failures gracefully.
+Example: If the file pull fails, send an alert email or log the failure to a monitoring system.
+B. High Availability Setup for SHIR
+Install SHIR on Multiple VMs:
+To ensure High Availability (HA), install SHIR on multiple VMs.
+Register them under the same SHIR name in ADF.
+ADF will automatically load-balance requests between the available SHIR nodes.
+If one VM or SHIR instance fails, ADF will automatically switch to another available instance.
+2. Monitoring SHIR and VM Health
+A. Monitoring SHIR Status in Azure
+Azure Integration Runtime Monitoring:
+
+Go to Azure Data Factory > Manage > Integration Runtimes.
+Here you can see the status of the SHIR (Online/Offline).
+Click on the SHIR to view detailed diagnostics, such as connection status, errors, and logs.
+Set Up Alerts for SHIR Status:
+
+Go to Azure Monitor > Alerts > + New Alert Rule.
+Resource: Select your Self-Hosted Integration Runtime.
+Condition: Choose ‘Integration Runtime is Offline’ or similar metric.
+Action Group: Configure email, SMS, or webhook notifications to alert the team if SHIR goes offline.
+B. Monitoring VM Health
+Enable Azure VM Monitoring:
+
+In the Azure Portal, go to your VM where SHIR is installed.
+Enable Azure Monitor and Log Analytics for the VM.
+This will provide insights into:
+CPU, memory, disk usage.
+Network connectivity.
+Service availability (e.g., SHIR service).
+Create VM Health Alerts:
+
+Go to Azure Monitor > Alerts > + New Alert Rule.
+Resource: Select the VM.
+Conditions to Monitor:
+CPU Utilization (if too high/low, it may indicate an issue).
+Disk Space (low disk space can cause SHIR failures).
+Network Connectivity (loss of network connection can cause SHIR to fail).
+Service Status (monitor if the SHIR service stops unexpectedly).
+Monitor Windows Event Logs (Optional):
+
+Use Log Analytics to monitor Windows Event Logs for errors related to SHIR:
+Look for events like service crashes, authentication issues, etc.
+Query Example in Log Analytics:
+kusto
+Copy
+Edit
+Event
+| where EventLog == "Application"
+| where Source == "DataManagementGateway" and EventLevelName == "Error"
+3. Notifications and Alerts
+A. Sending Alerts When SHIR Fails
+Azure Monitor Alerts:
+
+Set up action groups in Azure Monitor to send notifications via:
+Email: Notify your team directly.
+SMS: For critical failures.
+Webhook: Integrate with tools like Slack, Microsoft Teams, PagerDuty, etc.
+Use Logic Apps for Advanced Notifications:
+
+Create an Azure Logic App to automate notifications when SHIR fails.
+The Logic App can:
+Send detailed emails with error logs.
+Post messages to Teams or Slack.
+Trigger other workflows (like restarting SHIR).
+B. Automatically Restart SHIR on Failure
+Set SHIR Service to Auto-Restart:
+
+On the VM, open Services (services.msc).
+Find the Microsoft Integration Runtime Service.
+Right-click > Properties > Go to the Recovery tab.
+Set First Failure, Second Failure, and Subsequent Failures to Restart the Service.
+Use Azure Automation Runbooks (Optional):
+
+Create a Runbook in Azure Automation to automatically restart the VM or SHIR service if it detects failures.
+4. Logging and Diagnostics
+Enable Diagnostics for SHIR:
+
+In Azure Data Factory > Integration Runtime, enable Diagnostic Settings.
+Send logs to Log Analytics, Storage Account, or Event Hub for further analysis.
+Integrate with Splunk or Other Monitoring Tools:
+
+If your organization uses Splunk, integrate ADF and SHIR logs with Splunk for centralized monitoring.
+This can help in setting up dashboards and advanced alerting.
+5. Example Scenario: Full Error Handling Flow
+ADF Pipeline Fails to Pull File Due to SHIR Issue:
+
+Retry the pipeline 3 times (automatic retries).
+If it still fails:
+Send an email notification using an ‘On Failure’ activity in ADF.
+Log the error in Azure Log Analytics.
+SHIR Goes Offline:
+
+Azure Monitor detects the SHIR is offline.
+Sends an SMS alert to the operations team.
+Logic App automatically tries to restart the SHIR service on the VM.
+If the issue persists, a Slack/Teams notification is sent for manual intervention.
+VM Health Issue (e.g., High CPU/Network Failure):
+
+Azure Monitor triggers an alert for abnormal VM behavior.
+Action group sends notifications and, if configured, restarts the VM automatically.
+Summary
+ADF Error Handling: Use retry policies and conditional paths for error handling.
+High Availability: Install SHIR on multiple VMs for automatic failover.
+Monitoring SHIR and VM:
+Use Azure Monitor to track SHIR status and VM health.
+Set up alerts for SHIR going offline, VM performance issues, and service failures.
+Notifications: Use Azure Monitor, Logic Apps, or third-party tools like Slack/Teams for alerts.
+Automatic Recovery: Configure SHIR to auto-restart on failure and automate VM recovery with Azure Automation.
+Let me know if you'd like help setting up specific alerts or automations!
+
+
+
+
+
+
+
+
+
+
+
