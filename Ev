@@ -1,0 +1,57 @@
+usage and optimize processes, potentially lowering operational costs.
+Scalability & Flexibility: Allows for better scalability and adaptability to changing business needs.
+Competitive Advantage: Faster processing can lead to quicker business decisions and responses to market changes.
+Why does Gulsun care? (Product Owner Perspective)
+
+Delivery of Business Value: Ensuring that the architecture supports the business goals with minimal disruptions.
+Accountability: Gulsun may need to justify the investment in this new approach with clear ROI metrics.
+Why does Rich care? (Product Owner Perspective)
+
+Operational Stability: Ensuring that the event-driven approach doesn’t introduce new operational risks or complexities.
+Team Readiness: Concerned about the team's ability to adapt to the new architecture and maintain performance.
+What does technology gain and why do they care?
+
+Simplified Architecture: Reduction in complex integrations and dependencies between services.
+Real-time Data Processing: Enables real-time analytics and quicker feedback loops.
+Reduced Downtime: More resilient systems with features like event replay and dead-letter queues.
+If we don’t do anything, what is the risk?
+
+Obsolescence: Risk of falling behind competitors leveraging more modern, efficient architectures.
+Scalability Issues: Current systems may not scale efficiently with growing data loads.
+Increased Maintenance Costs: Legacy systems may incur higher maintenance costs over time.
+2. What Is the Ask?
+How does this work?
+
+Implementing an event-driven architecture using Kafka/Event Hub to decouple services, allowing asynchronous processing and better fault tolerance.
+What is a sequence diagram for how this solves issues?
+
+Events are published to a central hub (Kafka/Event Hub), which other services subscribe to. This reduces direct dependencies and allows services to operate independently.
+Focus Areas:
+
+Deployments: Streamlined through containerization and continuous integration pipelines.
+Resilience: Built-in mechanisms like retries, dead-letter queues, and fault-tolerant event processing.
+Other Benefits: Scalability, real-time insights, and improved system performance.
+3. What Does This Look Like if Implemented?
+Cost Comparison:
+Compare the current costs (infrastructure, maintenance) with event-driven architecture costs (Kafka/Event Hub licensing, cloud resources, training).
+4. Estimated Costs in Hours (for Each Team):
+Task	Estimated Hours	Responsible Team/Individual
+Designing Event Architecture	40 hours	Architecture Team
+Development & Implementation	80 hours	Engineering Team
+Integration with Case Management	30 hours	Case Management Team
+Integration with RRF	30 hours	RRF Team
+Testing & QA	40 hours	QA Team
+Monitoring & Setting up Dead Letter Queue	20 hours	DevOps/Abhilash
+Documentation (SOPs, diagrams)	20 hours	Technical Writers
+Team Training	10 hours	Abhilash (Training Sessions)
+Total	270 hours	
+5. Risks and Mitigations:
+Risk: Lack of operational materials or documentation.
+
+Mitigation: Ensure SOPs and diagrams are created alongside development.
+Risk: Team unfamiliarity with monitoring tools.
+
+Mitigation: Training from Abhilash on monitoring and issue resolution.
+Risk: Incidents due to incomplete testing.
+
+Mitigation: Comprehensive testing with zero tolerance for missed scenarios.
