@@ -1,0 +1,3 @@
+⚠️ Scalability Issues – Adding new systems increases complexity.	🔌 Easier Scaling – Just subscribe new services to events.
+❌ No Built-in Retry – If a system fails, data may be lost.	🔄 Guaranteed Delivery – Data is stored & retried automatically.
+🛠️ More Debugging Needed – Failures are harder to track.	📊 Better Observability – Logs & event tracking simplify monitoring.
