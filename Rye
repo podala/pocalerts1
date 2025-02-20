@@ -1,0 +1,52 @@
+ChatGPT 4o
+
+You said:
+
+Provide more information
+ChatGPT said:
+The image contains a presentation slide titled "PULSE – P&L ARCHITECTURE UPDATE." It outlines the following key points:
+
+What is happening:
+The new architecture aims to:
+Improve latency and VM issues
+Strengthen alerts and notification services
+Impact:
+The slide states that there will be NO impact to users due to these changes.
+Other Useful Links:
+It provides a link to an Architecture Board on Miro: https://miro.com/app/board/uXiVLiKF2Es=/
+Additionally, the bottom left corner of the slide mentions "Galaxy S21 FE 5G," indicating that the image was captured using this device.
+
+Would you like further analysis, such as extracting text more accurately or summarizing the impact further?
+
+
+
+
+
+
+You said:
+This architeture aims to latency and vm issues and also decommission of catalogue file 
+ChatGPT said:
+Based on your update, the revised architecture aims to:
+
+Improve Latency and VM Issues – Enhancing system performance by optimizing virtual machines and reducing delays.
+Strengthen Alerts and Notification Services – Ensuring better real-time alerts for system events.
+Decommission the Catalogue File – Eliminating the dependency on the catalogue file, likely improving efficiency and streamlining data processing.
+Would you like to update the presentation content or add more technical details on the decommissioning strategy?
+
+
+
+
+
+
+You said:
+Modular coding instead of scripting using spark following design pattern patterns and parallel loading 
+ChatGPT said:
+Updated Architecture Goals:
+The new architecture aims to achieve the following improvements:
+
+Improve Latency and VM Issues – Optimizing system performance and reducing virtual machine-related bottlenecks.
+Strengthen Alerts and Notification Services – Enhancing real-time monitoring and event-driven notifications.
+Decommission the Catalogue File – Removing dependency on the catalogue file for a more streamlined and efficient data pipeline.
+Modular Coding Instead of Scripting – Implementing modular coding using Apache Spark, replacing traditional scripting to improve maintainability and scalability.
+Following Design Patterns – Adopting best practices in design patterns to ensure code reusability, robustness, and scalability.
+Parallel Loading – Enhancing data ingestion efficiency by enabling parallel processing of data, reducing overall processing time.
