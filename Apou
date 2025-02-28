@@ -1,0 +1,33 @@
+Requirement	Details
+API Name	[Provide API Name]
+API Provider	[Specify Provider Name]
+API Endpoint	[Provide Endpoint URL]
+Communication Method	REST / GraphQL
+Data Exchange Format	JSON / XML / Avro / Parquet
+Authentication Method	OAuth 2.0 / API Key / JWT / Basic Auth
+Authorization	Role-based Access Control (RBAC) / Attribute-based Access Control (ABAC)
+Data Scope	Full Data + Modified Data Based on Date & Time Range
+Supported Parameters	Start Date, End Date, Modified Since, Other Filters
+Rate Limits	X calls per second, Y calls per minute (Check API docs for exact limits)
+Pagination Support	Offset-based / Cursor-based Pagination
+Data Freshness	Near Real-Time / Batch Processing
+Error Handling	Standard HTTP Status Codes (e.g., 200, 400, 401, 403, 429, 500) with Error Messages
+Retries & Failover	Retries with Exponential Backoff, Circuit Breaker Mechanism
+Security Measures	TLS 1.2/1.3, IP Whitelisting, Request Signing
+Logging & Monitoring	API Logs, Audit Logs, API Gateway Metrics
+SLA (Service Level Agreement)	Uptime %, Latency, Support Response Time
+Data Retention Policy	[Specify Data Retention Period]
+Versioning Strategy	URI Versioning (v1, v2) / Header-based Versioning
+Throttling & Quotas	Global & Per User Limits
+Compliance & Standards	GDPR, HIPAA, SOC 2, ISO 27001
+Testing & Sandbox Environment	Available (Yes/No)
+Documentation & SDKs	API Docs, SDKs in Java/Python/Node.js
+Webhook Support	✅ Yes / ❌ No (Real-time event notifications)
+Polling Mechanism	✅ Yes / ❌ No (Date-time filtering for fetching changes)
+Notification Mechanism	Webhooks, Email Alerts, API Change Logs, Kafka Streaming
+Max API Calls Per Minute	[Specify Limit] (e.g., 1000 calls/min)
+Max API Calls Per Second	[Specify Limit] (e.g., 100 calls/sec)
+Webhook Event Types	Data Created, Data Updated, Data Deleted (if supported)
+Data Change Detection	Modified Since / Updated After Timestamp
+Webhook Endpoint Security	HMAC Signature Verification / Token Authentication
+Streaming Support	Kafka / AWS SQS / Pub/Sub (if applicable)
