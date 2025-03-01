@@ -1,0 +1,170 @@
+Enterprise-Level Data Model for Change Tracking & Reconciliation
+To build a scalable and future-proof enterprise data model, we need a design that ensures:
+
+Efficient change tracking with versioning.
+Auditability of all underwriter changes.
+Seamless reconciliation between changes and file uploads.
+Support for future expansions (e.g., new data sources, workflows, real-time processing).
+1️⃣ Enterprise-Level Data Model
+We will design three core tables:
+
+Change Log Table (change_log) → Tracks underwriter changes with versioning.
+File Upload Tracking Table (file_uploads) → Tracks when the original file is uploaded.
+Reconciliation Status Table (reconciliation_status) → Helps track delayed uploads and provides a centralized view for business users.
+📌 change_log (Captures Updates & Versions)
+Column Name	Data Type	Description
+id	BIGINT (PK)	Auto-increment primary key
+plid	VARCHAR(50)	Unique identifier for PL
+opportunity_id	VARCHAR(50)	Opportunity ID
+case_id	VARCHAR(50)	Case ID
+quote_id	VARCHAR(50)	Quote ID
+client_name	VARCHAR(255)	Client name
+business_segment	VARCHAR(100)	Business segment
+base_version	VARCHAR(50)	Initial base version
+change_version	INT	Auto-incremented version (1,2,3...)
+change_type	VARCHAR(50)	(INSERT, UPDATE, DELETE)
+change_timestamp	DATETIME	When the change was made
+changed_by	VARCHAR(255)	Underwriter who made the change
+change_source	VARCHAR(50)	UI, API, System Job, etc.
+json_payload	JSON	Updated JSON data
+previous_payload	JSON	Previous data before update
+reconciliation_status	VARCHAR(50)	PENDING, COMPLETED, DELAYED
+📌 Indexes:
+✅ plid, opportunity_id, case_id, quote_id for fast lookups.
+✅ change_version to track history.
+
+📌 file_uploads (Tracks File Uploads)
+Column Name	Data Type	Description
+id	BIGINT (PK)	Auto-increment primary key
+plid	VARCHAR(50)	PL identifier
+opportunity_id	VARCHAR(50)	Opportunity ID
+case_id	VARCHAR(50)	Case ID
+quote_id	VARCHAR(50)	Quote ID
+uploaded_by	VARCHAR(255)	Underwriter who uploaded the file
+upload_timestamp	DATETIME	Timestamp of file upload
+file_path	VARCHAR(500)	Path to the file
+📌 Indexes:
+✅ plid, opportunity_id, case_id, quote_id for fast lookup.
+✅ upload_timestamp for tracking delays.
+
+📌 reconciliation_status (Tracks Pending & Delayed Uploads)
+Column Name	Data Type	Description
+id	BIGINT (PK)	Auto-increment primary key
+plid	VARCHAR(50)	PL identifier
+opportunity_id	VARCHAR(50)	Opportunity ID
+case_id	VARCHAR(50)	Case ID
+quote_id	VARCHAR(50)	Quote ID
+change_timestamp	DATETIME	When the change was made
+days_pending	INT	Days since change
+status	VARCHAR(50)	PENDING, DELAYED, RESOLVED
+📌 Indexes:
+✅ plid, opportunity_id, case_id, quote_id to enable reconciliation tracking.
+✅ status for quick status reports.
+
+2️⃣ Ingestion & Processing Workflow
+✅ Step 1: Capture Changes
+When an underwriter updates a record, insert it into change_log with:
+Auto-incremented change_version
+reconciliation_status = 'PENDING'
+📌 SQL Query for Change Capture:
+
+sql
+Copy
+Edit
+INSERT INTO change_log (plid, opportunity_id, case_id, quote_id, client_name, 
+                        business_segment, base_version, change_version, 
+                        change_type, change_timestamp, changed_by, 
+                        change_source, json_payload, previous_payload, reconciliation_status)
+SELECT 
+    new_data.plid, new_data.opportunity_id, new_data.case_id, new_data.quote_id,
+    new_data.client_name, new_data.business_segment, new_data.baseVersion,
+    COALESCE((SELECT MAX(change_version) FROM change_log cl 
+              WHERE cl.plid = new_data.plid 
+                AND cl.opportunity_id = new_data.opportunity_id
+                AND cl.case_id = new_data.case_id
+                AND cl.quote_id = new_data.quote_id), 0) + 1 AS change_version,
+    new_data.change_type, new_data.change_timestamp, new_data.changed_by, 
+    new_data.change_source, new_data.json_payload, new_data.previous_payload,
+    'PENDING'
+FROM (SELECT * FROM temp_data_source) new_data;
+✅ Step 2: Track File Upload
+When an underwriter uploads the file, insert into file_uploads.
+📌 SQL Query for File Upload Tracking:
+
+sql
+Copy
+Edit
+INSERT INTO file_uploads (plid, opportunity_id, case_id, quote_id, uploaded_by, upload_timestamp, file_path)
+VALUES ('PL123', 'OPP456', 'CASE789', 'QUOTE100', 'Underwriter1', NOW(), '/storage/path/file.xlsx');
+✅ Step 3: Reconciliation Process
+Compare change_log and file_uploads
+Update reconciliation_status in change_log based on file upload timing.
+📌 SQL Query for Reconciliation Check:
+
+sql
+Copy
+Edit
+UPDATE change_log cl
+LEFT JOIN file_uploads fu 
+ON cl.plid = fu.plid 
+AND cl.opportunity_id = fu.opportunity_id 
+AND cl.case_id = fu.case_id 
+AND cl.quote_id = fu.quote_id
+SET cl.reconciliation_status = 
+    CASE 
+        WHEN fu.upload_timestamp IS NOT NULL THEN 'COMPLETED' 
+        WHEN TIMESTAMPDIFF(DAY, cl.change_timestamp, NOW()) > 5 THEN 'DELAYED'
+        ELSE 'PENDING'
+    END;
+👉 This automatically marks records as COMPLETED, PENDING, or DELAYED.
+
+3️⃣ Real-Time Monitoring & Automation
+✅ Kafka Streaming: Stream all changes to Kafka for real-time tracking.
+✅ Power BI / Grafana Dashboard: Track pending and delayed uploads.
+✅ Automated Email Alerts: Send reminders to underwriters who haven't uploaded files.
+📌 Python Script for Alerts:
+
+python
+Copy
+Edit
+import pymysql, smtplib
+
+connection = pymysql.connect(host='db_host', user='db_user', password='db_pass', database='db_name')
+query = "SELECT changed_by, opportunity_id FROM change_log WHERE reconciliation_status = 'DELAYED';"
+
+cursor = connection.cursor()
+cursor.execute(query)
+delayed_uploads = cursor.fetchall()
+
+for record in delayed_uploads:
+    underwriter = record[0]
+    opportunity_id = record[1]
+    email_body = f"Reminder: Upload the file for Opportunity ID {opportunity_id}."
+    smtplib.SMTP("smtp.yourcompany.com").sendmail("noreply@company.com", f"{underwriter}@company.com", email_body)
+👉 Sends automated reminders to underwriters for delayed uploads.
+
+4️⃣ Final Thoughts
+✅ Enterprise-ready: Scalable, indexed, and optimized.
+✅ Automated tracking & versioning for all changes.
+✅ Supports real-time monitoring & reconciliation.
+✅ Email alerts & Power BI dashboard for visibility.
+
+🚀 Would you like help implementing Kafka, Power BI, or Spring Boot for this?
+
+
+
+
+
+
+
+
+
+
+
+
+Search
+
+Deep research
+
+
+ChatGPT can ma
