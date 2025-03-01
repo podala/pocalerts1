@@ -1,0 +1,91 @@
+sequenceDiagram
+    autonumber
+
+    participant User as 🖥️ User (React)
+    participant Gateway as 🔑 API Gateway
+    participant AuthService as 🔐 Authentication Service (Spring Security)
+    participant DropDownService as 🎛️ Drop Down Service
+    participant SearchService as 🔍 Search Service
+    participant PDFViewService as 📄 PDF View Service
+    participant UpdateService as 🔄 Update Service
+    participant Database as 🗄️ SQL Server
+
+    %% User logs in and generates a JWT Token
+    User->>AuthService: Request login credentials
+    AuthService->>User: Return JWT Token
+
+    %% User sends a request to API Gateway
+    User->>Gateway: Call Drop Down/Search/PDF/Update Service (with JWT Token)
+    Gateway->>AuthService: Validate JWT Token
+    AuthService-->>Gateway: ✅ Token Valid / ❌ Token Invalid
+
+    %% Token Validation Failure
+    Gateway-->>User: Return 401 Unauthorized (Invalid Token)
+
+    %% If Token is Valid, Route to Respective Service
+    Gateway->>DropDownService: Forward Request (Dropdown)
+    alt DropDownService is Down
+        DropDownService-->>Gateway: Return 500 Service Unavailable
+        Gateway-->>User: Return 500 Internal Server Error
+    else
+        DropDownService->>Database: Fetch Dropdown Data
+        Database-->>DropDownService: ✅ Return Data / ❌ Database Failure
+        alt Database Failure
+            DropDownService-->>Gateway: Return 500 Database Error
+            Gateway-->>User: Return 500 Internal Server Error
+        else
+            DropDownService-->>Gateway: Send Dropdown Response
+            Gateway-->>User: Return Data
+        end
+    end
+
+    %% Search Service Flow
+    Gateway->>SearchService: Forward Request (Search)
+    alt SearchService Timeout
+        SearchService-->>Gateway: Return 504 Gateway Timeout
+        Gateway-->>User: Return 504 Timeout
+    else
+        SearchService->>Database: Query Search Data
+        Database-->>SearchService: ✅ Return Results / ❌ Query Failure
+        alt Query Failure
+            SearchService-->>Gateway: Return 500 Database Error
+            Gateway-->>User: Return 500 Internal Server Error
+        else
+            SearchService-->>Gateway: Send Search Response
+            Gateway-->>User: Return Data
+        end
+    end
+
+    %% PDF View Service Flow
+    Gateway->>PDFViewService: Forward Request (PDF Metadata)
+    alt PDF Service Crash
+        PDFViewService-->>Gateway: Return 500 Service Unavailable
+        Gateway-->>User: Return 500 Internal Server Error
+    else
+        PDFViewService->>Database: Retrieve PDF Metadata
+        Database-->>PDFViewService: ✅ Return Metadata / ❌ Metadata Not Found
+        alt Metadata Not Found
+            PDFViewService-->>Gateway: Return 404 Not Found
+            Gateway-->>User: Return 404 Document Not Found
+        else
+            PDFViewService-->>Gateway: Send PDF Metadata
+            Gateway-->>User: Return Data
+        end
+    end
+
+    %% Update Service Flow
+    Gateway->>UpdateService: Forward Update Request
+    alt Update Service is Overloaded
+        UpdateService-->>Gateway: Return 503 Service Unavailable
+        Gateway-->>User: Return 503 Too Many Requests
+    else
+        UpdateService->>Database: Update PDF Data
+        Database-->>UpdateService: ✅ Confirm Update / ❌ Constraint Violation
+        alt Constraint Violation
+            UpdateService-->>Gateway: Return 400 Bad Request
+            Gateway-->>User: Return 400 Data Validation Error
+        else
+            UpdateService-->>Gateway: Send Success Response
+            Gateway-->>User: Return Success
+        end
+    end
