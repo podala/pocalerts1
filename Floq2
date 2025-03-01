@@ -1,0 +1,40 @@
+sequenceDiagram
+    autonumber
+    
+    %% Define custom colors for components
+    actor UI as 🖥️ UI (React) 
+    participant DropDownService as 🎛️ Drop Down Service
+    participant SearchService as 🔍 Search Service
+    participant PDFViewService as 📄 PDF View Service
+    participant UpdateService as 🔄 Update Service
+    participant Database as 🗄️ Database
+
+    %% UI Startup Process
+    UI->>DropDownService: Fetch dropdown options (on startup)
+    DropDownService->>Database: Retrieve dropdown values
+    Database-->>DropDownService: Return options
+    DropDownService-->>UI: Provide dropdown options
+
+    %% User Initiates Search
+    UI->>SearchService: User selects dropdown & searches
+    SearchService->>Database: Query client data
+    Database-->>SearchService: Return client details
+    SearchService-->>UI: Display search results
+
+    %% User Views PDF
+    UI->>PDFViewService: User selects a search result to view PDF
+    PDFViewService->>Database: Fetch PDF metadata
+    Database-->>PDFViewService: Return PDF metadata
+    PDFViewService-->>UI: Provide document metadata
+
+    %% User Requests PDF File
+    UI->>PDFViewService: Request PDF content
+    PDFViewService-->>UI: Serve PDF file
+
+    %% User Updates PDF
+    UI->>PDFViewService: Modify PDF data
+    PDFViewService->>UpdateService: Send update request
+    UpdateService->>Database: Update PDF metadata
+    Database-->>UpdateService: Confirm update
+    UpdateService-->>PDFViewService: Return success
+    PDFViewService-->>UI: Show update confirmation
