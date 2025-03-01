@@ -1,0 +1,29 @@
+sequenceDiagram
+    participant User
+    participant DropDownService
+    participant SearchService
+    participant PDFViewService
+    participant UpdateService
+    participant Database
+
+    User->>DropDownService: Select dropdown option
+    DropDownService->>Database: Fetch dropdown options
+    Database-->>DropDownService: Return options
+    DropDownService-->>User: Show dropdown options
+
+    User->>SearchService: Search for client details
+    SearchService->>Database: Query client data
+    Database-->>SearchService: Return client details
+    SearchService-->>User: Display search results
+
+    User->>PDFViewService: Request to view PDF
+    PDFViewService->>Database: Fetch PDF metadata
+    Database-->>PDFViewService: Return PDF URL
+    PDFViewService-->>User: Display PDF
+
+    User->>PDFViewService: Modify PDF data
+    PDFViewService->>UpdateService: Send update request
+    UpdateService->>Database: Update PDF data
+    Database-->>UpdateService: Confirm update
+    UpdateService-->>PDFViewService: Return success
+    PDFViewService-->>User: Show update confirmation
