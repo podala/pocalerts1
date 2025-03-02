@@ -1,0 +1,99 @@
+sequenceDiagram
+    autonumber
+
+    participant User as 🖥️ User (React)
+    participant Gateway as 🔑 API Gateway (JWT Validation & Rate Limiting)
+    participant DropDownService as 🎛️ Drop Down Service (Spring Boot GraphQL)
+    participant SearchService as 🔍 Search Service (Spring Boot GraphQL)
+    participant PDFViewService as 📄 PDF View Service (Spring Boot GraphQL)
+    participant UpdateService as 🔄 Update Service (Spring Boot GraphQL)
+    participant Database as 🗄️ SQL Server
+
+    %% User logs in and generates a JWT Token (Only Once)
+    User->>Gateway: Request login credentials
+    Gateway->>Gateway: Validate User & Generate JWT Token
+    Gateway-->>User: ✅ Return JWT Token
+
+    %% User sends API requests with the same JWT Token
+    User->>Gateway: Call Drop Down/Search/PDF/Update Service (with JWT)
+    Gateway->>Gateway: Validate JWT Token (No New Auth Calls)
+
+    %% Token Validation Handling
+    alt ❌ Invalid JWT Token
+        Gateway-->>User: ❌ Return 401 Unauthorized
+    else
+        %% Rate Limiting Check
+        alt ❌ Exceeded API Rate Limit
+            Gateway-->>User: ❌ Return 429 Too Many Requests
+        else
+            %% Routing to Respective Services
+
+            %% Drop Down Service
+            Gateway->>DropDownService: Forward Request (Dropdown)
+            alt ❌ DropDownService Down (Circuit Breaker Tripped)
+                DropDownService-->>Gateway: ❌ Return 503 Service Unavailable
+                Gateway-->>User: ❌ Return 503 Too Many Requests
+            else
+                DropDownService->>Database: Fetch Dropdown Data
+                Database-->>DropDownService: ✅ Return Data / ❌ 5XX Database Error
+                alt ❌ 5XX Database Error
+                    DropDownService-->>Gateway: ❌ Return 5XX Internal Server Error
+                    Gateway-->>User: ❌ Return 5XX Internal Server Error
+                else
+                    DropDownService-->>Gateway: ✅ Return Data
+                    Gateway-->>User: ✅ Return Data
+                end
+            end
+
+            %% Search Service
+            Gateway->>SearchService: Forward Request (Search)
+            alt ❌ SearchService Timeout
+                SearchService-->>Gateway: ❌ Return 504 Gateway Timeout
+                Gateway-->>User: ❌ Return 504 Timeout
+            else
+                SearchService->>Database: Query Search Data
+                Database-->>SearchService: ✅ Return Data / ❌ 5XX Database Error
+                alt ❌ 5XX Database Error
+                    SearchService-->>Gateway: ❌ Return 5XX Internal Server Error
+                    Gateway-->>User: ❌ Return 5XX Internal Server Error
+                else
+                    SearchService-->>Gateway: ✅ Return Data
+                    Gateway-->>User: ✅ Return Data
+                end
+            end
+
+            %% PDF View Service
+            Gateway->>PDFViewService: Forward Request (PDF Data)
+            alt ❌ PDF Service Crash (Circuit Breaker Tripped)
+                PDFViewService-->>Gateway: ❌ Return 503 Service Unavailable
+                Gateway-->>User: ❌ Return 503 Too Many Requests
+            else
+                PDFViewService->>Database: Retrieve Data
+                Database-->>PDFViewService: ✅ Return Data / ❌ 4XX Not Found
+                alt ❌ 4XX Not Found
+                    PDFViewService-->>Gateway: ❌ Return 404 Not Found
+                    Gateway-->>User: ❌ Return 404 Data Not Found
+                else
+                    PDFViewService-->>Gateway: ✅ Return Data
+                    Gateway-->>User: ✅ Return Data
+                end
+            end
+
+            %% Update Service
+            Gateway->>UpdateService: Forward Update Request
+            alt ❌ Update Service Overloaded (Circuit Breaker Active)
+                UpdateService-->>Gateway: ❌ Return 503 Service Unavailable
+                Gateway-->>User: ❌ Return 503 Too Many Requests
+            else
+                UpdateService->>Database: Update Data
+                Database-->>UpdateService: ✅ Confirm Update / ❌ 4XX Constraint Violation
+                alt ❌ 4XX Constraint Violation
+                    UpdateService-->>Gateway: ❌ Return 400 Bad Request
+                    Gateway-->>User: ❌ Return 400 Data Validation Error
+                else
+                    UpdateService-->>Gateway: ✅ Return Success
+                    Gateway-->>User: ✅ Return Success
+                end
+            end
+        end
+    end
