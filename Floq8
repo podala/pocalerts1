@@ -1,0 +1,51 @@
+sequenceDiagram
+    autonumber
+
+    participant User as 🖥️ User (React UI)
+    participant Gateway as 🔑 API Gateway (JWT Validation & Rate Limiting)
+    participant DropDownService as 🎛️ Drop Down Service (Spring Boot GraphQL)
+    participant SearchService as 🔍 Search Service (Spring Boot GraphQL)
+    participant PDFViewService as 📄 PDF View Service (Spring Boot GraphQL)
+    participant UpdateService as 🔄 Update Service (Spring Boot GraphQL)
+    participant Database as 🗄️ SQL Server
+
+    %% User logs in and generates a JWT Token (Only Once)
+    User->>Gateway: Request login credentials
+    Gateway->>Gateway: Validate User & Generate JWT Token
+    Gateway-->>User: ✅ Return JWT Token
+
+    %% User sends API requests with the same JWT Token
+    User->>Gateway: Call Drop Down/Search/PDF/Update Service (with JWT)
+    Gateway->>Gateway: Validate JWT Token (No New Auth Calls)
+
+    %% Drop Down Service (Independent)
+    User->>Gateway: Request Drop Down Data
+    Gateway->>DropDownService: Forward Request
+    DropDownService->>Database: Fetch Data
+    Database-->>DropDownService: ✅ Return Data / ❌ 5XX Error
+    DropDownService-->>Gateway: ✅ Return Data / ❌ 5XX Error
+    Gateway-->>User: ✅ Return Data / ❌ Error
+
+    %% Search Service (Independent)
+    User->>Gateway: Request Search Data
+    Gateway->>SearchService: Forward Request
+    SearchService->>Database: Query Data
+    Database-->>SearchService: ✅ Return Data / ❌ 5XX Error
+    SearchService-->>Gateway: ✅ Return Data / ❌ 5XX Error
+    Gateway-->>User: ✅ Return Data / ❌ Error
+
+    %% PDF View Service (Independent)
+    User->>Gateway: Request PDF Data
+    Gateway->>PDFViewService: Forward Request
+    PDFViewService->>Database: Retrieve Data
+    Database-->>PDFViewService: ✅ Return Data / ❌ 404 Not Found
+    PDFViewService-->>Gateway: ✅ Return Data / ❌ 404 Not Found
+    Gateway-->>User: ✅ Return Data / ❌ Error
+
+    %% Update Service (Independent)
+    User->>Gateway: Update Data Request
+    Gateway->>UpdateService: Forward Request
+    UpdateService->>Database: Modify Data
+    Database-->>UpdateService: ✅ Confirm Update / ❌ 400 Constraint Violation
+    UpdateService-->>Gateway: ✅ Return Success / ❌ 400 Error
+    Gateway-->>User: ✅ Return Success / ❌ Error
