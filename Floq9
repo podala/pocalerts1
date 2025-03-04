@@ -1,0 +1,20 @@
+sequenceDiagram
+    participant Producer as Producer System (UI / Batch)
+    participant EventHub as Azure Event Hub (Kafka API)
+    participant Consumer as Kafka Consumer (Spring Boot Application)
+    participant Processing as Event Processing Service
+    participant Storage as Data Storage (CosmosDB or Other)
+    participant UI as UI / Dashboard
+
+    Producer->>EventHub: 1. Publish Event (Kafka)
+    EventHub->>Consumer: 2. Consume Event (Spring Boot Kafka Consumer)
+    Note right of EventHub: Event Hub Failure -> Retry / DLQ
+    Consumer->>Processing: 3. Process Event
+    Note right of Consumer: Consumer Failure -> Retry / DLQ
+    Processing->>Storage: 4. Store Processed Data
+    Note right of Processing: Processing Error -> Log & Alert
+    Storage->>UI: 5. Fetch Processed Data for UI
+    Note right of Storage: Storage Error -> Log & Alert
+
+    Note over Consumer, Processing: Error Handling: Retry / Dead Letter Queue (DLQ)
+    Note over UI: Error Handling: Alerting / Logging
