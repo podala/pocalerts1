@@ -1,0 +1,37 @@
+Enterprise-Level Data Model for Change Tracking & Reconciliation
+To build a scalable and future-proof enterprise data model, we need a design that ensures:
+
+Efficient change tracking with versioning.
+Auditability of all underwriter changes.
+Seamless reconciliation between changes and file uploads.
+Support for future expansions (e.g., new data sources, workflows, real-time processing).
+1️⃣ Enterprise-Level Data Model
+We will design three core tables:
+
+Change Log Table (change_log) → Tracks underwriter changes with versioning.
+File Upload Tracking Table (file_uploads) → Tracks when the original file is uploaded.
+Reconciliation Status Table (reconciliation_status) → Helps track delayed uploads and provides a centralized view for business users.
+
+
+.
+📌 change_log (Captures Updates & Versions)
+Column Name	Data Type	Description
+id	BIGINT (PK)	Auto-increment primary key
+plid	VARCHAR(50)	Unique identifier for PL
+opportunity_id	VARCHAR(50)	Opportunity ID
+case_id	VARCHAR(50)	Case ID
+quote_id	VARCHAR(50)	Quote ID
+client_name	VARCHAR(255)	Client name
+business_segment	VARCHAR(100)	Business segment
+base_version	VARCHAR(50)	Initial base version
+change_version	INT	Auto-incremented version (1,2,3...)
+change_type	VARCHAR(50)	(INSERT, UPDATE, DELETE)
+change_timestamp	DATETIME	When the change was made
+changed_by	VARCHAR(255)	Underwriter who made the change
+change_source	VARCHAR(50)	UI, API, System Job, etc.
+json_payload	JSON	Updated JSON data
+previous_payload	JSON	Previous data before update
+reconciliation_status	VARCHAR(50)	PENDING, COMPLETED, DELAYED
+📌 Indexes:
+✅ plid, opportunity_id, case_id, quote_id for fast lookups.
+✅ change_version to track history.
