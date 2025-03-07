@@ -1,0 +1,19 @@
+sequenceDiagram
+    participant Client
+    participant LoadBalancer
+    participant AuthService as OAuth Service
+    participant APIService as Microservice
+    
+    Client->>LoadBalancer: Request with credentials
+    LoadBalancer->>AuthService: Forward request for authentication
+    AuthService->>AuthService: Validate credentials
+    AuthService-->>Client: Return access token
+    
+    Client->>LoadBalancer: Request with access token
+    LoadBalancer->>AuthService: Validate token
+    AuthService-->>LoadBalancer: Token Valid
+    
+    LoadBalancer->>APIService: Forward request with token
+    APIService->>APIService: Process request
+    APIService-->>LoadBalancer: Return response
+    LoadBalancer-->>Client: Send response
