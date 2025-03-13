@@ -1,0 +1,196 @@
+📂 Spreadsheet-Framework
+│── 📂 components
+│    │── 📜 RuleBuilder.js (UI for defining rules & formulas)
+│    │── 📜 SheetViewer.js (Multi-Sheet Display)
+│    │── 📜 FileUploader.js (Import CSV/Excel)
+│    │── 📜 DataProcessor.js (Applies Rules & Generates Sheets)
+│    │── 📜 Exporter.js (Exports Data in JSON/PDF)
+│── 📂 models
+│    │── 📜 config.json (Stores User Rules & Mapping)
+│── 📂 api
+│    │── 📜 process.js (Processes Data Based on Rules)
+│── 📜 App.js (Main UI)
+│── 📜 package.json (Dependencies)
+
+
+{
+  "models": [
+    {
+      "name": "Model_One",
+      "rules": {
+        "Sheet1": {
+          "applyFormula": {
+            "B1": "=SUM(A1:A10)",
+            "C1": "=IF(A1 > 50, 'High', 'Low')"
+          },
+          "mapToTab": ["Tab1", "Tab2"]
+        }
+      },
+      "displaySettings": {
+        "multiSheetView": true,
+        "numberOfTabs": 3
+      }
+    }
+  ]
+}
+
+
+
+import React, { useState } from "react";
+
+const RuleBuilder = ({ rules, setRules }) => {
+  const updateRule = (key, value) => {
+    setRules((prevRules) => ({
+      ...prevRules,
+      [key]: value
+    }));
+  };
+
+  return (
+    <div>
+      <h2>Configure Rules & Formulas</h2>
+      <label>Formula for B1:</label>
+      <input
+        type="text"
+        value={rules.formulas?.Sheet1?.B1 || ""}
+        onChange={(e) => updateRule("formulas", { ...rules.formulas, Sheet1: { ...rules.formulas.Sheet1, B1: e.target.value } })}
+      />
+      <label>Formula for C1:</label>
+      <input
+        type="text"
+        value={rules.formulas?.Sheet1?.C1 || ""}
+        onChange={(e) => updateRule("formulas", { ...rules.formulas, Sheet1: { ...rules.formulas.Sheet1, C1: e.target.value } })}
+      />
+      <label>Number of Output Tabs:</label>
+      <input
+        type="number"
+        value={rules.displaySettings?.numberOfTabs || 1}
+        onChange={(e) => updateRule("displaySettings", { ...rules.displaySettings, numberOfTabs: e.target.value })}
+      />
+      <button onClick={() => alert("Rules Saved!")}>Save Rules</button>
+    </div>
+  );
+};
+
+export default RuleBuilder;
+
+import React, { useState } from "react";
+
+const FileUploader = ({ setData }) => {
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    const reader = new FileReader();
+
+    reader.onload = (e) => {
+      const csvData = e.target.result.split("\n").map((row) => row.split(","));
+      const formattedData = csvData.reduce((acc, row, index) => {
+        row.forEach((value, colIndex) => {
+          acc[`A${index + 1}`] = isNaN(value) ? value : parseFloat(value);
+        });
+        return acc;
+      }, {});
+      setData((prev) => ({ ...prev, importedData: { Sheet1: formattedData } }));
+    };
+
+    reader.readAsText(file);
+  };
+
+  return (
+    <div>
+      <h3>Upload Data</h3>
+      <input type="file" accept=".csv" onChange={handleFileUpload} />
+    </div>
+  );
+};
+
+export default FileUploader;
+
+
+import React from "react";
+import { Parser } from "hot-formula-parser";
+
+const parser = new Parser();
+
+const DataProcessor = ({ data, setData }) => {
+  const processData = () => {
+    const processedData = {};
+    for (let i = 1; i <= data.displaySettings.numberOfTabs; i++) {
+      const sheetName = `Sheet${i + 1}`;
+      processedData[sheetName] = {};
+
+      Object.keys(data.formulas?.Sheet1 || {}).forEach((cell) => {
+        const formula = data.formulas.Sheet1[cell];
+        const parsedValue = parser.parse(formula.replace("=SUM", "").replace("A1:A10", "100")); // Example parsing
+        processedData[sheetName][cell] = parsedValue.result;
+      });
+    }
+
+    setData((prev) => ({ ...prev, processedData }));
+  };
+
+  return <button onClick={processData}>Run Model</button>;
+};
+
+export default DataProcessor;
+
+import React from "react";
+import DataGrid from "react-data-grid";
+
+const SheetViewer = ({ data }) => {
+  return (
+    <div>
+      <h2>Multi-Sheet View</h2>
+      <div style={{ display: "flex", gap: "20px" }}>
+        {Object.keys(data.processedData || {}).map((sheetName) => (
+          <div key={sheetName}>
+            <h3>{sheetName}</h3>
+            <DataGrid columns={[{ key: "A", name: "A" }, { key: "B", name: "B" }]} rows={[data.processedData[sheetName]]} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default SheetViewer;const fs = require("fs");
+const express = require("express");
+const app = express();
+app.use(express.json());
+
+app.post("/save-data", (req, res) => {
+  fs.writeFileSync("processedData.json", JSON.stringify(req.body, null, 2));
+  res.send({ success: true });
+});
+
+app.listen(5000, () => console.log("Server running on port 5000"));
+
+
+import React, { useState } from "react";
+import FileUploader from "./FileUploader";
+import RuleBuilder from "./RuleBuilder";
+import DataProcessor from "./DataProcessor";
+import SheetViewer from "./SheetViewer";
+
+const App = () => {
+  const [data, setData] = useState({
+    importedData: {},
+    formulas: { Sheet1: { B1: "=SUM(A1:A10)", C1: "=IF(A1 > 50, 'High', 'Low')" } },
+    displaySettings: { numberOfTabs: 2 },
+    processedData: {}
+  });
+
+  return (
+    <div>
+      <FileUploader setData={setData} />
+      <RuleBuilder rules={data} setRules={setData} />
+      <DataProcessor data={data} setData={setData} />
+      <SheetViewer data={data} />
+    </div>
+  );
+};
+
+export default App;
+
+
+
+
