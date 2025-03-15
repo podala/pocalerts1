@@ -1,0 +1,300 @@
+import { useState } from "react";
+import { DndContext, closestCenter } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import SortableItem from "./SortableItem";
+
+export default function DragDropManager({ items, setItems, type }) {
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    if (active.id !== over.id) {
+      const oldIndex = items.findIndex((item) => item.id === active.id);
+      const newIndex = items.findIndex((item) => item.id === over.id);
+      const updatedItems = [...items];
+      const [movedItem] = updatedItems.splice(oldIndex, 1);
+      updatedItems.splice(newIndex, 0, movedItem);
+      setItems(updatedItems);
+    }
+  };
+
+  return (
+    <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <SortableContext items={items} strategy={verticalListSortingStrategy}>
+        <div className="border rounded-lg p-4 shadow-md">
+          <h3 className="text-lg font-semibold">{type} Order</h3>
+          {items.map((item) => (
+            <SortableItem key={item.id} id={item.id}>
+              {item.name}
+            </SortableItem>
+          ))}
+        </div>
+      </SortableContext>
+    </DndContext>
+  );
+}
+-----
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Table, TableHead, TableRow, TableHeader, TableBody, TableCell } from "@/components/ui/table";
+
+export default function SheetViewer({ outputSheets }) {
+  return (
+    <div className="p-4 border rounded-lg shadow-md">
+      <h3 className="text-lg font-semibold mb-2">Output Sheets</h3>
+      <Tabs defaultValue={outputSheets[0]?.name || "Sheet1"}>
+        <TabsList>
+          {outputSheets.map((sheet) => (
+            <TabsTrigger key={sheet.name} value={sheet.name}>
+              {sheet.name}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+
+        {outputSheets.map((sheet) => (
+          <TabsContent key={sheet.name} value={sheet.name}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  {Object.keys(sheet.data[0] || {}).map((col) => (
+                    <TableHeader key={col}>{col}</TableHeader>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {sheet.data.map((row, rowIndex) => (
+                  <TableRow key={rowIndex}>
+                    {Object.values(row).map((cell, colIndex) => (
+                      <TableCell key={colIndex}>{cell}</TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TabsContent>
+        ))}
+      </Tabs>
+    </div>
+  );
+}
+-----
+{
+  "exportFormats": ["JSON", "CSV", "Excel", "PDF"],
+  "defaultFormat": "JSON",
+  "includeMetadata": true,
+  "fileNamingConvention": {
+    "prefix": "ProcessedData",
+    "dateFormat": "YYYY-MM-DD",
+    "suffix": "output"
+  },
+  "sheetExportOptions": {
+    "includeAllSheets": true,
+    "selectedSheets": []
+  }
+}
+-----
+{
+  "modelName": "Custom Rule-Based Model",
+  "inputFields": [
+    { "name": "Student Class", "type": "dropdown", "options": ["10th", "12th", "College"] },
+    { "name": "College Name", "type": "text" },
+    { "name": "Grade", "type": "dropdown", "options": ["A", "B", "C", "D"] },
+    { "name": "Category", "type": "dropdown", "options": ["General", "SC", "ST"] }
+  ],
+  "ruleExecution": {
+    "applyRulesDynamically": true,
+    "allowManualTrigger": true,
+    "previewBeforeApply": true
+  },
+  "outputConfig": {
+    "generateSummarySheet": true,
+    "highlightConditions": [
+      { "field": "Grade", "condition": "A", "highlightColor": "green" },
+      { "field": "Grade", "condition": "D", "highlightColor": "red" }
+    ],
+    "exportOptions": "exportSettings.json"
+  }
+}
+------
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+
+export default function ExcelFormulaBuilder({ rules, setRules }) {
+  const [selectedFunction, setSelectedFunction] = useState("");
+  const [column, setColumn] = useState("");
+  const [condition, setCondition] = useState("");
+  const [value, setValue] = useState("");
+
+  const formulaTemplates = {
+    SUM: "=SUM(A1:A10)",
+    AVERAGE: "=AVERAGE(A1:A10)",
+    COUNT: "=COUNT(A1:A10)",
+    IF: `=IF(A1 ${condition} ${value}, "Achieved", "Not Achieved")`
+  };
+
+  const addFormula = () => {
+    if (selectedFunction && column) {
+      const formula = selectedFunction === "IF" ? formulaTemplates.IF : formulaTemplates[selectedFunction];
+      setRules([...rules, { formula, targetColumn: column }]);
+      setSelectedFunction("");
+      setColumn("");
+      setCondition("");
+      setValue("");
+    }
+  };
+
+  return (
+    <div className="p-4 border rounded-lg shadow-md">
+      <h3 className="text-lg font-semibold mb-2">Graphical Formula Builder</h3>
+      
+      <Select onValueChange={setSelectedFunction} value={selectedFunction}>
+        <SelectTrigger>
+          <SelectValue placeholder="Select a function" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="SUM">SUM</SelectItem>
+          <SelectItem value="AVERAGE">AVERAGE</SelectItem>
+          <SelectItem value="COUNT">COUNT</SelectItem>
+          <SelectItem value="IF">IF Condition</SelectItem>
+        </SelectContent>
+      </Select>
+
+      <Input 
+        placeholder="Target Column (e.g., A)" 
+        value={column} 
+        onChange={(e) => setColumn(e.target.value)} 
+        className="mt-2"
+      />
+
+      {selectedFunction === "IF" && (
+        <>
+          <Input 
+            placeholder="Condition (e.g., > 100)" 
+            value={condition} 
+            onChange={(e) => setCondition(e.target.value)} 
+            className="mt-2"
+          />
+          <Input 
+            placeholder="Value (e.g., 100)" 
+            value={value} 
+            onChange={(e) => setValue(e.target.value)} 
+            className="mt-2"
+          />
+        </>
+      )}
+
+      <Button onClick={addFormula} className="mt-2">Add Formula</Button>
+    </div>
+  );
+}
+------
+import { useState } from "react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+
+export default function FormulaEditor({ rules, setRules }) {
+  const [formula, setFormula] = useState("");
+  const [targetColumn, setTargetColumn] = useState("");
+
+  const addFormula = () => {
+    if (formula.trim() && targetColumn.trim()) {
+      setRules([...rules, { formula, targetColumn }]);
+      setFormula("");
+      setTargetColumn("");
+    }
+  };
+
+  return (
+    <div className="p-4 border rounded-lg shadow-md">
+      <h3 className="text-lg font-semibold mb-2">Formula Editor</h3>
+      <div className="flex space-x-2 mb-2">
+        <Input
+          placeholder="Enter Formula (e.g., =SUM(A1:A10))"
+          value={formula}
+          onChange={(e) => setFormula(e.target.value)}
+        />
+        <Input
+          placeholder="Target Column (e.g., B)"
+          value={targetColumn}
+          onChange={(e) => setTargetColumn(e.target.value)}
+        />
+      </div>
+      <Button onClick={addFormula}>Add Formula</Button>
+    </div>
+  );
+}
+----
+'import { useState } from "react";
+import { Button, ToggleGroup, ToggleGroupItem } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import FileUploader from "./FileUploader";
+import RuleBuilder from "./RuleBuilder";
+import SheetViewer from "./SheetViewer";
+import DataProcessor from "./DataProcessor";
+import RuleEngine from "./RuleEngine";
+import RulePreview from "./RulePreview";
+import FormulaEditor from "./FormulaEditor";
+import ExcelFormulaBuilder from "./ExcelFormulaBuilder";
+import UploadSettings from "./UploadSettings";
+import MultiSheetView from "./MultiSheetView";
+
+export default function MultiSheetManager() {
+  const [sheets, setSheets] = useState([{ name: "Sheet1", data: [] }]);
+  const [activeSheet, setActiveSheet] = useState("Sheet1");
+  const [rules, setRules] = useState([]);
+  const [outputSheets, setOutputSheets] = useState([]);
+  const [previewData, setPreviewData] = useState(null);
+  const [autoApply, setAutoApply] = useState(false);
+  const [uploadConfig, setUploadConfig] = useState({
+    files: [
+      { name: "Repricing File", expectedName: "repricing.csv", sheet: "Sheet1" },
+      { name: "Blomss File", expectedName: "blomss.csv", sheet: "Sheet2" }
+    ]
+  });
+  
+  const addSheet = () => {
+    const newSheet = { name: `Sheet${sheets.length + 1}`, data: [] };
+    setSheets([...sheets, newSheet]);
+  };
+
+  const previewRules = () => {
+    const preview = RuleEngine.previewRules(sheets, rules);
+    setPreviewData(preview);
+  };
+
+  const processRules = () => {
+    const processedSheets = RuleEngine.applyRules(sheets, rules);
+    setOutputSheets(processedSheets);
+  };
+
+  return (
+    <div className="p-4">
+      <UploadSettings uploadConfig={uploadConfig} setUploadConfig={setUploadConfig} />
+      <Tabs defaultValue="Sheet1" onValueChange={setActiveSheet}>
+        <TabsList>
+          {sheets.map((sheet) => (
+            <TabsTrigger key={sheet.name} value={sheet.name}>
+              {sheet.name}
+            </TabsTrigger>
+          ))}
+          <Button onClick={addSheet}>+ Add Sheet</Button>
+        </TabsList>
+      </Tabs>
+      <FileUploader setSheets={setSheets} uploadConfig={uploadConfig} />
+      <RuleBuilder rules={rules} setRules={setRules} activeSheet={activeSheet} />
+      <FormulaEditor rules={rules} setRules={setRules} />
+      <ExcelFormulaBuilder rules={rules} setRules={setRules} />
+      <MultiSheetView sheets={sheets} />
+      
+      <ToggleGroup type="single" value={autoApply ? "auto" : "manual"} onValueChange={(val) => setAutoApply(val === "auto")}>
+        <ToggleGroupItem value="manual">Manual Apply</ToggleGroupItem>
+        <ToggleGroupItem value="auto">Auto Apply</ToggleGroupItem>
+      </ToggleGroup>
+      
+      {!autoApply && <Button onClick={previewRules}>Preview Rules</Button>}
+      <RulePreview previewData={previewData} />
+      {!autoApply && <Button onClick={processRules}>Apply Rules</Button>}
+      {autoApply && processRules()}
+      <SheetViewer outputSheets={outputSheets} />
+    </div>
+  );
+}
