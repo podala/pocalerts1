@@ -1,0 +1,293 @@
+📂 spreadsheet-framework (Reusable Library)
+│── 📂 components
+│    │── 📜 MultiSheetView.js      # Multi-sheet display & management
+│    │── 📜 FileUploader.js        # Drag & drop + configurable upload options
+│    │── 📜 UploadSettings.js      # Configure file types & naming conventions
+│    │── 📜 RuleBuilder.js         # Define rules & formulas
+│    │── 📜 RulePreview.js         # Preview before applying rules
+│    │── 📜 FormulaEditor.js       # Excel-like formula builder
+│    │── 📜 SheetViewer.js         # View processed sheets & conditional formatting
+│    │── 📜 DragDropManager.js     # Manage order of sheets/rules
+│── 📂 core
+│    │── 📜 RuleEngine.js          # Apply rules dynamically
+│    │── 📜 DataProcessor.js       # Perform calculations & transformations
+│    │── 📜 FormulaParser.js       # Parses & evaluates formulas
+│── 📂 config
+│    │── 📜 rules.json             # User-defined rules storage
+│    │── 📜 config.json            # General settings for UI/logic
+│    │── 📜 upload-config.json     # Upload file types & validation rules
+│── 📂 api
+│    │── 📜 process.js             # Process rule-based transformations
+│    │── 📜 export.js              # Export data in JSON/CSV
+│    │── 📜 import.js              # Handle file imports dynamically
+│── 📂 utils
+│    │── 📜 validation.js          # Validate data & rules
+│    │── 📜 fileHandler.js         # Handle file reading & parsing
+│── 📜 index.js                    # Main entry point (NPM Module)
+│── 📜 package.json                # Dependencies & module setup
+│── 📜 README.md                   # Documentation on how to use the framework
+
+
+import { useState } from "react";
+
+export default function FileUploader({ setSheets, uploadConfig }) {
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const isValid = uploadConfig.files.some(
+      (config) => config.expectedName === file.name
+    );
+
+    setUploadedFiles([...uploadedFiles, { name: file.name, valid: isValid }]);
+
+    if (isValid) {
+      // Process file & add data to sheets
+      const newSheet = { name: file.name, data: [] };
+      setSheets((prev) => [...prev, newSheet]);
+    }
+  };
+
+  return (
+    <div className="border p-4 rounded-lg">
+      <h3>Upload Files</h3>
+      <input type="file" onChange={handleFileUpload} />
+      <ul>
+        {uploadedFiles.map((file, index) => (
+          <li key={index} className={file.valid ? "text-green-600" : "text-red-600"}>
+            {file.name} ({file.valid ? "Valid" : "Invalid"})
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+====≈==============================================================================================
+export default function UploadSettings({ uploadConfig, setUploadConfig }) {
+  const handleChange = (index, field, value) => {
+    const updatedConfig = [...uploadConfig.files];
+    updatedConfig[index][field] = value;
+    setUploadConfig({ files: updatedConfig });
+  };
+
+  return (
+    <div className="p-4 border rounded-lg">
+      <h3>Upload Configuration</h3>
+      {uploadConfig.files.map((file, index) => (
+        <div key={index} className="flex gap-2 mb-2">
+          <input
+            type="text"
+            value={file.name}
+            onChange={(e) => handleChange(index, "name", e.target.value)}
+          />
+          <input
+            type="text"
+            value={file.expectedName}
+            onChange={(e) => handleChange(index, "expectedName", e.target.value)}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+===≈==========================================================================================
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+
+export default function MultiSheetView({ sheets, activeSheet, setActiveSheet }) {
+  return (
+    <Tabs defaultValue={activeSheet} onValueChange={setActiveSheet}>
+      <TabsList>
+        {sheets.map((sheet) => (
+          <TabsTrigger key={sheet.name} value={sheet.name}>
+            {sheet.name}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+      {sheets.map((sheet) => (
+        <TabsContent key={sheet.name} value={sheet.name}>
+          <div>{JSON.stringify(sheet.data)}</div>
+        </TabsContent>
+      ))}
+    </Tabs>
+  );
+}
+========≈=================
+import { useState } from "react";
+
+export default function RuleBuilder({ rules, setRules }) {
+  const [newRule, setNewRule] = useState("");
+
+  const addRule = () => {
+    setRules([...rules, newRule]);
+    setNewRule("");
+  };
+
+  return (
+    <div className="border p-4 rounded-lg">
+      <h3>Rule Builder</h3>
+      <input
+        type="text"
+        value={newRule}
+        onChange={(e) => setNewRule(e.target.value)}
+      />
+      <button onClick={addRule}>Add Rule</button>
+      <ul>
+        {rules.map((rule, index) => (
+          <li key={index}>{rule}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+=====================
+export default class RuleEngine {
+  static applyRules(sheets, rules) {
+    return sheets.map((sheet) => {
+      const updatedData = sheet.data.map((row) => {
+        rules.forEach((rule) => {
+          if (rule.includes("SUM")) {
+            row["Calculated"] = row.A + row.B;
+          }
+          if (rule.includes("IF") && row["Calculated"] > 100) {
+            row["Status"] = "Achieved";
+          }
+        });
+        return row;
+      });
+      return { ...sheet, data: updatedData };
+    });
+  }
+
+  static previewRules(sheets, rules) {
+    return this.applyRules(sheets, rules);
+  }
+}
+=========
+export default class DataProcessor {
+  static processFormula(formula, data) {
+    if (formula.startsWith("=SUM")) {
+      const sum = data.reduce((acc, val) => acc + val, 0);
+      return sum;
+    }
+    if (formula.startsWith("=IF")) {
+      return formula.includes("> 100") ? "Achieved" : "Not Achieved";
+    }
+    return formula;
+  }
+}
+==================
+
+export default class DataProcessor {
+  static processFormula(formula, data) {
+    if (formula.startsWith("=SUM")) {
+      const sum = data.reduce((acc, val) => acc + val, 0);
+      return sum;
+    }
+    if (formula.startsWith("=IF")) {
+      return formula.includes("> 100") ? "Achieved" : "Not Achieved";
+    }
+    return formula;
+  }
+}
+============
+export function exportJSON(data) {
+  const jsonString = JSON.stringify(data, null, 2);
+  const blob = new Blob([jsonString], { type: "application/json" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "output.json";
+  link.click();
+}
+
+export function exportCSV(data) {
+  let csvContent = "data:text/csv;charset=utf-8,";
+  data.forEach((row) => {
+    csvContent += Object.values(row).join(",") + "\n";
+  });
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.href = encodedUri;
+  link.download = "output.csv";
+  link.click();
+}
+==============
+{
+  "theme": "light",
+  "allowMultipleSheets": true,
+  "defaultSheetName": "Sheet1",
+  "enableConditionalFormatting": true,
+  "autoSaveInterval": 5
+}
+###
+{
+  "rules": [
+    {
+      "id": 1,
+      "name": "Calculate Total",
+      "formula": "=SUM(A1:B1)",
+      "applyTo": "Sheet1"
+    },
+    {
+      "id": 2,
+      "name": "Pass/Fail Criteria",
+      "formula": "=IF(C1>50, 'Pass', 'Fail')",
+      "applyTo": "Sheet1"
+    }
+  ]
+}
+=====
+{
+  "files": [
+    {
+      "name": "Repricing File",
+      "expectedName": "repricing.csv",
+      "sheet": "Sheet1",
+      "fileType": "csv"
+    },
+    {
+      "name": "Blomss File",
+      "expectedName": "blomss.csv",
+      "sheet": "Sheet2",
+      "fileType": "csv"
+    }
+  ]
+}
+===
+{
+  "formats": ["json", "csv", "pdf", "excel"],
+  "defaultFormat": "json",
+  "includeMetadata": true
+}
+=====
+{
+  "inputs": [
+    {
+      "name": "Student Class",
+      "type": "dropdown",
+      "options": ["10th", "12th", "College"]
+    },
+    {
+      "name": "College Name",
+      "type": "text",
+      "placeholder": "Enter College Name"
+    },
+    {
+      "name": "Grade",
+      "type": "dropdown",
+      "options": ["A", "B", "C", "D"]
+    },
+    {
+      "name": "Category",
+      "type": "dropdown",
+      "options": ["General", "SC", "ST"]
+    }
+  ],
+  "outputSheets": ["Summary", "Details"],
+  "conditionalFormatting": {
+    "highlightHighAchievers": "green",
+    "lowScorers": "red"
+  }
+}
+
