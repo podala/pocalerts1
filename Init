@@ -1,0 +1,89 @@
+import RuleEngine from "../core/RuleEngine";
+import DataProcessor from "../core/DataProcessor";
+
+/**
+ * Processes data using user-defined rules and generates an output.
+ * @param {Object} sheets - The input sheets with data.
+ * @param {Object} rules - The rules to apply.
+ * @returns {Object} - The processed data.
+ */
+export function processSheets(sheets, rules) {
+    try {
+        const processedSheets = RuleEngine.applyRules(sheets, rules);
+        return DataProcessor.processData(processedSheets);
+    } catch (error) {
+        console.error("Error processing sheets:", error);
+        return { error: "Processing failed" };
+    }
+}
+====
+import { saveAs } from "file-saver";
+
+/**
+ * Exports data in different formats (JSON, CSV, Excel).
+ * @param {Object} data - Processed sheet data.
+ * @param {String} format - Export format (json, csv, excel).
+ */
+export function exportData(data, format) {
+    let blob;
+    
+    if (format === "json") {
+        blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+        saveAs(blob, "processed_data.json");
+    } else if (format === "csv") {
+        const csvContent = convertToCSV(data);
+        blob = new Blob([csvContent], { type: "text/csv" });
+        saveAs(blob, "processed_data.csv");
+    } else {
+        console.error("Unsupported export format:", format);
+    }
+}
+
+/**
+ * Converts JSON data to CSV format.
+ * @param {Object} data - Data to convert.
+ * @returns {String} - CSV string.
+ */
+function convertToCSV(data) {
+    const headers = Object.keys(data[0]).join(",");
+    const rows = data.map(row => Object.values(row).join(",")).join("\n");
+    return `${headers}\n${rows}`;
+}
+====
+import MultiSheetManager from "./src/components/MultiSheetManager";
+import "./src/styles/global.css";
+
+export default MultiSheetManager;
+====
+import MultiSheetManager from "./src/components/MultiSheetManager";
+import "./src/styles/global.css";
+
+export default MultiSheetManager;
+===
+import MultiSheetManager from "./src/components/MultiSheetManager";
+import "./src/styles/global.css";
+
+export default MultiSheetManager;
+=====
+
+
+{
+  "name": "spreadsheet-framework",
+  "version": "1.0.0",
+  "description": "A reusable spreadsheet framework with rule-based calculations",
+  "main": "index.js",
+  "scripts": {
+    "start": "vite",
+    "build": "vite build",
+    "test": "jest"
+  },
+  "dependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "file-saver": "^2.0.5"
+  },
+  "devDependencies": {
+    "vite": "^4.0.0",
+    "jest": "^29.0.0"
+  }
+}
