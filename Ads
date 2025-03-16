@@ -1,0 +1,25 @@
+export const Button = ({ children, ...props }) => (
+  <button className="px-4 py-2 bg-blue-500 text-white rounded" {...props}>
+    {children}
+  </button>
+);
+export const Input = ({ ...props }) => (
+  <input className="border p-2 rounded w-full" {...props} />
+);
+export const Select = ({ children, ...props }) => (
+  <select className="border p-2 rounded w-full" {...props}>
+    {children}
+  </select>
+);
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Select } from "../ui/select";
+
+{
+  "compilerOptions": {
+    "baseUrl": "src",
+    "paths": {
+      "@components/*": ["components/*"]
+    }
+  }
+}
