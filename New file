@@ -1,0 +1,81 @@
+export default class FileHandler {
+  static parseCSV(file, onDataParsed) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target.result;
+      const rows = text.split("\n").map((row) => row.split(","));
+      onDataParsed(rows);
+    };
+    reader.readAsText(file);
+  }
+
+  static validateFileType(file, expectedType) {
+    const validExtensions = expectedType === "csv" ? ["csv"] : ["xlsx", "xls"];
+    const fileExtension = file.name.split(".").pop().toLowerCase();
+    return validExtensions.includes(fileExtension);
+  }
+}
+=====
+
+export default class Validation {
+  static validateHeaders(expectedHeaders, actualHeaders) {
+    return expectedHeaders.every((header) => actualHeaders.includes(header));
+  }
+
+  static validateData(rows, expectedColumns) {
+    return rows.every((row) => row.length === expectedColumns);
+  }
+}
+=====
+
+import { useState } from "react";
+import FileHandler from "../utils/FileHandler";
+import Validation from "../utils/Validation";
+
+export default function FileUploader({ setSheets, uploadConfig }) {
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+
+  const handleFileUpload = (event, expectedName) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const isValidType = FileHandler.validateFileType(file, "csv");
+    if (!isValidType) {
+      alert("Invalid file type! Only CSV files are allowed.");
+      return;
+    }
+
+    FileHandler.parseCSV(file, (parsedData) => {
+      const headers = parsedData[0];
+      const expectedHeaders = ["A", "B", "C"]; // Example headers
+
+      if (!Validation.validateHeaders(expectedHeaders, headers)) {
+        alert(`Invalid file structure for ${expectedName}.`);
+        return;
+      }
+
+      setSheets((prevSheets) => [...prevSheets, { name: expectedName, data: parsedData }]);
+      setUploadedFiles([...uploadedFiles, { name: file.name, status: "✅ Valid" }]);
+    });
+  };
+
+  return (
+    <div className="p-4 border rounded-md">
+      <h3 className="text-lg font-semibold">Upload Files</h3>
+      {uploadConfig.files.map((config) => (
+        <div key={config.name} className="my-2">
+          <p>{config.name} (Expected: {config.expectedName})</p>
+          <input type="file" accept=".csv" onChange={(e) => handleFileUpload(e, config.expectedName)} />
+        </div>
+      ))}
+      <div>
+        <h4 className="mt-4">Uploaded Files:</h4>
+        <ul>
+          {uploadedFiles.map((file, index) => (
+            <li key={index}>{file.name} - {file.status}</li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
