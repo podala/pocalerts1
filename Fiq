@@ -1,0 +1,26 @@
+import { useState } from "react";
+import RuleBuilder from "./components/RuleBuilder";
+import FileUploader from "./components/FileUploader";
+import RulePreview from "./components/RulePreview";
+
+function App() {
+  const [rules, setRules] = useState([]);
+  const [sheets, setSheets] = useState([]);  // Store uploaded sheet data
+
+  return (
+    <div className="p-8">
+      <h1 className="text-2xl font-bold">Rule Builder Demo</h1>
+
+      {/* File Uploader */}
+      <FileUploader setSheets={setSheets} uploadConfig={{}} />
+
+      {/* Rule Builder */}
+      <RuleBuilder rules={rules} setRules={setRules} />
+
+      {/* Rule Preview */}
+      <RulePreview rules={rules} sheets={sheets} />
+    </div>
+  );
+}
+
+export default App;
