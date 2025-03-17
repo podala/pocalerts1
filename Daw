@@ -1,0 +1,57 @@
+import { useState } from "react";
+import FileHandler from "../utils/FileHandler";
+import Validation from "../utils/Validation";
+import uploadConfig from "../config/uploadConfig.js"; // Ensure correct import if needed
+
+export default function FileUploader({ setSheets, uploadConfig = uploadConfig }) {
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+
+  const handleFileUpload = (event, expectedName) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const isValidType = FileHandler.validateFileType(file, "csv");
+    if (!isValidType) {
+      alert("Invalid file type! Only CSV files are allowed.");
+      return;
+    }
+
+    FileHandler.parseCSV(file, (parsedData) => {
+      const headers = parsedData[0];
+      const expectedHeaders = ["A", "B", "C"]; // Example headers
+
+      if (!Validation.validateHeaders(expectedHeaders, headers)) {
+        alert(`Invalid file structure for ${expectedName}.`);
+        return;
+      }
+
+      setSheets((prevSheets) => [...prevSheets, { name: expectedName, data: parsedData }]);
+      setUploadedFiles((prev) => [...prev, { name: file.name, status: "✅ Valid" }]); // Correct state update
+    });
+  };
+
+  return (
+    <div className="p-4 border rounded-md">
+      <h3 className="text-lg font-semibold">Upload Files</h3>
+      {uploadConfig?.files?.length > 0 ? (
+        uploadConfig.files.map((config) => (
+          <div key={config.name} className="my-2">
+            <p>{config.name} (Expected: {config.expectedName})</p>
+            <input type="file" accept=".csv" onChange={(e) => handleFileUpload(e, config.expectedName)} />
+          </div>
+        ))
+      ) : (
+        <p className="text-red-500">No upload configuration found!</p>
+      )}
+
+      <div>
+        <h4 className="mt-4">Uploaded Files:</h4>
+        <ul>
+          {uploadedFiles.map((file, index) => (
+            <li key={index}>{file.name} - {file.status}</li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
