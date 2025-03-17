@@ -1,0 +1,80 @@
+{
+  "theme": "light",
+  "allowMultipleSheets": true,
+  "defaultSheetName": "Sheet1",
+  "enableConditionalFormatting": true,
+  "autoSaveInterval": 5
+}
+
+
+{
+  "rules": [
+    {
+      "id": 1,
+      "name": "Calculate Total",
+      "formula": "=SUM(A1:B1)",
+      "applyTo": "Sheet1"
+    },
+    {
+      "id": 2,
+      "name": "Pass/Fail Criteria",
+      "formula": "=IF(C1>50, 'Pass', 'Fail')",
+      "applyTo": "Sheet1"
+    }
+  ]
+}
+
+{
+  "files": [
+    {
+      "name": "Repricing File",
+      "expectedName": "repricing.csv",
+      "sheet": "Sheet1",
+      "fileType": "csv"
+    },
+    {
+      "name": "Blomss File",
+      "expectedName": "blomss.csv",
+      "sheet": "Sheet2",
+      "fileType": "csv"
+    }
+  ]
+}
+
+
+{
+  "formats": ["json", "csv", "pdf", "excel"],
+  "defaultFormat": "json",
+  "includeMetadata": true
+}
+
+
+{
+  "inputs": [
+    {
+      "name": "Student Class",
+      "type": "dropdown",
+      "options": ["10th", "12th", "College"]
+    },
+    {
+      "name": "College Name",
+      "type": "text",
+      "placeholder": "Enter College Name"
+    },
+    {
+      "name": "Grade",
+      "type": "dropdown",
+      "options": ["A", "B", "C", "D"]
+    },
+    {
+      "name": "Category",
+      "type": "dropdown",
+      "options": ["General", "SC", "ST"]
+    }
+  ],
+  "outputSheets": ["Summary", "Details"],
+  "conditionalFormatting": {
+    "highlightHighAchievers": "green",
+    "lowScorers": "red"
+  }
+}
