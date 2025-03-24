@@ -258,6 +258,184 @@ const RuleCreationPanel = () => {
 export default RuleCreationPanel;
 ====================================
 
+import React, { useState,useRef } from 'react'; 
+
+import { Grid, Paper, Typography, Button, TextField, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Switch, FormControlLabel, MenuItem, Select, FormControl, InputLabel } from '@mui/material';
+
+function Formula() {
+  const [formulaName, setFormulaName] = useState('');
+  const [formula, setFormula] = useState('');
+  const [jsonOutput, setJsonOutput] = useState([]);
+  const [selectedFields, setSelectedFields] = useState([]);
+  const [outputFields, setOutputFields] = useState([]);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [enableLookup, setEnableLookup] = useState(false);
+  const [selectedFile, setSelectedFile] = useState('');
+  const inputFieldsRef = useRef(null);
+  const outputFieldsRef = useRef(null);
+  const columnHeaders = ['BASE PRICE', 'DISCOUNT', 'UNITS SOLD', 'TAX', 'FEE', 'SHIPPING', 'HANDLING', 'COMMISSION', 'MARKUP', 'REBATE'];
+  const outputColumnHeaders = ['Final Price', 'Total Revenue', 'Net Profit'];
+  const operators = ['+', '-', '*', '/', 'SUM()', 'AVG()', 'MAX()', 'MIN()', 'LOOKUP()'];
+  const lookupFiles = ['File1.csv', 'File2.csv', 'File3.csv'];
+
+  const sampleData = [
+    { 'BASE PRICE': 100, 'DISCOUNT': 10, 'UNITS SOLD': 50, 'TAX': 5, 'FEE': 2, 'SHIPPING': 8, 'HANDLING': 3, 'COMMISSION': 6, 'MARKUP': 12, 'REBATE': 4 },
+    { 'BASE PRICE': 200, 'DISCOUNT': 20, 'UNITS SOLD': 30, 'TAX': 10, 'FEE': 3, 'SHIPPING': 12, 'HANDLING': 4, 'COMMISSION': 8, 'MARKUP': 15, 'REBATE': 5 },
+    { 'BASE PRICE': 150, 'DISCOUNT': 15, 'UNITS SOLD': 40, 'TAX': 7, 'FEE': 2.5, 'SHIPPING': 10, 'HANDLING': 3.5, 'COMMISSION': 7, 'MARKUP': 14, 'REBATE': 4.5 },
+    { 'BASE PRICE': 120, 'DISCOUNT': 12, 'UNITS SOLD': 60, 'TAX': 6, 'FEE': 1.8, 'SHIPPING': 7, 'HANDLING': 2.5, 'COMMISSION': 5.5, 'MARKUP': 10, 'REBATE': 3.5 },
+    { 'BASE PRICE': 180, 'DISCOUNT': 18, 'UNITS SOLD': 45, 'TAX': 9, 'FEE': 2.7, 'SHIPPING': 11, 'HANDLING': 3.2, 'COMMISSION': 7.8, 'MARKUP': 13, 'REBATE': 4.8 },
+    { 'BASE PRICE': 250, 'DISCOUNT': 25, 'UNITS SOLD': 20, 'TAX': 12, 'FEE': 4, 'SHIPPING': 15, 'HANDLING': 5, 'COMMISSION': 9, 'MARKUP': 18, 'REBATE': 6 },
+    { 'BASE PRICE': 90, 'DISCOUNT': 9, 'UNITS SOLD': 55, 'TAX': 4.5, 'FEE': 1.5, 'SHIPPING': 6.5, 'HANDLING': 2.8, 'COMMISSION': 5, 'MARKUP': 11, 'REBATE': 3 },
+    { 'BASE PRICE': 300, 'DISCOUNT': 30, 'UNITS SOLD': 25, 'TAX': 15, 'FEE': 5, 'SHIPPING': 20, 'HANDLING': 6, 'COMMISSION': 10, 'MARKUP': 20, 'REBATE': 7 },
+    { 'BASE PRICE': 110, 'DISCOUNT': 11, 'UNITS SOLD': 48, 'TAX': 5.5, 'FEE': 1.7, 'SHIPPING': 7.5, 'HANDLING': 3, 'COMMISSION': 5.8, 'MARKUP': 12.5, 'REBATE': 3.8 },
+    { 'BASE PRICE': 160, 'DISCOUNT': 16, 'UNITS SOLD': 35, 'TAX': 8, 'FEE': 2.2, 'SHIPPING': 9, 'HANDLING': 3.3, 'COMMISSION': 7.2, 'MARKUP': 14.5, 'REBATE': 4.2 },
+    { 'BASE PRICE': 210, 'DISCOUNT': 21, 'UNITS SOLD': 28, 'TAX': 10.5, 'FEE': 3.5, 'SHIPPING': 13, 'HANDLING': 4.2, 'COMMISSION': 8.5, 'MARKUP': 16, 'REBATE': 5.5 },
+    { 'BASE PRICE': 130, 'DISCOUNT': 13, 'UNITS SOLD': 52, 'TAX': 6.5, 'FEE': 2, 'SHIPPING': 8.5, 'HANDLING': 3.2, 'COMMISSION': 6.2, 'MARKUP': 13, 'REBATE': 4 },
+    { 'BASE PRICE': 175, 'DISCOUNT': 17.5, 'UNITS SOLD': 42, 'TAX': 8.5, 'FEE': 2.6, 'SHIPPING': 10.5, 'HANDLING': 3.7, 'COMMISSION': 7.5, 'MARKUP': 15, 'REBATE': 4.7 }
+  ];
+  
+  const handleAddToFormula = (value) => {
+    setFormula((prev) => prev + (prev ? ' ' : '') + value);
+  };
+
+  const handleFieldSelection = (field) => {
+    handleAddToFormula(field);
+    setSelectedFields((prev) => [...prev, field]);
+  };
+
+  const handleOutputFieldSelection = (field) => {
+    if (!outputFields.includes(field)) {
+      setOutputFields((prev) => [...prev, field]);
+      handleAddToFormula(`${field} =`);
+    }
+  };
+
+  const handleSave = () => {
+    const output = {
+      formulaName,
+      formula,
+      selectedFields,
+      outputFields,
+      enableLookup,
+      selectedFile: enableLookup ? selectedFile : null,
+    };
+    setJsonOutput((prev) => [...prev, output]);
+
+    // Clear formula fields after saving, but keep formula name
+    setFormula('');
+    setSelectedFields([]);
+    setOutputFields([]);
+    setEnableLookup(false);
+    setSelectedFile('');
+  };
+
+  return (
+    <Grid container spacing={2} style={{ padding: 16 }}>
+      {/* Operators Section */}
+      <Grid item xs={2}>
+        <Paper style={{ padding: '16px', height: '80vh', overflowY: 'auto' }}>
+          <Typography variant="h6">Operators</Typography>
+          {operators.map((op) => (
+            <Button key={op} onClick={() => handleAddToFormula(op)} style={{ marginBottom: '8px', width: '100%' }}>
+              {op}
+            </Button>
+          ))}
+        </Paper>
+      </Grid>
+
+      {/* Formula Section with Input Data Below */}
+      <Grid item xs={6}>
+        <Paper style={{ padding: 16, marginBottom: 16 }}>
+          <Typography variant="h6">Formula Name</Typography>
+          <TextField placeholder="Enter formula name" value={formulaName} onChange={(e) => setFormulaName(e.target.value)} style={{ width: '70%', marginBottom: '16px' }} />
+          <Typography variant="h6">Formula</Typography>
+          <TextField fullWidth multiline rows={3} value={formula} onChange={(e) => setFormula(e.target.value)} />
+          <FormControlLabel
+            control={<Switch checked={showAdvanced} onChange={() => setShowAdvanced((prev) => !prev)} />}
+            label="Show Advanced Configuration"
+          />
+          <FormControlLabel
+            control={<Switch checked={enableLookup} onChange={() => setEnableLookup((prev) => !prev)} />}
+            label="Enable Lookup Mode"
+          />
+          {enableLookup && (
+            <FormControl style={{ marginTop: 16, width: '100%' }}>
+              <InputLabel>Select File for Lookup</InputLabel>
+              <Select value={selectedFile} onChange={(e) => setSelectedFile(e.target.value)}>
+                {lookupFiles.map((file) => (
+                  <MenuItem key={file} value={file}>{file}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+          <Button variant="contained" onClick={handleSave} style={{ marginTop: '16px' }}>Save Formula</Button>
+        </Paper>
+        <Paper style={{ padding: 16, height: '30vh', overflowY: 'auto' }}>
+          <Typography variant="h6">Input Data Preview</Typography>
+          <TableContainer component={Paper} style={{ maxHeight: '28vh', overflowY: 'auto' }}>
+            <Table stickyHeader>
+              <TableHead>
+                <TableRow>
+                  {columnHeaders.map((header) => (
+                    <TableCell key={header}>{header}</TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {sampleData.map((row, index) => (
+                  <TableRow key={index}>
+                    {columnHeaders.map((header) => (
+                      <TableCell key={header}>{row[header]}</TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+      </Grid>
+
+      {/* Input Fields and Output Section */}
+      <Grid item xs={4}>
+    {/* Input Fields with Ref */}
+    <Paper style={{ padding: '16px', height: '35vh' }}>
+  <Typography variant="h6">Input Fields</Typography>
+  <div style={{ overflowY: 'scroll', maxHeight: '30vh' }}>
+    {columnHeaders.map((field) => (
+      <Button key={field} onClick={() => handleFieldSelection(field)} style={{ marginBottom: '8px', width: '100%' }}>
+        {field}
+      </Button>
+    ))}
+  </div>
+</Paper>
+
+  {/* Output Fields with Ref */}
+  <Paper style={{ padding: '16px', height: '15vh', overflowY: 'auto', marginTop: 16 }} ref={outputFieldsRef}>
+    <Typography variant="h6">Output Fields</Typography>
+    {outputColumnHeaders.map((field) => (
+      <Button key={field} onClick={() => handleOutputFieldSelection(field)} style={{ marginBottom: '8px', width: '100%' }}>
+        {field}
+      </Button>
+    ))}
+  </Paper>
+
+        <Paper style={{ padding: 16, height: '35vh', overflowY: 'auto', marginTop: 16 }}>
+          <Typography variant="h6">Output Data</Typography>
+          {jsonOutput.length ? (
+            <pre style={{ overflowX: 'auto' }}>{JSON.stringify(jsonOutput, null, 2)}</pre>
+          ) : (
+            <Typography>No output data available. Please create a formula.</Typography>
+          )}
+        </Paper>
+      </Grid>
+    </Grid>
+  );
+}
+
+export default Formula;
+=================================
+
+
   
 
   
