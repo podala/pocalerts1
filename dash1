@@ -1,0 +1,263 @@
+import React, { useState } from 'react';
+import { Button, TextField, MenuItem, Grid, IconButton, Typography, Select, FormControl, InputLabel, Card, CardContent, Snackbar } from '@mui/material';
+import { Delete, Save } from '@mui/icons-material';
+import { styled } from '@mui/system';
+
+const variableTypes = ['String', 'Number', 'Boolean', 'Date'];
+
+const datasets = [
+  {
+    name: 'Drug Cost Dataset',
+    variables:[
+      { name: 'BASE PRICE', type: 'Number', description: 'The initial price of the product before any discounts or fees.' },
+      { name: 'DISCOUNT', type: 'Number', description: 'The amount reduced from the base price.' },
+      { name: 'UNITS SOLD', type: 'Number', description: 'The number of units sold for the product.' },
+      { name: 'TAX', type: 'Number', description: 'The applicable tax on the product based on regional regulations.' },
+      { name: 'FEE', type: 'Number', description: 'Additional fees associated with the product sale.' },
+      { name: 'SHIPPING', type: 'Number', description: 'Shipping costs incurred during product delivery.' },
+      { name: 'HANDLING', type: 'Number', description: 'Handling fees for managing the product.' },
+      { name: 'COMMISSION', type: 'Number', description: 'Sales commission applied on the product sale.' },
+      { name: 'MARKUP', type: 'Number', description: 'Additional percentage or value added to the base price.' },
+      { name: 'REBATE', type: 'Number', description: 'Rebate amount that is returned to the buyer or client.' }
+    ]
+  },
+  {
+    name: 'Client Info Dataset',
+    variables: [
+      { name: 'ClientID', type: 'Number', description: 'Unique identifier for the client' },
+      { name: 'ClientName', type: 'String', description: 'Name of the client' },
+      { name: 'ContractStart', type: 'Date', description: 'Start date of the contract' },
+      { name: 'ContractEnd', type: 'Date', description: 'End date of the contract' }
+    ]
+  }
+];
+
+const StyledCard = styled(Card)(({ theme }) => ({
+  marginBottom: theme?.spacing?.(2) || '16px',
+  boxShadow: theme?.shadows?.[3] || '0px 4px 8px rgba(0,0,0,0.1)',
+}));
+
+const InputOutputSection = ({ onNext }) => {
+  const [selectedDataset, setSelectedDataset] = useState('');
+  const [outputs, setOutputs] = useState([]);
+  const [showSnackbar, setShowSnackbar] = useState(false);
+
+  const handleAddOutput = () => {
+    setOutputs([...outputs, { name: '', type: 'String', description: '' }]);
+  };
+
+  const handleChangeOutput = (index, field, value) => {
+    const update = [...outputs];
+    update[index][field] = value;
+    setOutputs(update);
+  };
+
+  const handleDeleteOutput = (index) => {
+    const update = [...outputs];
+    update.splice(index, 1);
+    setOutputs(update);
+  };
+
+  const handleSaveAndNext = () => {
+    const selectedVariables = datasets.find((d) => d.name === selectedDataset)?.variables || [];
+    const generatedJson = {
+      dataset: selectedDataset,
+      inputs: selectedVariables,
+      outputs,
+    };
+    console.log('Generated JSON:', JSON.stringify(generatedJson, null, 2));
+    setShowSnackbar(true);
+    onNext();
+  };
+
+  const selectedVariables = datasets.find((d) => d.name === selectedDataset)?.variables || [];
+
+  return (
+    <Grid container spacing={3}>
+      {/* Dataset Selection */}
+      <Grid item xs={12}>
+        <StyledCard>
+          <CardContent>
+            <FormControl fullWidth>
+              <InputLabel>Select Dataset</InputLabel>
+              <Select value={selectedDataset} onChange={(e) => setSelectedDataset(e.target.value)}>
+                {datasets.map((dataset) => (
+                  <MenuItem key={dataset.name} value={dataset.name}>{dataset.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </CardContent>
+        </StyledCard>
+      </Grid>
+
+      {/* Input Section */}
+      <Grid item xs={6}>
+        <Typography variant="h6">Inputs</Typography>
+        {selectedVariables.length > 0 ? (
+          selectedVariables.map((variable, index) => (
+            <StyledCard key={index}>
+              <CardContent>
+                <Grid container spacing={2}>
+                  <Grid item xs={4}><TextField label="Name" value={variable.name} disabled /></Grid>
+                  <Grid item xs={4}><TextField label="Type" value={variable.type} disabled /></Grid>
+                  <Grid item xs={4}><TextField label="Description" value={variable.description || '-'} disabled /></Grid>
+                </Grid>
+              </CardContent>
+            </StyledCard>
+          ))
+        ) : (
+          <Typography>No dataset selected or no variables available.</Typography>
+        )}
+      </Grid>
+
+      {/* Output Section */}
+      <Grid item xs={6}>
+        <Typography variant="h6">Outputs</Typography>
+        {outputs.map((output, index) => (
+          <StyledCard key={index}>
+            <CardContent>
+              <Grid container spacing={2}>
+                <Grid item xs={4}><TextField label="Name" value={output.name} onChange={(e) => handleChangeOutput(index, 'name', e.target.value)} /></Grid>
+                <Grid item xs={4}>
+                  <TextField select label="Type" value={output.type} onChange={(e) => handleChangeOutput(index, 'type', e.target.value)}>
+                    {variableTypes.map((type) => <MenuItem key={type} value={type}>{type}</MenuItem>)}
+                  </TextField>
+                </Grid>
+                <Grid item xs={3}><TextField label="Description" value={output.description} onChange={(e) => handleChangeOutput(index, 'description', e.target.value)} /></Grid>
+                <Grid item xs={1}><IconButton onClick={() => handleDeleteOutput(index)}><Delete color="error" /></IconButton></Grid>
+              </Grid>
+            </CardContent>
+          </StyledCard>
+        ))}
+        <Button onClick={handleAddOutput} variant="contained" sx={{ mt: 2, mr: 2 }}>Add Output</Button>
+        <Button onClick={handleSaveAndNext} variant="contained" color="primary" startIcon={<Save />}>Save and Next</Button>
+      </Grid>
+
+      <Snackbar open={showSnackbar} autoHideDuration={3000} onClose={() => setShowSnackbar(false)} message="JSON Generated Successfully!" />
+    </Grid>
+  );
+};
+
+export default InputOutputSection;
+====================================
+
+  import React, { useState } from 'react';
+import { Button, Box, TextField, MenuItem, Typography } from '@mui/material';
+
+const datasetOptions = ['Drug Data Set', 'Rebate Data Set'];
+const statusOptions = ['Draft', 'Active', 'Inactive', 'Archived'];
+const priorityOptions = ['Low', 'Medium', 'High', 'Critical'];
+
+const RuleDetails = ({ onNext }) => {
+  const [ruleDetails, setRuleDetails] = useState({
+    ruleName: '',
+    version: '',
+    createdBy: '',
+    deploymentDate: '',
+    dataset: '',
+    description: '',
+    status: '',
+    priority: '',
+    effectiveDate: '',
+    expirationDate: '',
+    tags: ''
+  });
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setRuleDetails((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleNext = () => {
+    if (ruleDetails.ruleName && ruleDetails.version && ruleDetails.createdBy && ruleDetails.deploymentDate && ruleDetails.dataset) {
+      onNext(ruleDetails);
+    } else {
+      alert('Please fill in all required fields.');
+    }
+  };
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: '600px', margin: 'auto' }}>
+      <Typography variant="h5">Rule Details</Typography>
+      <TextField label="Rule Name" name="ruleName" value={ruleDetails.ruleName} onChange={handleChange} required />
+      <TextField label="Version" name="version" value={ruleDetails.version} onChange={handleChange} required />
+      <TextField label="Created By" name="createdBy" value={ruleDetails.createdBy} onChange={handleChange} required />
+      <TextField label="Deployment Date" name="deploymentDate" type="date" value={ruleDetails.deploymentDate} onChange={handleChange} InputLabelProps={{ shrink: true }} required />
+      <TextField select label="Mapped to Dataset" name="dataset" value={ruleDetails.dataset} onChange={handleChange} required>
+        {datasetOptions.map((option) => (<MenuItem key={option} value={option}>{option}</MenuItem>))}
+      </TextField>
+      <TextField label="Description" name="description" value={ruleDetails.description} onChange={handleChange} multiline rows={3} />
+      <TextField select label="Status" name="status" value={ruleDetails.status} onChange={handleChange} required>
+        {statusOptions.map((option) => (<MenuItem key={option} value={option}>{option}</MenuItem>))}
+      </TextField>
+      <TextField select label="Priority" name="priority" value={ruleDetails.priority} onChange={handleChange} required>
+        {priorityOptions.map((option) => (<MenuItem key={option} value={option}>{option}</MenuItem>))}
+      </TextField>
+      <TextField label="Effective Date" name="effectiveDate" type="date" value={ruleDetails.effectiveDate} onChange={handleChange} InputLabelProps={{ shrink: true }} />
+      <TextField label="Expiration Date" name="expirationDate" type="date" value={ruleDetails.expirationDate} onChange={handleChange} InputLabelProps={{ shrink: true }} />
+      <TextField label="Tags" name="tags" value={ruleDetails.tags} onChange={handleChange} placeholder="Add tags separated by commas" />
+      <Button variant="contained" onClick={handleNext}>Save & Next</Button>
+    </Box>
+  );
+};
+
+export default RuleDetails;
+
+=============================================
+
+  import React, { useState } from 'react';
+import { Button, Stepper, Step, StepLabel, Box, Typography } from '@mui/material';
+import RuleDetails from './RuleDetails';
+import InputOutputSection from './InputOutputSection';
+
+const steps = ['Rule Details', 'Input-Output Section', 'Formula Section', 'Condition and Action Section', 'Final Review'];
+
+const RuleCreationPanel = () => {
+  const [activeStep, setActiveStep] = useState(0);
+
+  const handleNext = () => setActiveStep((prev) => Math.min(prev + 1, steps.length - 1));
+  const handleBack = () => setActiveStep((prev) => Math.max(prev - 1, 0));
+  const handleStepClick = (step) => setActiveStep(step);
+
+  const renderContent = () => {
+    switch (activeStep) {
+      case 0: return <RuleDetails onNext={handleNext} />;
+      case 1: return <InputOutputSection onNext = {handleNext} />;
+      case 2: return <Typography>Formula Section Content</Typography>;
+      case 3: return <Typography>Condition and Action Section Content</Typography>;
+      case 4: return <Typography>Final Review Content</Typography>;
+      default: return null;
+    }
+  };
+
+  return (
+    <Box sx={{ p: 4, display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '100vh' }}>
+      <Box sx={{ width: '100%', maxWidth: '900px' }}>
+        <Typography variant="h4" gutterBottom align="center">Rule Creation Panel</Typography>
+        <Stepper activeStep={activeStep} alternativeLabel>
+          {steps.map((label, index) => (
+            <Step key={label} onClick={() => handleStepClick(index)}>
+              <StepLabel>{label}</StepLabel>
+            </Step>
+          ))}
+        </Stepper>
+
+        <Box sx={{ mt: 4, textAlign: 'center' }}>{renderContent()}</Box>
+
+        {activeStep !== 0 && (
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
+            <Button onClick={handleBack} disabled={activeStep === 0}>Back</Button>
+            <Button onClick={handleNext} disabled={activeStep === steps.length - 1}>Next</Button>
+          </Box>
+        )}
+      </Box>
+    </Box>
+  );
+};
+
+export default RuleCreationPanel;
+====================================
+
+  
+
+  
