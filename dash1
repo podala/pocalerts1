@@ -434,6 +434,212 @@ function Formula() {
 
 export default Formula;
 =================================
+import React, { useState } from 'react';
+import { Button, Select, MenuItem, Switch, Grid, Typography, Box, TextField } from '@mui/material';
+
+const initialCondition = { field: '', condition: '', value: '', operator: 'And' };
+const initialAction = { field: '', action: '', value: '', operator: 'And' };
+
+function RuleBuilderWithPreview() {
+  const [conditions, setConditions] = useState([initialCondition]);
+  const [actions, setActions] = useState([initialAction]);
+  const [allowFutureDates, setAllowFutureDates] = useState(true);
+  const [freeTextCondition, setFreeTextCondition] = useState('');
+  const [useFreeText, setUseFreeText] = useState(false);
+  const [formula, setFormula] = useState('');
+  const [formulaError, setFormulaError] = useState('');
+
+  const handleAddCondition = () => {
+    setConditions([...conditions, { ...initialCondition }]);
+  };
+
+  const handleAddAction = () => {
+    setActions([...actions, { ...initialAction }]);
+  };
+
+  const handleConditionChange = (index, field, value) => {
+    const updatedConditions = [...conditions];
+    updatedConditions[index][field] = value;
+    setConditions(updatedConditions);
+  };
+
+  const handleActionChange = (index, field, value) => {
+    const updatedActions = [...actions];
+    updatedActions[index][field] = value;
+    setActions(updatedActions);
+  };
+
+  const validateFormula = (input) => {
+    try {
+      if (!input.trim()) {
+        setFormulaError('Formula cannot be empty.');
+        return;
+      }
+      const invalidChars = /[^a-zA-Z0-9_+\-*/()\s]/g;
+      if (invalidChars.test(input)) {
+        setFormulaError('Invalid characters in formula.');
+        return;
+      }
+      setFormulaError('');
+    } catch (error) {
+      setFormulaError('Invalid formula format.');
+    }
+  };
+
+  const generatePayload = () => {
+    if (useFreeText) {
+      return {
+        allowFutureDates,
+        conditions: [{ condition: freeTextCondition }],
+        formula
+      };
+    }
+
+    return { allowFutureDates, conditions, actions };
+  };
+
+  const handleSave = () => {
+    const payload = generatePayload();
+    console.log('Saved JSON:', JSON.stringify(payload, null, 2));
+    alert('Rule saved successfully!');
+  };
+
+  return (
+    <Grid container spacing={2}>
+      {/* Rule Builder Section */}
+      <Grid item xs={6}>
+        <Box>
+          <Switch checked={allowFutureDates} onChange={() => setAllowFutureDates(!allowFutureDates)} />
+          <Typography>Allow Future Dates</Typography>
+        </Box>
+
+        <Box>
+          <Switch checked={useFreeText} onChange={() => setUseFreeText(!useFreeText)} />
+          <Typography>Free Text Mode</Typography>
+        </Box>
+
+        {useFreeText ? (
+          <>
+            <TextField
+              multiline
+              minRows={3}
+              fullWidth
+              placeholder="Enter conditions as free text (e.g., IF Field1 > 1000 AND Field2 = 5000)"
+              value={freeTextCondition}
+              onChange={(e) => setFreeTextCondition(e.target.value)}
+            />
+            <TextField
+              fullWidth
+              placeholder="Enter formula"
+              value={formula}
+              onChange={(e) => { setFormula(e.target.value); validateFormula(e.target.value); }}
+              error={!!formulaError}
+              helperText={formulaError}
+            />
+          </>
+        ) : (
+          <>
+            <Typography variant="h6">Conditions</Typography>
+            {conditions.map((cond, index) => (
+              <Grid container spacing={1} key={index} alignItems="center">
+                {index === 0 ? (
+                  <Typography style={{ marginRight: 8 }}>When</Typography>
+                ) : (
+                  <Select
+                    value={cond.operator}
+                    onChange={(e) => handleConditionChange(index, 'operator', e.target.value)}
+                    style={{ width: 80, marginRight: 8 }}
+                  >
+                    <MenuItem value="And">And</MenuItem>
+                    <MenuItem value="Or">Or</MenuItem>
+                  </Select>
+                )}
+                <Grid item xs={3}>
+                  <Select
+                    value={cond.field}
+                    onChange={(e) => handleConditionChange(index, 'field', e.target.value)}
+                  >
+                    <MenuItem value="field1">Field 1</MenuItem>
+                    <MenuItem value="field2">Field 2</MenuItem>
+                  </Select>
+                </Grid>
+                <Grid item xs={3}>
+                  <Select
+                    value={cond.condition}
+                    onChange={(e) => handleConditionChange(index, 'condition', e.target.value)}
+                  >
+                    <MenuItem value="equals">Equals</MenuItem>
+                    <MenuItem value="greater_than">Greater Than</MenuItem>
+                  </Select>
+                </Grid>
+                <Grid item xs={3}>
+                  <TextField
+                    value={cond.value}
+                    onChange={(e) => handleConditionChange(index, 'value', e.target.value)}
+                    label="Enter Value"
+                    size="small"
+                  />
+                </Grid>
+              </Grid>
+            ))}
+            <Button onClick={handleAddCondition}>Add Condition</Button>
+
+            <Typography variant="h6">Action - THEN</Typography>
+            {actions.map((act, index) => (
+              <Grid container spacing={1} key={index} alignItems="center">
+                {index > 0 && (
+                  <Select
+                    value={act.operator}
+                    onChange={(e) => handleActionChange(index, 'operator', e.target.value)}
+                    style={{ width: 80, marginRight: 8 }}
+                  >
+                    <MenuItem value="And">And</MenuItem>
+                    <MenuItem value="Or">Or</MenuItem>
+                  </Select>
+                )}
+                <Grid item xs={3}>
+                  <Select
+                    value={act.field}
+                    onChange={(e) => handleActionChange(index, 'field', e.target.value)}
+                  >
+                    <MenuItem value="field1">Field 1</MenuItem>
+                    <MenuItem value="field2">Field 2</MenuItem>
+                  </Select>
+                </Grid>
+                <Grid item xs={3}>
+                  <Select
+                    value={act.action}
+                    onChange={(e) => handleActionChange(index, 'action', e.target.value)}
+                  >
+                    <MenuItem value="set">Set</MenuItem>
+                  </Select>
+                </Grid>
+                <Grid item xs={3}>
+                  <TextField
+                    value={act.value}
+                    onChange={(e) => handleActionChange(index, 'value', e.target.value)}
+                    label="Enter Value"
+                    size="small"
+                  />
+                </Grid>
+              </Grid>
+            ))}
+            <Button onClick={handleAddAction}>Add Action</Button>
+          </>
+        )}
+        <Button onClick={handleSave} variant="contained" color="primary">Save</Button>
+      </Grid>
+
+      {/* JSON Preview Section */}
+      <Grid item xs={6}>
+        <Typography variant="h6">JSON Preview</Typography>
+        <pre>{JSON.stringify(generatePayload(), null, 2)}</pre>
+      </Grid>
+    </Grid>
+  );
+}
+
+export default RuleBuilderWithPreview;
 
 
   
