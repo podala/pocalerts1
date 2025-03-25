@@ -641,6 +641,135 @@ function RuleBuilderWithPreview() {
 
 export default RuleBuilderWithPreview;
 
+=========================
+
+import React from 'react';
+import { Box, Typography, Paper, Divider, Grid, Button } from '@mui/material';
+
+const FinalReviewSection = () => {
+  const reviewData = {
+    dataset: 'Drug Cost Dataset',
+    inputs: [
+      { name: 'BASE PRICE', type: 'Number', description: 'The initial price of the product before any discounts or fees.' },
+      { name: 'DISCOUNT', type: 'Number', description: 'The amount reduced from the base price.' },
+      { name: 'UNITS SOLD', type: 'Number', description: 'The number of units sold for the product.' },
+      { name: 'TAX', type: 'Number', description: 'The applicable tax on the product based on regional regulations.' },
+      { name: 'FEE', type: 'Number', description: 'Additional fees associated with the product sale.' },
+      { name: 'SHIPPING', type: 'Number', description: 'Shipping costs incurred during product delivery.' },
+      { name: 'HANDLING', type: 'Number', description: 'Handling fees for managing the product.' },
+      { name: 'COMMISSION', type: 'Number', description: 'Sales commission applied on the product sale.' },
+      { name: 'MARKUP', type: 'Number', description: 'Additional percentage or value added to the base price.' },
+      { name: 'REBATE', type: 'Number', description: 'Rebate amount that is returned to the buyer or client.' },
+    ],
+    outputs: [
+      { name: 'Interested', type: 'String', description: 'Some field' },
+    ],
+    formulas: [
+      {
+        formulaName: 'RPT_FORMULA_RA_OUTPUT',
+        formula: 'Final Price = BASE PRICE * TAX',
+        selectedFields: ['BASE PRICE', 'TAX'],
+        outputFields: ['Final Price'],
+        enableLookup: false,
+      }
+    ],
+    conditionsAndActions: {
+      allowFutureDates: true,
+      conditions: [
+        { field: 'field1', condition: 'equals', value: '100', operator: 'And' },
+        { field: 'field2', condition: 'greater_than', value: '50', operator: 'And' }
+      ],
+      actions: [
+        { field: 'field1', action: 'set', value: 'RPT_FORMULA_VERSION1', operator: 'And' },
+        { field: 'field2', action: 'set', value: 'RPT_FORMULA_VERSION 2', operator: 'And' }
+      ]
+    }
+  };
+
+  const handleSubmit = () => {
+    console.log('Review submitted:', reviewData);
+    alert('Review submitted successfully!');
+  };
+
+  const Section = ({ title, children }) => (
+    <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
+      <Typography variant="h6" gutterBottom>{title}</Typography>
+      <Divider sx={{ mb: 2 }} />
+      {children}
+    </Paper>
+  );
+
+  return (
+    <Box sx={{ p: 4 }}>
+      <Typography variant="h4" gutterBottom>Final Review</Typography>
+
+      <Section title="Dataset">
+        <Typography>{reviewData.dataset}</Typography>
+      </Section>
+
+      <Section title="Inputs">
+        <Grid container spacing={2}>
+          {reviewData.inputs.map((input, index) => (
+            <Grid item xs={12} sm={6} key={index}>
+              <Typography><strong>{input.name}</strong> ({input.type})</Typography>
+              <Typography variant="body2">{input.description}</Typography>
+            </Grid>
+          ))}
+        </Grid>
+      </Section>
+
+      <Section title="Outputs">
+        {reviewData.outputs.map((output, index) => (
+          <Box key={index}>
+            <Typography><strong>{output.name}</strong> ({output.type})</Typography>
+            <Typography variant="body2">{output.description}</Typography>
+          </Box>
+        ))}
+      </Section>
+
+      <Section title="Formulas">
+        {reviewData.formulas.map((formula, index) => (
+          <Box key={index} sx={{ mb: 2 }}>
+            <Typography><strong>Formula Name:</strong> {formula.formulaName}</Typography>
+            <Typography><strong>Formula:</strong> {formula.formula}</Typography>
+            <Typography><strong>Selected Fields:</strong> {formula.selectedFields.join(', ')}</Typography>
+            <Typography><strong>Output Fields:</strong> {formula.outputFields.join(', ')}</Typography>
+            <Typography><strong>Enable Lookup:</strong> {formula.enableLookup ? 'Yes' : 'No'}</Typography>
+          </Box>
+        ))}
+      </Section>
+
+      <Section title="Conditions and Actions">
+        <Typography><strong>Allow Future Dates:</strong> {reviewData.conditionsAndActions.allowFutureDates ? 'Yes' : 'No'}</Typography>
+
+        <Typography variant="h6" sx={{ mt: 2 }}>Conditions</Typography>
+        {reviewData.conditionsAndActions.conditions.map((condition, index) => (
+          <Typography key={index}>
+            {condition.field} {condition.condition} {condition.value} ({condition.operator})
+          </Typography>
+        ))}
+
+        <Typography variant="h6" sx={{ mt: 2 }}>Actions</Typography>
+        {reviewData.conditionsAndActions.actions.map((action, index) => (
+          <Typography key={index}>
+            {action.field} {action.action} {action.value} ({action.operator})
+          </Typography>
+        ))}
+      </Section>
+
+      <Button
+        variant="contained"
+        color="primary"
+        onClick={handleSubmit}
+        sx={{ mt: 4 }}
+      >
+        Submit
+      </Button>
+    </Box>
+  );
+};
+
+export default FinalReviewSection;
 
   
 
