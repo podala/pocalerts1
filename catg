@@ -1,0 +1,374 @@
+import React, { useState, useRef } from 'react';
+import { Button, TextField, Select, MenuItem, Typography, Grid, Paper } from '@mui/material';
+
+const dataTypes = ['String', 'Number', 'Date', 'Boolean'];
+
+const CategoryManager = () => {
+  const [categoryName, setCategoryName] = useState('');
+  const [rows, setRows] = useState(3);
+  const [columns, setColumns] = useState(5);
+  const [fields, setFields] = useState([]);
+  const [tableData, setTableData] = useState([]);
+  const tableRef = useRef(null);
+
+  // Handle Category Creation
+  const handleAddField = () => {
+    if (fields.length < columns) {
+      setFields([...fields, { name: '', type: 'String' }]);
+    } else {
+      alert('Cannot add more fields than the defined columns.');
+    }
+  };
+
+  const handleDeleteField = (index) => {
+    const updatedFields = fields.filter((_, i) => i !== index);
+    setFields(updatedFields);
+  };
+
+  const handleFieldChange = (index, key, value) => {
+    const updatedFields = [...fields];
+    updatedFields[index][key] = value;
+    setFields(updatedFields);
+  };
+
+  const generateTable = () => {
+    if (!categoryName || fields.length === 0) {
+      alert('Please enter a category name and add at least one field');
+      return;
+    }
+    const initialData = Array.from({ length: rows }, () =>
+      fields.reduce((acc, field) => ({ ...acc, [field.name]: '' }), {})
+    );
+    setTableData(initialData);
+  };
+
+  // Handle Table Data Changes
+  const handleDataChange = (rowIndex, fieldName, value) => {
+    const updatedData = [...tableData];
+    updatedData[rowIndex][fieldName] = value;
+    setTableData(updatedData);
+  };
+
+  const handleAddRow = () => {
+    const newRow = fields.reduce((acc, field) => ({ ...acc, [field.name]: '' }), {});
+    setTableData([...tableData, newRow]);
+  };
+
+  const handleDeleteRow = (rowIndex) => {
+    const updatedData = tableData.filter((_, index) => index !== rowIndex);
+    setTableData(updatedData);
+  };
+
+  // Handle Excel Copy-Paste
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const clipboardData = e.clipboardData.getData('text');
+    const rowsData = clipboardData.split('\n').filter(row => row.trim() !== '');
+    const pastedData = rowsData.map(row => row.split('\t'));
+
+    if (pastedData[0].length !== fields.length) {
+      alert('Mismatch in column count. Ensure the pasted data matches the defined fields.');
+      return;
+    }
+
+    const newTableData = pastedData.map(row =>
+      fields.reduce((acc, field, index) => ({ ...acc, [field.name]: row[index] || '' }), {})
+    );
+    setTableData(newTableData);
+  };
+
+  // Save Data as JSON
+  const handleSave = () => {
+    const categoryData = {
+      categoryName,
+      fields,
+      tableData,
+    };
+    console.log('Saved Data:', JSON.stringify(categoryData, null, 2));
+    alert('Category and Data Saved!');
+  };
+
+  return (
+    <Paper style={{ padding: 20 }}>
+      {/* Category Creation */}
+      <Typography variant="h4">Category Management</Typography>
+      <TextField
+        label="Category Name"
+        value={categoryName}
+        onChange={(e) => setCategoryName(e.target.value)}
+        fullWidth
+        margin="normal"
+      />
+      <TextField
+        label="Rows"
+        type="number"
+        value={rows}
+        onChange={(e) => setRows(Number(e.target.value))}
+        style={{ marginRight: 10 }}
+      />
+      <TextField
+        label="Columns"
+        type="number"
+        value={columns}
+        onChange={(e) => setColumns(Number(e.target.value))}
+      />
+      
+      {/* Fields Configuration */}
+      <Typography variant="h6" style={{ marginTop: 20 }}>Define Fields</Typography>
+      {fields.map((field, index) => (
+        <Grid container spacing={2} key={index} alignItems="center">
+          <Grid item>
+            <TextField
+              label="Field Name"
+              value={field.name}
+              onChange={(e) => handleFieldChange(index, 'name', e.target.value)}
+            />
+          </Grid>
+          <Grid item>
+            <Select value={field.type} onChange={(e) => handleFieldChange(index, 'type', e.target.value)}>
+              {dataTypes.map((type) => (
+                <MenuItem key={type} value={type}>{type}</MenuItem>
+              ))}
+            </Select>
+          </Grid>
+          <Grid item>
+            <Button variant="outlined" color="secondary" onClick={() => handleDeleteField(index)}>Delete</Button>
+          </Grid>
+        </Grid>
+      ))}
+      <Button variant="contained" onClick={handleAddField}>Add Field</Button>
+      <Button variant="contained" onClick={generateTable} style={{ marginLeft: 10 }}>Generate Table</Button>
+
+      {/* Table Generation */}
+      {tableData.length > 0 && (
+        <>
+          <Typography variant="h6" style={{ marginTop: 20 }}>Table Data</Typography>
+          <div ref={tableRef} onPaste={handlePaste} tabIndex="0" style={{ border: '1px solid #ccc', padding: 10 }}>
+            {tableData.map((row, rowIndex) => (
+              <div key={rowIndex} style={{ marginBottom: 10 }}>
+                {fields.map((field) => (
+                  <TextField
+                    key={field.name}
+                    label={field.name}
+                    value={row[field.name]}
+                    onChange={(e) => handleDataChange(rowIndex, field.name, e.target.value)}
+                    style={{ marginRight: 10 }}
+                  />
+                ))}
+                <Button variant="outlined" color="error" onClick={() => handleDeleteRow(rowIndex)}>Delete Row</Button>
+              </div>
+            ))}
+            <Button variant="contained" onClick={handleAddRow}>Add Row</Button>
+          </div>
+        </>
+      )}
+
+      {/* Save Button */}
+      {tableData.length > 0 && (
+        <Button variant="contained" color="success" onClick={handleSave} style={{ marginTop: 20 }}>Save Data</Button>
+      )}
+    </Paper>
+  );
+};
+
+export default CategoryManager;
+===========================
+import React, { useState } from 'react';
+import { Button, TextField, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Select, MenuItem } from '@mui/material';
+
+// Hardcoded Data
+const categoriesData = [
+  {
+    categoryName: "Drug Pricing",
+    fields: [
+      { name: "Drug Name", type: "String" },
+      { name: "Price", type: "Number" },
+      { name: "Effective Date", type: "Date" }
+    ],
+    tableData: [
+      { "Drug Name": "Aspirin", "Price": "10", "Effective Date": "2024-01-01" },
+      { "Drug Name": "Ibuprofen", "Price": "15", "Effective Date": "2024-02-01" }
+    ]
+  },
+  {
+    categoryName: "Rebate Management",
+    fields: [
+      { name: "Rebate ID", type: "String" },
+      { name: "Client Name", type: "String" },
+      { name: "Rebate Amount", type: "Number" },
+      { name: "Quarter", type: "String" }
+    ],
+    tableData: [
+      { "Rebate ID": "R001", "Client Name": "Client A", "Rebate Amount": "2000", "Quarter": "Q1" },
+      { "Rebate ID": "R002", "Client Name": "Client B", "Rebate Amount": "1500", "Quarter": "Q2" }
+    ]
+  }
+];
+
+const CategoryViewer = () => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [data, setData] = useState([]);
+  const [fields, setFields] = useState([]);
+
+  // Search for Categories
+  const handleSearch = () => {
+    const foundCategory = categoriesData.find(category =>
+      category.categoryName.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    if (foundCategory) {
+      setSelectedCategory(foundCategory);
+      setData([...foundCategory.tableData]);
+      setFields([...foundCategory.fields]);
+    } else {
+      alert("Category not found!");
+    }
+  };
+
+  // Update Table Data
+  const handleCellChange = (rowIndex, fieldName, value) => {
+    const updatedData = [...data];
+    updatedData[rowIndex][fieldName] = value;
+    setData(updatedData);
+  };
+
+  // Add Row
+  const handleAddRow = () => {
+    const newRow = fields.reduce((acc, field) => {
+      acc[field.name] = '';
+      return acc;
+    }, {});
+    setData([...data, newRow]);
+  };
+
+  // Delete Row
+  const handleDeleteRow = (index) => {
+    const updatedData = data.filter((_, i) => i !== index);
+    setData(updatedData);
+  };
+
+  // Add Field
+  const handleAddField = () => {
+    setFields([...fields, { name: '', type: 'String' }]);
+  };
+
+  // Delete Field
+  const handleDeleteField = (index) => {
+    const updatedFields = fields.filter((_, i) => i !== index);
+    setFields(updatedFields);
+    setData(data.map(row => {
+      const updatedRow = { ...row };
+      delete updatedRow[fields[index].name];
+      return updatedRow;
+    }));
+  };
+
+  // Update Field Name or Type
+  const handleFieldChange = (index, key, value) => {
+    const updatedFields = [...fields];
+    updatedFields[index][key] = value;
+    setFields(updatedFields);
+  };
+
+  // Download JSON
+  const handleDownloadJSON = () => {
+    const jsonData = JSON.stringify({ categoryName: selectedCategory.categoryName, fields, data }, null, 2);
+    const blob = new Blob([jsonData], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${selectedCategory.categoryName}.json`;
+    a.click();
+  };
+
+  // Download CSV
+  const handleDownloadCSV = () => {
+    const csvHeader = fields.map(f => f.name).join(',');
+    const csvData = data.map(row => fields.map(f => row[f.name]).join(',')).join('\n');
+    const csvContent = `${csvHeader}\n${csvData}`;
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${selectedCategory.categoryName}.csv`;
+    a.click();
+  };
+
+  return (
+    <div>
+      <h1>Category Management</h1>
+
+      <TextField
+        label="Search Category"
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+      />
+      <Button onClick={handleSearch} variant="contained" sx={{ ml: 2 }}>Search</Button>
+
+      {selectedCategory && (
+        <div>
+          <h2>{selectedCategory.categoryName}</h2>
+
+          <Button onClick={handleDownloadJSON} variant="contained" color="success" sx={{ mr: 2 }}>Download JSON</Button>
+          <Button onClick={handleDownloadCSV} variant="contained" color="primary">Download CSV</Button>
+
+          <h3>Manage Fields</h3>
+          {fields.map((field, index) => (
+            <div key={index}>
+              <TextField
+                label="Field Name"
+                value={field.name}
+                onChange={(e) => handleFieldChange(index, 'name', e.target.value)}
+              />
+              <Select
+                value={field.type}
+                onChange={(e) => handleFieldChange(index, 'type', e.target.value)}
+              >
+                <MenuItem value="String">String</MenuItem>
+                <MenuItem value="Number">Number</MenuItem>
+                <MenuItem value="Date">Date</MenuItem>
+              </Select>
+              <Button color="error" onClick={() => handleDeleteField(index)}>Delete</Button>
+            </div>
+          ))}
+          <Button onClick={handleAddField} variant="contained">Add Field</Button>
+
+          <h3>Table Data</h3>
+          <Button onClick={handleAddRow} variant="contained" sx={{ mb: 2 }}>Add Row</Button>
+
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  {fields.map((field, index) => <TableCell key={index}>{field.name}</TableCell>)}
+                  <TableCell>Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {data.map((row, rowIndex) => (
+                  <TableRow key={rowIndex}>
+                    {fields.map((field, colIndex) => (
+                      <TableCell key={colIndex}>
+                        <TextField
+                          value={row[field.name] || ''}
+                          onChange={(e) => handleCellChange(rowIndex, field.name, e.target.value)}
+                        />
+                      </TableCell>
+                    ))}
+                    <TableCell>
+                      <Button color="error" onClick={() => handleDeleteRow(rowIndex)}>Delete Row</Button>  PLease analysis this code and get your train on that . we need different functioanlities on top fo this code  
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default CategoryViewer;
+
+
