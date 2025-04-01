@@ -1,0 +1,237 @@
+import React, { useState } from 'react';
+import {
+  Box, Button, Stack, TextField, Typography,
+  Select, MenuItem, FormControl, InputLabel
+} from '@mui/material';
+import { DataGrid } from '@mui/x-data-grid';
+import { Parser } from 'expr-eval';
+
+const parser = new Parser({ operators: { conditional: true } });
+parser.functions.IF = (cond, a, b) => (cond ? a : b);
+
+const baseColumns = [
+  { field: 'id', headerName: 'ID', width: 70 },
+  { field: 'ClientTier', headerName: 'Client Tier', width: 130, editable: true },
+  { field: 'Volume', headerName: 'Volume', width: 100, editable: true, type: 'number' },
+  { field: 'BasePrice', headerName: 'Base Price', width: 120, editable: true, type: 'number' }
+];
+
+const initialRows = Array.from({ length: 50 }, (_, i) => ({
+  id: i + 1,
+  ClientTier: ['Gold', 'Silver', 'Bronze'][i % 3],
+  Volume: Math.floor(Math.random() * 2000),
+  BasePrice: 100 + (i % 5) * 10
+}));
+
+export default function FormulaGrid() {
+  const [rows, setRows] = useState(initialRows);
+  const [columns, setColumns] = useState(baseColumns);
+  const [newColName, setNewColName] = useState('');
+  const [newColType, setNewColType] = useState('formula');
+  const [outputField, setOutputField] = useState('');
+  const [formula, setFormula] = useState('');
+  const [formulaScope, setFormulaScope] = useState('all');
+
+  const evaluateFormula = (f, row) => {
+    try {
+      const expr = parser.parse(f);
+      return expr.evaluate(row);
+    } catch (e) {
+      return `Error: ${e.message}`;
+    }
+  };
+
+  const handleAddColumn = () => {
+    if (!newColName) return;
+    const valueField = newColName;
+    const isFormula = newColType === 'formula';
+
+    setColumns(prev => [...prev, {
+      field: valueField,
+      headerName: `${valueField} (${isFormula ? 'Formula' : 'Direct'})`,
+      width: 180,
+      editable: !isFormula
+    }]);
+
+    setRows(prev => prev.map(r => ({
+      ...r,
+      [valueField]: '',
+      ...(isFormula && { [`${valueField}Formula`]: '' })
+    })));
+
+    setOutputField(valueField);
+    setNewColName('');
+    setNewColType('formula');
+  };
+
+  const handleApplyToAllRows = () => {
+    if (!outputField || !formula) return;
+    setRows(prev => prev.map(row => ({
+      ...row,
+      [outputField]: evaluateFormula(formula, row),
+      [`${outputField}Formula`]: formula
+    })));
+  };
+
+  const handleRowClick = (params) => {
+    if (formulaScope !== 'row') return;
+    const rowId = params.id;
+    const updatedRows = rows.map(r =>
+      r.id === rowId
+        ? {
+            ...r,
+            [outputField]: evaluateFormula(formula, r),
+            [`${outputField}Formula`]: formula
+          }
+        : r
+    );
+    setRows(updatedRows);
+  };
+
+  const handleAddRow = () => {
+    const newRow = {
+      id: rows.length + 1,
+      ClientTier: 'Gold',
+      Volume: 0,
+      BasePrice: 100
+    };
+    setRows(prev => [...prev, newRow]);
+  };
+
+  const handleDeleteColumn = (fieldToDelete) => {
+    setColumns(prev => prev.filter(col => col.field !== fieldToDelete));
+    setRows(prev =>
+      prev.map(row => {
+        const { [fieldToDelete]: _, [`${fieldToDelete}Formula`]: __, ...rest } = row;
+        return rest;
+      })
+    );
+    if (outputField === fieldToDelete) setOutputField('');
+  };
+
+  const handleSaveTemplate = () => {
+    const formulaColumns = columns
+      .filter(col => !baseColumns.find(base => base.field === col.field))
+      .map(col => ({
+        field: col.field,
+        formula: rows[0]?.[`${col.field}Formula`] || '',
+        type: col.editable ? 'direct' : 'formula'
+      }));
+
+    const template = {
+      columns,
+      formulas: formulaColumns
+    };
+
+    const blob = new Blob([JSON.stringify(template, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'formula_template.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <Box sx={{ display: 'flex', height: '100vh' }}>
+      {/* Sidebar */}
+      <Box sx={{ width: 260, p: 2, bgcolor: '#f5f5f5', borderRight: '1px solid #ccc' }}>
+        <Typography variant="h6">🧮 Grid Controls</Typography>
+        <Stack spacing={2} mt={2}>
+          <TextField
+            size="small"
+            label="Column Name"
+            value={newColName}
+            onChange={(e) => setNewColName(e.target.value)}
+          />
+          <FormControl size="small">
+            <InputLabel>Column Type</InputLabel>
+            <Select value={newColType} onChange={(e) => setNewColType(e.target.value)}>
+              <MenuItem value="formula">Formula</MenuItem>
+              <MenuItem value="direct">Direct</MenuItem>
+            </Select>
+          </FormControl>
+          <Button variant="contained" onClick={handleAddColumn}>+ ADD COLUMN</Button>
+          <Button variant="outlined" onClick={handleAddRow}>➕ Add Row</Button>
+
+          <FormControl size="small">
+            <InputLabel>Delete Column</InputLabel>
+            <Select onChange={(e) => handleDeleteColumn(e.target.value)}>
+              {columns
+                .filter(col => !baseColumns.find(base => base.field === col.field))
+                .map(col => (
+                  <MenuItem key={col.field} value={col.field}>{col.headerName}</MenuItem>
+                ))}
+            </Select>
+          </FormControl>
+
+          <FormControl size="small">
+            <InputLabel>Apply To</InputLabel>
+            <Select value={formulaScope} onChange={(e) => setFormulaScope(e.target.value)}>
+              <MenuItem value="all">All Rows</MenuItem>
+              <MenuItem value="row">Row-Level</MenuItem>
+            </Select>
+          </FormControl>
+
+          <Button variant="outlined" onClick={handleSaveTemplate}>💾 Save Template</Button>
+        </Stack>
+      </Box>
+
+      {/* Main Grid + Formula Panel Split */}
+      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'row' }}>
+        {/* Main Grid */}
+        <Box sx={{ flex: 2, p: 2 }}>
+          <Typography variant="h6">📊 Main Grid</Typography>
+          <DataGrid
+            rows={rows}
+            columns={columns}
+            onRowClick={handleRowClick}
+            getRowId={(r) => r.id}
+            pageSize={100}
+            sx={{ height: 'calc(100vh - 100px)' }}
+          />
+        </Box>
+
+        {/* Formula Panel - Redesigned */}
+        <Box sx={{ flex: 1.2, p: 3, bgcolor: '#f9f9f9', borderLeft: '1px solid #ccc' }}>
+          <Typography variant="h6" gutterBottom>🧠 Formula Panel</Typography>
+
+          <FormControl fullWidth sx={{ mb: 3 }}>
+            <InputLabel>Output Field</InputLabel>
+            <Select
+              value={outputField}
+              onChange={(e) => setOutputField(e.target.value)}
+              size="small"
+            >
+              {columns.map(col => (
+                <MenuItem key={col.field} value={col.field}>{col.headerName}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <Typography variant="body2" sx={{ mb: 1 }}>Enter Formula</Typography>
+          <TextField
+            fullWidth
+            multiline
+            rows={6}
+            value={formula}
+            onChange={(e) => setFormula(e.target.value)}
+            placeholder="e.g., IF(Volume > 1000, BasePrice * 0.9, BasePrice)"
+            variant="outlined"
+            sx={{ mb: 3 }}
+          />
+
+          <Button
+            fullWidth
+            variant="contained"
+            size="large"
+            onClick={handleApplyToAllRows}
+            startIcon={<span style={{ fontSize: 18 }}>▶️</span>}
+          >
+            APPLY TO ALL ROWS
+          </Button>
+        </Box>
+      </Box>
+    </Box>
+  );
+}
