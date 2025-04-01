@@ -1,0 +1,1095 @@
+app.js
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import RuleManager from './components/RuleManager';
+import RuleBuilder1 from './components/RuleBuilder1';
+import DecisionTableInputs from './components/DecisionTableInputs';
+import ConditionResultBuilder from './components/ConditionResultBuilder'; 
+import FormulaEngine from './components/FormulaEngine';
+import FinalOutputPanel from './components/FinalOutputPanel'; 
+
+
+const App = () => (
+  <Router>
+    <Routes>
+      <Route path="/" element={<RuleManager />} />
+      <Route path="/rule-builder" element={<RuleBuilder1 />} />
+      <Route path="/decision-table-inputs" element={<DecisionTableInputs />} />
+      <Route path="/condition-builder" element={<ConditionResultBuilder />} /> 
+      <Route path="/formula-engine" element={<FormulaEngine />} />  
+      <Route path="/final-output" element={<FinalOutputPanel />} />
+    </Routes>
+  </Router>
+);
+export default App;
+
+
+===========
+
+Rulemanager
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Button, TextField, InputAdornment, IconButton, Table, TableBody, TableCell, TableContainer,
+  TableHead, TableRow, Paper, Select, MenuItem, Typography, Grid, Pagination, Chip, Box, Drawer,
+  List, ListItem, ListItemIcon, ListItemText, Toolbar
+} from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
+import RuleIcon from '@mui/icons-material/Rule';
+import WorkIcon from '@mui/icons-material/Work';
+import IntegrationInstructionsIcon from '@mui/icons-material/IntegrationInstructions';
+
+const drawerWidth = 240;
+
+const RuleManager = () => {
+  const navigate = useNavigate();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [page, setPage] = useState(1);
+
+  const rules = Array.from({ length: 30 }, (_, i) => ({
+    id: i + 1,
+    name: `Rule ${i + 1}`,
+    type: i % 2 === 0 ? 'Decision Table' : 'Simple Rule',
+    status: i % 3 === 0 ? 'Published' : (i % 3 === 1 ? 'Has Draft' : 'Has Tested'),
+    version: `1.${i}`,
+    createdAt: '2024-03-01',
+    updatedAt: '2024-03-05',
+    lastPublished: '2024-03-06'
+  }));
+
+  const itemsPerPage = 5;
+  const displayedRules = rules.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+
+  const filteredRules = displayedRules.filter(rule =>
+    (!searchTerm || rule.name.includes(searchTerm)) &&
+    (!typeFilter || rule.type === typeFilter) &&
+    (!statusFilter || rule.status === statusFilter)
+  );
+
+  const handleCreateRuleClick = () => {
+    navigate('/rule-builder');
+  };
+
+  return (
+    <Box sx={{ display: 'flex' }}>
+      <Drawer
+        variant="permanent"
+        sx={{
+          width: drawerWidth,
+          flexShrink: 0,
+          [`& .MuiDrawer-paper`]: { width: drawerWidth, boxSizing: 'border-box' },
+        }}
+      >
+        <Toolbar />
+        <List>
+          {['Rules', 'Workflow', 'Integrations'].map((text, index) => (
+            <ListItem button key={text}>
+              <ListItemIcon>
+                {index === 0 ? <RuleIcon /> : index === 1 ? <WorkIcon /> : <IntegrationInstructionsIcon />}
+              </ListItemIcon>
+              <ListItemText primary={text} />
+            </ListItem>
+          ))}
+        </List>
+      </Drawer>
+
+      <Box component="main" sx={{ flexGrow: 1, p: 3 }}>
+        <Toolbar />
+        <Typography variant="h4" gutterBottom>Rules</Typography>
+
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+          <Button variant="contained" onClick={handleCreateRuleClick}>
+            CREATE RULE
+          </Button>
+          <Grid container spacing={2} alignItems="center" justifyContent="flex-end">
+            <Grid item>
+              <TextField
+                placeholder="Search by Name"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton>
+                        <SearchIcon />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </Grid>
+
+            <Grid item>
+              <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} displayEmpty style={{ width: '150px' }}>
+                <MenuItem value="">All Types</MenuItem>
+                <MenuItem value="Decision Table">Decision Table</MenuItem>
+                <MenuItem value="Simple Rule">Simple Rule</MenuItem>
+              </Select>
+            </Grid>
+
+            <Grid item>
+              <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} displayEmpty style={{ width: '150px' }}>
+                <MenuItem value="">All Statuses</MenuItem>
+                <MenuItem value="Published">Published</MenuItem>
+                <MenuItem value="Has Draft">Has Draft</MenuItem>
+                <MenuItem value="Has Tested">Has Tested</MenuItem>
+              </Select>
+            </Grid>
+          </Grid>
+        </Box>
+
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Name</TableCell>
+                <TableCell>Type</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Version</TableCell>
+                <TableCell>Created At</TableCell>
+                <TableCell>Updated At</TableCell>
+                <TableCell>Last Published</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {filteredRules.map((rule) => (
+                <TableRow key={rule.id}>
+                  <TableCell>{rule.name}</TableCell>
+                  <TableCell>{rule.type}</TableCell>
+                  <TableCell>
+                    <Chip label={rule.status} color={rule.status === 'Published' ? 'success' : rule.status === 'Has Draft' ? 'warning' : 'info'} />
+                  </TableCell>
+                  <TableCell>{rule.version}</TableCell>
+                  <TableCell>{rule.createdAt}</TableCell>
+                  <TableCell>{rule.updatedAt}</TableCell>
+                  <TableCell>{rule.lastPublished}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+
+        <Box display="flex" justifyContent="center" marginTop={2}>
+          <Pagination
+            count={Math.ceil(rules.length / itemsPerPage)}
+            page={page}
+            onChange={(event, value) => setPage(value)}
+            color="primary"
+          />
+        </Box>
+      </Box>
+    </Box>
+  );
+};
+
+export default RuleManager;
+
+===============================
+
+Rule Builder 1
+
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Dialog, DialogTitle, DialogContent, DialogActions,
+  Button, Tabs, Tab, TextField, Typography, Card, CardContent, Grid, Box
+} from '@mui/material';
+
+const RuleBuilder1 = () => {
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(true);
+  const [tabValue, setTabValue] = useState(0);
+  const [ruleName, setRuleName] = useState('');
+  const [ruleDescription, setRuleDescription] = useState('');
+  const [selectedRuleType, setSelectedRuleType] = useState('');
+
+  const handleTabChange = (event, newValue) => {
+    setTabValue(newValue);
+  };
+
+  const handleClose = () => {
+    setOpen(false);
+    navigate('/'); // Go back to RuleManager on cancel
+  };
+
+  const handleNext = () => {
+    console.log({ ruleName, ruleDescription, selectedRuleType });
+
+    if (!selectedRuleType) {
+      alert('Please select a rule type before continuing.');
+      return;
+    }
+
+    if (selectedRuleType === 'Decision Table') {
+      navigate('/decision-table-inputs');
+    }
+
+    // You can add more logic here for other rule types (e.g., navigate('/simple-rule'))
+  };
+
+  return (
+    <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
+      <DialogTitle>Create Rule</DialogTitle>
+      <DialogContent>
+        <Tabs value={tabValue} onChange={handleTabChange}>
+          <Tab label="Build your own" />
+          <Tab label="Start from template" />
+        </Tabs>
+
+        {tabValue === 0 && (
+          <Box mt={2}>
+            <TextField
+              label="Rule Name"
+              fullWidth
+              margin="normal"
+              value={ruleName}
+              onChange={(e) => setRuleName(e.target.value)}
+            />
+            <TextField
+              label="Rule Description (Optional)"
+              fullWidth
+              margin="normal"
+              value={ruleDescription}
+              onChange={(e) => setRuleDescription(e.target.value)}
+            />
+
+            <Typography variant="subtitle1" gutterBottom>Select rule type</Typography>
+
+            <Grid container spacing={2}>
+              {['Decision Table', 'Simple Rule', 'Rule Set'].map((type) => (
+                <Grid item xs={12} sm={4} key={type}>
+                  <Card
+                    variant="outlined"
+                    style={{
+                      cursor: 'pointer',
+                      borderColor: selectedRuleType === type ? 'blue' : 'grey',
+                    }}
+                    onClick={() => setSelectedRuleType(type)}
+                  >
+                    <CardContent>
+                      <Typography variant="h6">{type}</Typography>
+                      <Typography variant="body2">
+                        {type === 'Decision Table' && 'Conditions grouped in a table view with actions and outputs.'}
+                        {type === 'Simple Rule' && 'Simple if/else conditions with actions.'}
+                        {type === 'Rule Set' && 'Collection of multiple rules processed simultaneously.'}
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          </Box>
+        )}
+
+        {tabValue === 1 && (
+          <Typography variant="body1" style={{ marginTop: 20 }}>
+            Template functionality is coming soon.
+          </Typography>
+        )}
+      </DialogContent>
+
+      <DialogActions>
+        <Button onClick={handleClose}>Cancel</Button>
+        <Button variant="contained" color="primary" onClick={handleNext}>
+          Next
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+export default RuleBuilder1;
+
+======================================
+
+decison
+
+import React, { useState } from 'react';
+import {
+  Box, Typography, Tabs, Tab, Button, TextField, Select, MenuItem,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+  Paper, Checkbox, FormControl, InputLabel, OutlinedInput, ListItemText
+} from '@mui/material';
+import { useNavigate } from 'react-router-dom';
+
+const datasetSchemas = {
+  Drug: [
+    { name: 'client_id', type: 'String', description: 'Client Identifier' },
+    { name: 'client_name', type: 'String', description: 'Client Name' },
+    { name: 'drug_id', type: 'String', description: 'Drug Identifier' },
+    { name: 'drug_name', type: 'String', description: 'Name of the drug' },
+    { name: 'formula_type', type: 'String', description: 'Formula classification' },
+    { name: 'launch_date', type: 'Date', description: 'Date of launch' },
+    { name: 'manufacturer', type: 'String', description: 'Manufacturer name' },
+  ],
+  Price: [
+    { name: 'client_id', type: 'String', description: 'Client Identifier' },
+    { name: 'client_name', type: 'String', description: 'Client Name' },
+    { name: 'price_id', type: 'String', description: 'Price Identifier' },
+    { name: 'amount', type: 'Numeric', description: 'Drug Price' },
+    { name: 'discount', type: 'Numeric', description: 'Discount offered' },
+    { name: 'currency', type: 'String', description: 'Currency used' },
+    { name: 'effective_date', type: 'Date', description: 'Effective from' },
+  ]
+};
+
+const allDatasets = Object.keys(datasetSchemas);
+
+const DecisionTableInputs = () => {
+  const navigate = useNavigate();
+  const [tabValue, setTabValue] = useState(2); // Default to "Fetch from API" tab
+  const [selectedDatasets, setSelectedDatasets] = useState([]);
+  const [selectedFields, setSelectedFields] = useState({});
+
+  const handleDatasetChange = (event) => {
+    const {
+      target: { value },
+    } = event;
+    const selected = typeof value === 'string' ? value.split(',') : value;
+    setSelectedDatasets(selected);
+
+    const resetSelections = {};
+    selected.forEach(dataset => {
+      resetSelections[dataset] = selectedFields[dataset] || [];
+    });
+    setSelectedFields(resetSelections);
+  };
+
+  const handleFieldToggle = (dataset, fieldName) => {
+    const current = selectedFields[dataset] || [];
+    const updated = current.includes(fieldName)
+      ? current.filter(f => f !== fieldName)
+      : [...current, fieldName];
+    setSelectedFields({ ...selectedFields, [dataset]: updated });
+  };
+
+  const handleSelectAll = (dataset) => {
+    const allFieldNames = datasetSchemas[dataset].map(field => field.name);
+    setSelectedFields({ ...selectedFields, [dataset]: allFieldNames });
+  };
+
+  const handleDeselectAll = (dataset) => {
+    setSelectedFields({ ...selectedFields, [dataset]: [] });
+  };
+
+  const handleSave = () => {
+    const structured = {};
+    selectedDatasets.forEach(dataset => {
+      const schema = datasetSchemas[dataset];
+      const selected = selectedFields[dataset] || [];
+      structured[dataset] = schema.filter(field => selected.includes(field.name));
+    });
+    console.log('Structured Selected Inputs:', JSON.stringify(structured, null, 2));
+  };
+
+  const handleSaveAndExit = () => {
+    handleSave();
+    navigate('/');
+  };
+
+  const handleNext = () => {
+    handleSave();
+    navigate('/condition-builder');
+  };
+
+  return (
+    <Box p={3}>
+      <Typography variant="h5">Decision Table Inputs</Typography>
+
+      <Tabs value={tabValue} onChange={(e, val) => setTabValue(val)}>
+        <Tab label="Input Attributes" />
+        <Tab label="Map with Data Source (Optional)" />
+        <Tab label="Fetch from API (Optional)" />
+      </Tabs>
+
+      {tabValue === 2 && (
+        <Box mt={3}>
+          <FormControl sx={{ minWidth: 300 }}>
+            <InputLabel>Select Datasets</InputLabel>
+            <Select
+              multiple
+              value={selectedDatasets}
+              onChange={handleDatasetChange}
+              input={<OutlinedInput label="Select Datasets" />}
+              renderValue={(selected) => selected.join(', ')}
+            >
+              {allDatasets.map((name) => (
+                <MenuItem key={name} value={name}>
+                  <Checkbox checked={selectedDatasets.includes(name)} />
+                  <ListItemText primary={name} />
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <Box mt={4}>
+            {selectedDatasets.map(dataset => (
+              <Box key={dataset} mb={4}>
+                <Typography variant="h6" gutterBottom>{dataset} Dataset</Typography>
+
+                <Box display="flex" gap={2} mb={1}>
+                  <Button size="small" variant="outlined" onClick={() => handleSelectAll(dataset)}>Select All</Button>
+                  <Button size="small" variant="outlined" onClick={() => handleDeselectAll(dataset)}>Deselect All</Button>
+                </Box>
+
+                <TableContainer component={Paper} sx={{ maxHeight: 250, overflowY: 'auto' }}>
+                  <Table stickyHeader>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Field Name</TableCell>
+                        <TableCell>Type</TableCell>
+                        <TableCell>Description</TableCell>
+                        <TableCell>Select</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {datasetSchemas[dataset].map((field, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell>{field.name}</TableCell>
+                          <TableCell>{field.type}</TableCell>
+                          <TableCell>{field.description}</TableCell>
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedFields[dataset]?.includes(field.name) || false}
+                              onChange={() => handleFieldToggle(dataset, field.name)}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
+            ))}
+          </Box>
+
+          <Box display="flex" justifyContent="flex-end" gap={2}>
+            <Button variant="outlined" onClick={() => navigate('/')}>Cancel</Button>
+            <Button variant="contained" onClick={handleSave}>Save Selected Inputs</Button>
+            <Button variant="contained" color="success" onClick={handleSaveAndExit}>Save and Exit</Button>
+            <Button variant="contained" color="primary" onClick={handleNext}>Next</Button>
+          </Box>
+        </Box>
+      )}
+    </Box>
+  );
+};
+
+export default DecisionTableInputs;
+
+===============
+
+conditionresult
+
+import React, { useState, useEffect } from 'react';
+import {
+  Box, Typography, TextField, IconButton, Paper, List, ListItem, ListItemText, Button, Collapse, Grid, MenuItem, Select,
+  Autocomplete
+} from '@mui/material';
+import FunctionsIcon from '@mui/icons-material/Functions';
+import AddIcon from '@mui/icons-material/Add';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import { useLocation, useNavigate } from 'react-router-dom';
+
+const ConditionResultBuilder = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const inputFields = [
+    'Drug.client_id', 'Drug.client_name', 'Drug.drug_id', 'Drug.drug_name', 'Drug.formula_type',
+    'Price.client_id', 'Price.client_name', 'Price.amount', 'Price.discount'
+  ];
+
+  const [conditionGroups, setConditionGroups] = useState([{
+    conditions: [{ left: '', operator: '=', right: '', logic: '' }],
+    result: { output: '', formula: '', dependencies: [], type: '' }
+  }]);
+
+  const [expandedGroups, setExpandedGroups] = useState({ 0: true });
+  const { updatedFormula, groupIndex, previousState } = location.state || {};
+
+  useEffect(() => {
+    if (Array.isArray(previousState) && previousState.length > 0) {
+      setConditionGroups(previousState);
+      const expandedMap = {};
+      previousState.forEach((_, idx) => {
+        expandedMap[idx] = true;
+      });
+      setExpandedGroups(expandedMap);
+    }
+  }, [previousState]);
+
+  useEffect(() => {
+    if (updatedFormula && typeof groupIndex === 'number') {
+      setConditionGroups(prev => {
+        const updatedGroups = [...prev];
+        const group = updatedGroups[groupIndex];
+        if (!group) return prev;
+        updatedGroups[groupIndex] = {
+          ...group,
+          result: {
+            output: updatedFormula.output,
+            formula: updatedFormula.formula,
+            dependencies: updatedFormula.dependencies,
+            type: updatedFormula.type
+          }
+        };
+        return updatedGroups;
+      });
+    }
+  }, [updatedFormula, groupIndex]);
+
+  const toggleGroup = (index) => {
+    setExpandedGroups((prev) => ({ ...prev, [index]: !prev[index] }));
+  };
+
+  const handleAddGroup = () => {
+    setConditionGroups(prev => ([
+      ...prev,
+      {
+        conditions: [
+          { left: '', operator: '=', right: '', logic: '' }
+        ],
+        result: { output: '', formula: '', dependencies: [], type: '' }
+      }
+    ]));
+    setExpandedGroups(prev => ({ ...prev, [conditionGroups.length]: true }));
+  };
+
+  const handleNext = () => {
+    console.log('Final Output JSON:', conditionGroups);
+    navigate('/final-output', {
+      state: {
+        conditionGroups
+      }
+    });
+  };
+
+  return (
+    <Box p={3}>
+      <Typography variant="h5" gutterBottom>Condition and Result Builder</Typography>
+
+      {conditionGroups.map((group, index) => (
+        <Paper key={index} sx={{ p: 2, mb: 2 }}>
+          <Box display="flex" justifyContent="space-between" alignItems="center">
+            <Typography variant="subtitle1">Condition Group #{index + 1}</Typography>
+            <IconButton onClick={() => toggleGroup(index)}>
+              {expandedGroups[index] ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            </IconButton>
+          </Box>
+
+          <Collapse in={expandedGroups[index]}>
+            <Box mt={2}>
+              {group.conditions.map((cond, i) => (
+                <Grid container spacing={2} alignItems="center" key={i}>
+                  <Grid item xs={2}>
+                    {i === 0 ? (
+                      <Typography>WHEN</Typography>
+                    ) : (
+                      <Select
+                        fullWidth
+                        value={cond.logic}
+                        onChange={(e) => {
+                          const updated = [...conditionGroups];
+                          updated[index].conditions[i].logic = e.target.value;
+                          setConditionGroups(updated);
+                        }}
+                      >
+                        <MenuItem value="AND">AND</MenuItem>
+                        <MenuItem value="OR">OR</MenuItem>
+                      </Select>
+                    )}
+                  </Grid>
+                  <Grid item xs={3}>
+                    <Autocomplete
+                      freeSolo
+                      options={inputFields}
+                      value={cond.left}
+                      onInputChange={(e, newVal) => {
+                        const updated = [...conditionGroups];
+                        updated[index].conditions[i].left = newVal;
+                        setConditionGroups(updated);
+                      }}
+                      renderInput={(params) => (
+                        <TextField {...params} label="Left Field" fullWidth />
+                      )}
+                    />
+                  </Grid>
+                  <Grid item xs={2}>
+                    <Select
+                      fullWidth
+                      value={cond.operator}
+                      onChange={(e) => {
+                        const updated = [...conditionGroups];
+                        updated[index].conditions[i].operator = e.target.value;
+                        setConditionGroups(updated);
+                      }}
+                    >
+                      <MenuItem value="=">=</MenuItem>
+                      <MenuItem value=">">&gt;</MenuItem>
+                      <MenuItem value="<">&lt;</MenuItem>
+                    </Select>
+                  </Grid>
+                  <Grid item xs={3}>
+                    <Autocomplete
+                      freeSolo
+                      options={inputFields}
+                      value={cond.right}
+                      onInputChange={(e, newVal) => {
+                        const updated = [...conditionGroups];
+                        updated[index].conditions[i].right = newVal;
+                        setConditionGroups(updated);
+                      }}
+                      renderInput={(params) => (
+                        <TextField {...params} label="Right Field or Value" fullWidth />
+                      )}
+                    />
+                  </Grid>
+                </Grid>
+              ))}
+
+              <Button size="small" onClick={() => {
+                const updated = [...conditionGroups];
+                updated[index].conditions.push({ left: '', operator: '=', right: '', logic: 'AND' });
+                setConditionGroups(updated);
+              }}>+ Add Condition</Button>
+
+              <Grid container spacing={2} alignItems="center" mt={2}>
+                <Grid item xs={4}>
+                  <TextField
+                    fullWidth
+                    label="Output Variable"
+                    value={group.result.output || ''}
+                    onChange={(e) => {
+                      const updated = [...conditionGroups];
+                      updated[index].result.output = e.target.value;
+                      setConditionGroups(updated);
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={6}>
+                  <TextField
+                    fullWidth
+                    label="Value or Formula"
+                    value={group.result.formula || ''}
+                    onChange={(e) => {
+                      const updated = [...conditionGroups];
+                      updated[index].result.formula = e.target.value;
+                      setConditionGroups(updated);
+                    }}
+                  />
+                </Grid>
+                <Grid item xs={2}>
+                  <IconButton color="primary" onClick={() => {
+                    navigate('/formula-engine', {
+                      state: {
+                        groupIndex: index,
+                        previousState: conditionGroups
+                      }
+                    });
+                  }}>
+                    <FunctionsIcon />
+                  </IconButton>
+                </Grid>
+              </Grid>
+            </Box>
+          </Collapse>
+        </Paper>
+      ))}
+
+      <Box display="flex" justifyContent="space-between" mt={4}>
+        <Button variant="outlined" startIcon={<AddIcon />} onClick={handleAddGroup}>
+          Add New Condition Group
+        </Button>
+
+        <Button variant="contained" color="primary" onClick={handleNext}>
+          Next
+        </Button>
+      </Box>
+
+      <Box mt={4}>
+        <Typography variant="h6" gutterBottom>Generated JSON Preview:</Typography>
+        <Paper sx={{ p: 2, backgroundColor: '#f4f4f4' }}>
+          <pre>{JSON.stringify(conditionGroups, null, 2)}</pre>
+        </Paper>
+      </Box>
+    </Box>
+  );
+};
+
+export default ConditionResultBuilder;
+
+===================================================
+
+Inputoutput
+
+import React, { useState, useEffect } from 'react';
+import {
+  Box, Typography, Grid, Paper, List, ListItem, ListItemText, Button, Alert, TextField
+} from '@mui/material';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import { useLocation } from 'react-router-dom';
+
+const initialInputs = {
+  Drug: [
+    'client_id', 'client_name', 'drug_id', 'drug_name', 'formula_type', 'launch_date', 'manufacturer'
+  ],
+  Price: [
+    'client_id', 'client_name', 'price_id', 'amount', 'discount', 'currency', 'effective_date'
+  ],
+};
+
+const FinalOutputPanel = () => {
+  const location = useLocation();
+  const { conditionGroups = [] } = location.state || {};
+
+  const [previewFields, setPreviewFields] = useState([]);
+  const [extractedOutputs, setExtractedOutputs] = useState([]);
+  const [submitted, setSubmitted] = useState(false);
+  const [inputSearch, setInputSearch] = useState('');
+  const [outputSearch, setOutputSearch] = useState('');
+
+  useEffect(() => {
+    const outputs = (conditionGroups || [])
+      .map(group => group?.result?.output)
+      .filter(output => typeof output === 'string' && output.trim() !== '');
+
+    setExtractedOutputs(outputs);
+  }, [conditionGroups]);
+
+  const onDragEnd = (result) => {
+    const { source, destination } = result;
+    if (!destination) return;
+
+    if (source.droppableId === 'preview' && destination.droppableId === 'preview') {
+      const updated = Array.from(previewFields);
+      const [moved] = updated.splice(source.index, 1);
+      updated.splice(destination.index, 0, moved);
+      setPreviewFields(updated);
+    } else if (destination.droppableId === 'preview') {
+      const draggedItem = result.draggableId;
+      if (!previewFields.includes(draggedItem)) {
+        setPreviewFields([...previewFields, draggedItem]);
+      }
+    }
+  };
+
+  const handleRemove = (field) => {
+    setPreviewFields(previewFields.filter(f => f !== field));
+  };
+
+  const handleSubmit = () => {
+    const finalJSON = {
+      inputs: initialInputs,
+      outputs: extractedOutputs,
+      conditions: conditionGroups,
+      outputLayout: previewFields
+    };
+    console.log("✅ Final Rule JSON:", finalJSON);
+    setSubmitted(true);
+  };
+
+  return (
+    <Box p={3}>
+      <Typography variant="h5" gutterBottom>Final Output Section</Typography>
+
+      {submitted && (
+        <Alert severity="success" sx={{ mb: 2 }}>
+          🎉 Your rule has been successfully created and saved!
+        </Alert>
+      )}
+
+      <DragDropContext onDragEnd={onDragEnd}>
+        <Grid container spacing={2}>
+          {Object.entries(initialInputs).map(([key, fields], index) => (
+            <Grid item xs={4} key={index}>
+              <Paper sx={{ p: 2 }}>
+                <Typography variant="subtitle1">{key}</Typography>
+                <TextField
+                  fullWidth
+                  placeholder="Search input fields"
+                  value={inputSearch}
+                  onChange={(e) => setInputSearch(e.target.value)}
+                  sx={{ mb: 2 }}
+                />
+                <Droppable droppableId={`input-${key}`} isDropDisabled={true}>
+                  {(provided) => (
+                    <List ref={provided.innerRef} {...provided.droppableProps}>
+                      {fields.filter(field => field.toLowerCase().includes(inputSearch.toLowerCase())).map((field, idx) => (
+                        <Draggable key={`${key}.${field}`} draggableId={`${key}.${field}`} index={idx}>
+                          {(provided) => (
+                            <ListItem
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              {...provided.dragHandleProps}
+                              sx={{ border: '1px solid #ccc', mb: 1 }}
+                            >
+                              <ListItemText primary={`${key}.${field}`} />
+                            </ListItem>
+                          )}
+                        </Draggable>
+                      ))}
+                      {provided.placeholder}
+                    </List>
+                  )}
+                </Droppable>
+              </Paper>
+            </Grid>
+          ))}
+
+          <Grid item xs={4}>
+            <Paper sx={{ p: 2 }}>
+              <Typography variant="subtitle1">Outputs</Typography>
+              <TextField
+                fullWidth
+                placeholder="Search outputs"
+                value={outputSearch}
+                onChange={(e) => setOutputSearch(e.target.value)}
+                sx={{ mb: 2 }}
+              />
+              <Droppable droppableId="output" isDropDisabled={true}>
+                {(provided) => (
+                  <List ref={provided.innerRef} {...provided.droppableProps}>
+                    {(extractedOutputs || []).filter(out => out.toLowerCase().includes(outputSearch.toLowerCase())).map((out, idx) => (
+                      <Draggable key={`output.${out}`} draggableId={`output.${out}`} index={idx}>
+                        {(provided) => (
+                          <ListItem
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            {...provided.dragHandleProps}
+                            sx={{ border: '1px solid #ccc', mb: 1 }}
+                          >
+                            <ListItemText primary={`Output: ${out}`} />
+                          </ListItem>
+                        )}
+                      </Draggable>
+                    ))}
+                    {provided.placeholder}
+                  </List>
+                )}
+              </Droppable>
+            </Paper>
+          </Grid>
+
+          <Grid item xs={12}>
+            <Paper sx={{ p: 2, mt: 2 }}>
+              <Typography variant="subtitle1" gutterBottom>Output Preview Panel</Typography>
+              <Droppable droppableId="preview" direction="horizontal">
+                {(provided) => (
+                  <Box ref={provided.innerRef} {...provided.droppableProps} sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                    {previewFields.map((field, index) => (
+                      <Draggable key={field} draggableId={field} index={index}>
+                        {(provided) => (
+                          <Box
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            {...provided.dragHandleProps}
+                            sx={{ border: '1px solid #1976d2', px: 2, py: 1, borderRadius: 1, backgroundColor: '#e3f2fd' }}
+                          >
+                            {field} <Button size="small" onClick={() => handleRemove(field)}>x</Button>
+                          </Box>
+                        )}
+                      </Draggable>
+                    ))}
+                    {provided.placeholder}
+                  </Box>
+                )}
+              </Droppable>
+
+              <Box mt={3}>
+                <Button variant="contained" color="primary" onClick={handleSubmit}>Submit Final Output</Button>
+              </Box>
+            </Paper>
+          </Grid>
+
+          {submitted && (
+            <Grid item xs={12}>
+              <Paper sx={{ p: 2, backgroundColor: '#f4f4f4', mt: 3 }}>
+                <Typography variant="h6">Generated Final JSON:</Typography>
+                <pre style={{ fontSize: '0.9rem' }}>{JSON.stringify({
+                  inputs: initialInputs,
+                  outputs: extractedOutputs,
+                  conditions: conditionGroups,
+                  outputLayout: previewFields
+                }, null, 2)}</pre>
+              </Paper>
+            </Grid>
+          )}
+        </Grid>
+      </DragDropContext>
+    </Box>
+  );
+};
+
+export default FinalOutputPanel;
+
+====
+
+formula engine
+
+import React, { useState, useEffect } from 'react';
+import {
+  Box, Typography, TextField, IconButton, Paper, List, ListItem, ListItemText, Button
+} from '@mui/material';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import { useLocation, useNavigate } from 'react-router-dom';
+
+const inputFields = {
+  Drug: [
+    { name: 'client_id' }, { name: 'client_name' }, { name: 'drug_id' },
+    { name: 'drug_name' }, { name: 'formula_type' }, { name: 'launch_date' }, { name: 'manufacturer' }
+  ],
+  Price: [
+    { name: 'client_id' }, { name: 'client_name' }, { name: 'price_id' },
+    { name: 'amount' }, { name: 'discount' }, { name: 'currency' }, { name: 'effective_date' }
+  ]
+};
+
+const functions = ['SUM', 'AVERAGE', 'IF', 'MIN', 'MAX', 'ROUND'];
+const allFieldLabels = Object.entries(inputFields).flatMap(([source, fields]) =>
+  fields.map(f => `${source}.${f.name}`)
+);
+
+const FormulaEngine = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { groupIndex = 0, previousState = [] } = location.state || {};
+  const [conditionGroups, setConditionGroups] = useState(previousState);
+
+  const [outputVariable, setOutputVariable] = useState('');
+  const [formula, setFormula] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [dependencies, setDependencies] = useState([]);
+  const [type, setType] = useState('Numeric');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (formula) {
+      const deps = extractDependencies(formula);
+      setDependencies(deps);
+    }
+  }, [formula]);
+
+  const extractDependencies = (formulaStr) => {
+    return allFieldLabels.filter(f => formulaStr.includes(f));
+  };
+
+  const handleFormulaChange = (e) => {
+    const value = e.target.value;
+    setFormula(value);
+    const lastToken = value.split(/[^a-zA-Z0-9_.]/).pop();
+    const matches = [...functions, ...allFieldLabels].filter(item =>
+      item.toLowerCase().includes(lastToken.toLowerCase())
+    );
+    setSuggestions(matches);
+  };
+
+  const handleSuggestionClick = (suggestion) => {
+    const parts = formula.split(/([^a-zA-Z0-9_.]+)/);
+    for (let i = parts.length - 1; i >= 0; i--) {
+      if (parts[i].match(/[a-zA-Z0-9_.]+/)) {
+        parts[i] = suggestion;
+        break;
+      }
+    }
+    setFormula(parts.join(''));
+    setSuggestions([]);
+  };
+
+  const validateFormula = () => {
+    try {
+      new Function(`return (${formula})`);
+      setError('');
+      return true;
+    } catch {
+      setError('Invalid formula syntax.');
+      return false;
+    }
+  };
+
+  const handleSaveAndReturn = () => {
+    if (!validateFormula()) return;
+
+    const formulaBlock = {
+      output: outputVariable,
+      formula,
+      dependencies: extractDependencies(formula),
+      type
+    };
+
+    navigate('/condition-builder', {
+      state: {
+        updatedFormula: formulaBlock,
+        groupIndex,
+        previousState: conditionGroups
+      }
+    });
+  };
+
+  return (
+    <Box p={3}>
+      <Typography variant="h5" gutterBottom>Formula Engine</Typography>
+
+      <Paper sx={{ p: 2, mb: 2 }}>
+        <TextField
+          fullWidth
+          label="Output Variable"
+          value={outputVariable}
+          onChange={(e) => setOutputVariable(e.target.value)}
+          sx={{ mb: 2 }}
+        />
+
+        <Box display="flex" alignItems="center">
+          <TextField
+            fullWidth
+            label="Enter Formula"
+            value={formula}
+            onChange={handleFormulaChange}
+            error={!!error}
+            helperText={error || ' '}
+          />
+          <IconButton color="success" onClick={validateFormula}>
+            <PlayArrowIcon />
+          </IconButton>
+        </Box>
+
+        {suggestions.length > 0 && (
+          <Paper sx={{ maxHeight: 200, overflowY: 'auto', mt: 1 }}>
+            <List>
+              {suggestions.map((s, i) => (
+                <ListItem button key={i} onClick={() => handleSuggestionClick(s)}>
+                  <ListItemText primary={s} />
+                </ListItem>
+              ))}
+            </List>
+          </Paper>
+        )}
+
+        <Box mt={3}>
+          <Typography variant="subtitle2">Formula Preview:</Typography>
+          <pre style={{ background: '#f0f0f0', padding: 10 }}>
+            {JSON.stringify({
+              output: outputVariable,
+              formula,
+              dependencies,
+              type
+            }, null, 2)}
+          </pre>
+        </Box>
+
+        <Box mt={2}>
+          <Button variant="contained" onClick={handleSaveAndReturn}>Save and Return</Button>
+        </Box>
+      </Paper>
+    </Box>
+  );
+};
+
+export default FormulaEngine;
+
+===
+
+
