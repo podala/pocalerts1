@@ -1,0 +1,6 @@
+[
+  { "name": "FinalPrice", "formula": "BasePrice * 0.9", "outputField": "FinalPrice" },
+  { "name": "TierDiscount", "formula": "IF(ClientTier == 'Gold', BasePrice * 0.85, BasePrice)", "outputField": "DiscountedPrice" },
+  { "name": "VolumeBoost", "formula": "Volume + 100", "outputField": "BoostedVolume" },
+  { "name": "RoundedCost", "formula": "ROUND(Volume * BasePrice)", "outputField": "RoundedTotal" }
+]
