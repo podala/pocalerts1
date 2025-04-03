@@ -1,0 +1,1028 @@
+import React from 'react';
+import { BrowserRouter as Router, Route, Routes, Link } from 'react-router-dom';
+import { Container, AppBar, Toolbar, Typography, Button, Box } from '@mui/material';
+
+import QuickCategoryBuilder from './components/QuickCategoryBuilder';
+import Dashboard from './components/Dashboard';
+import CategoryViewer from './components/CategoryViewer'; // Import CategoryViewer component
+
+const App = () => {
+  return (
+    <Router>
+      <AppBar position="sticky">
+        <Toolbar>
+          <Typography variant="h6" sx={{ flexGrow: 1 }}>
+            Data Management System
+          </Typography>
+          <Button color="inherit" component={Link} to="/">Category Management</Button>
+          <Button color="inherit" component={Link} to="/category-viewer">Category View</Button> {/* New route */}
+          <Button color="inherit" component={Link} to="/dashboard">Dashboard</Button>
+        </Toolbar>
+      </AppBar>
+
+      <Box sx={{ padding: 4 }}>
+        <Container>
+          <Routes>
+            <Route exact path="/" element={<QuickCategoryBuilder />} />
+            <Route path="/category-viewer" element={<CategoryViewer />} /> {/* New route */}
+            <Route path="/dashboard" element={<Dashboard />} />
+          </Routes>
+        </Container>
+      </Box>
+    </Router>
+  );
+};
+
+export default App;
+=====================
+// Quick Table Builder with Sort, Hide, and Group Column Features
+import React, { useState, useEffect, useRef } from "react";
+import {
+  Box, Dialog, DialogTitle, DialogContent, DialogActions,
+  FormControl, FormControlLabel, Radio, RadioGroup, Typography,
+  Table, TableHead, TableBody, TableRow, TableCell, Button, TextField, IconButton, Paper, Snackbar, Alert, Menu, MenuItem
+} from "@mui/material";
+import SaveIcon from "@mui/icons-material/Save";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
+
+const QuickCategoryBuilder = () => {
+  const [categoryName, setCategoryName] = useState("");
+  const [columns, setColumns] = useState(["Field 1", "Field 2", "Field 3"]);
+  const [hiddenColumns, setHiddenColumns] = useState([]);
+  const [rows, setRows] = useState(() => Array.from({ length: 10 }, () => ({ "Field 1": "", "Field 2": "", "Field 3": "" })));
+  const [savedCategories, setSavedCategories] = useState({});
+  const [previewDialog, setPreviewDialog] = useState(false);
+  const [parsedRows, setParsedRows] = useState([]);
+  const [pasteMode, setPasteMode] = useState("replace");
+  const [useHeaders, setUseHeaders] = useState(true);
+  const [snackOpen, setSnackOpen] = useState(false);
+  const [columnMenuAnchor, setColumnMenuAnchor] = useState(null);
+  const [activeColumnIndex, setActiveColumnIndex] = useState(null);
+  const [rowMenuAnchor, setRowMenuAnchor] = useState(null);
+  const [activeRowIndex, setActiveRowIndex] = useState(null);
+  const pasteRef = useRef(null);
+
+  useEffect(() => {
+    const data = JSON.parse(localStorage.getItem("quickCategories")) || {};
+    setSavedCategories(data);
+  }, []);
+
+  useEffect(() => {
+    const handlePaste = (e) => {
+      const clipboard = e.clipboardData.getData("text");
+      const normalized = clipboard.replace(/\r\n/g, "\n");
+      const rawRows = normalized.split("\n").filter(Boolean).map(row => row.split("\t"));
+      setParsedRows(rawRows);
+      setPreviewDialog(true);
+    };
+    document.addEventListener("paste", handlePaste);
+    return () => document.removeEventListener("paste", handlePaste);
+  }, []);
+
+  const applyPaste = () => {
+    let updatedColumns = [...columns];
+    let newRows = [];
+
+    if (useHeaders) {
+      updatedColumns = parsedRows[0];
+      newRows = parsedRows.slice(1).map(cells => {
+        const obj = {};
+        updatedColumns.forEach((col, i) => {
+          obj[col] = cells[i] || "";
+        });
+        return obj;
+      });
+    } else {
+      newRows = parsedRows.map(cells => {
+        const obj = {};
+        updatedColumns.forEach((col, i) => {
+          obj[col] = cells[i] || "";
+        });
+        return obj;
+      });
+    }
+
+    if (pasteMode === "replace") {
+      setColumns(updatedColumns);
+      setRows(newRows);
+    } else {
+      setColumns(updatedColumns);
+      setRows(prev => [...prev, ...newRows]);
+    }
+    setPreviewDialog(false);
+    setSnackOpen(true);
+  };
+
+  const handleSave = () => {
+    const updated = { ...savedCategories, [categoryName]: { columns, rows } };
+    localStorage.setItem("quickCategories", JSON.stringify(updated));
+    setSavedCategories(updated);
+    console.log("✅ Saved category JSON:", JSON.stringify(updated[categoryName], null, 2));
+    setSnackOpen(true);
+  };
+
+  const handleAddColumn = () => {
+    const newCol = `Field ${columns.length + 1}`;
+    setColumns([...columns, newCol]);
+    setRows(rows.map(row => ({ ...row, [newCol]: "" })));
+  };
+
+  const handleDeleteColumn = (index) => {
+    const colName = columns[index];
+    setColumns(columns.filter((_, i) => i !== index));
+    setRows(rows.map(row => {
+      const updated = { ...row };
+      delete updated[colName];
+      return updated;
+    }));
+    setColumnMenuAnchor(null);
+  };
+
+  const handleSort = (direction) => {
+    const colName = columns[activeColumnIndex];
+    const sortedRows = [...rows].sort((a, b) => {
+      if (a[colName] < b[colName]) return direction === "asc" ? -1 : 1;
+      if (a[colName] > b[colName]) return direction === "asc" ? 1 : -1;
+      return 0;
+    });
+    setRows(sortedRows);
+    setColumnMenuAnchor(null);
+  };
+
+  const handleHideColumn = () => {
+    const colName = columns[activeColumnIndex];
+    if (!hiddenColumns.includes(colName)) {
+      setHiddenColumns(prev => [...prev, colName]);
+    }
+    setColumnMenuAnchor(null);
+  };
+
+  const handleGroupBy = () => {
+    const colName = columns[activeColumnIndex];
+    const grouped = rows.reduce((acc, row) => {
+      const key = row[colName] || "(empty)";
+      acc[key] = acc[key] || [];
+      acc[key].push(row);
+      return acc;
+    }, {});
+    console.log("📊 Grouped by", colName, grouped);
+    setColumnMenuAnchor(null);
+  };
+
+  const handleDeleteRow = (index) => {
+    setRows(rows.filter((_, i) => i !== index));
+    setRowMenuAnchor(null);
+  };
+
+  const handleRightClick = (event, index, type = "column") => {
+    event.preventDefault();
+    if (type === "column") {
+      setActiveColumnIndex(index);
+      setColumnMenuAnchor(event.currentTarget);
+    } else {
+      setActiveRowIndex(index);
+      setRowMenuAnchor(event.currentTarget);
+    }
+  };
+
+  return (
+    <Box p={2} ref={pasteRef}>
+      <TextField
+        label="Category Name"
+        value={categoryName}
+        onChange={(e) => setCategoryName(e.target.value)}
+        sx={{ mb: 2, width: 300 }}
+      />
+      <IconButton onClick={handleSave}><SaveIcon /></IconButton>
+      
+
+      <Paper variant="outlined" sx={{ mt: 2, overflowX: "auto" }}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              {columns.filter(col => !hiddenColumns.includes(col)).map((col, index) => (
+                <TableCell
+                  key={index}
+                  onContextMenu={(e) => handleRightClick(e, index, "column")}
+                >
+                  <Box display="flex" justifyContent="space-between" alignItems="center">
+                    <TextField
+                      variant="standard"
+                      value={col}
+                      onChange={(e) => {
+                        const newCols = [...columns];
+                        const oldKey = columns[index];
+                        newCols[index] = e.target.value;
+                        const newRows = rows.map(row => {
+                          const updated = { ...row, [e.target.value]: row[oldKey] };
+                          delete updated[oldKey];
+                          return updated;
+                        });
+                        setColumns(newCols);
+                        setRows(newRows);
+                      }}
+                      InputProps={{ disableUnderline: true, style: { fontWeight: 600 } }}
+                    />
+                  </Box>
+                </TableCell>
+              ))}
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {rows.map((row, rowIdx) => (
+              <TableRow
+                key={rowIdx}
+                onContextMenu={(e) => handleRightClick(e, rowIdx, "row")}
+              >
+                {columns.filter(col => !hiddenColumns.includes(col)).map((col, colIdx) => (
+                  <TableCell key={colIdx}>
+                    <TextField
+                      variant="standard"
+                      value={row[col] || ""}
+                      onChange={(e) => {
+                        const newRows = [...rows];
+                        newRows[rowIdx][col] = e.target.value;
+                        setRows(newRows);
+                      }}
+                      fullWidth
+                    />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Paper>
+
+      <Button onClick={() => setRows(prev => [...prev, Object.fromEntries(columns.map(c => [c, ""]))])} sx={{ mt: 2 }}>
+        + Add Row
+      </Button>
+
+      <Snackbar open={snackOpen} autoHideDuration={3000} onClose={() => setSnackOpen(false)}>
+        <Alert severity="success" variant="filled">Category saved or imported!</Alert>
+      </Snackbar>
+
+      <Menu anchorEl={columnMenuAnchor} open={Boolean(columnMenuAnchor)} onClose={() => setColumnMenuAnchor(null)}>
+  <MenuItem onClick={() => handleSort("asc")}>Sort Ascending</MenuItem>
+  <MenuItem onClick={() => handleSort("desc")}>Sort Descending</MenuItem>
+  <MenuItem onClick={handleHideColumn}>Hide Column</MenuItem>
+  <MenuItem onClick={handleGroupBy}>Group by This</MenuItem>
+  <MenuItem onClick={handleAddColumn}>+ Add Column</MenuItem>
+  <MenuItem onClick={() => setHiddenColumns([])}>👁 Show Hidden Columns</MenuItem>
+  <MenuItem onClick={() => handleDeleteColumn(activeColumnIndex)}>Delete Column</MenuItem>
+</Menu>
+
+      <Menu anchorEl={rowMenuAnchor} open={Boolean(rowMenuAnchor)} onClose={() => setRowMenuAnchor(null)}>
+        <MenuItem onClick={() => handleDeleteRow(activeRowIndex)}>Delete Row</MenuItem>
+      </Menu>
+
+      <Dialog open={previewDialog} onClose={() => setPreviewDialog(false)} maxWidth="md" fullWidth>
+        <DialogTitle>Paste Preview</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" gutterBottom>
+            Detected {parsedRows.length} rows and {parsedRows[0]?.length || 0} columns. How should we import this data?
+          </Typography>
+
+          <FormControl component="fieldset" sx={{ mt: 1 }}>
+            <RadioGroup row value={useHeaders ? "yes" : "no"} onChange={(e) => setUseHeaders(e.target.value === "yes")}> 
+              <FormControlLabel value="yes" control={<Radio />} label="Use first row as headers" />
+              <FormControlLabel value="no" control={<Radio />} label="Treat all rows as data" />
+            </RadioGroup>
+          </FormControl>
+
+          <FormControl component="fieldset" sx={{ mt: 1 }}>
+            <RadioGroup row value={pasteMode} onChange={(e) => setPasteMode(e.target.value)}>
+              <FormControlLabel value="replace" control={<Radio />} label="Replace table" />
+              <FormControlLabel value="append" control={<Radio />} label="Append to existing" />
+            </RadioGroup>
+          </FormControl>
+
+          <Box sx={{ mt: 2, maxHeight: 300, overflowY: "auto", border: "1px solid #ddd" }}>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  {parsedRows[0]?.map((val, i) => (
+                    <TableCell key={i}>{val}</TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {parsedRows.slice(1, 101).map((row, idx) => (
+                  <TableRow key={idx}>
+                    {row.map((cell, i) => (
+                      <TableCell key={i}>{cell}</TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPreviewDialog(false)}>Cancel</Button>
+          <Button onClick={applyPaste} variant="contained">Import</Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+};
+
+export default QuickCategoryBuilder;
+==========================================
+
+import React, { useState } from 'react';
+import {
+  Box, Button, TextField, Table, TableBody, TableCell, TableContainer,
+  TableHead, TableRow, Paper, Tabs, Tab, Drawer, ListItem, ListItemText,
+  Typography, Accordion, AccordionSummary, AccordionDetails, Grid,
+  MenuItem, TablePagination, Divider, List, IconButton, Dialog, DialogTitle, DialogContent
+} from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import DownloadIcon from '@mui/icons-material/Download';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import CloseIcon from '@mui/icons-material/Close';
+import {
+  DragDropContext,
+  Droppable,
+  Draggable
+} from '@hello-pangea/dnd';
+
+const categoriesData = [
+  {
+    categoryName: "Drug Pricing",
+    fields: [
+      { name: "Drug Name", type: "String" },
+      { name: "Price", type: "Number" },
+      { name: "Effective Date", type: "Date" }
+    ],
+    tableData: [
+      { "Drug Name": "Aspirin", "Price": "10", "Effective Date": "2024-01-01" },
+      { "Drug Name": "Ibuprofen", "Price": "15", "Effective Date": "2024-02-01" }
+    ]
+  },
+  {
+    categoryName: "Rebate Management",
+    fields: [
+      { name: "Rebate ID", type: "String" },
+      { name: "Client Name", type: "String" },
+      { name: "Rebate Amount", type: "Number" },
+      { name: "Quarter", type: "String" }
+    ],
+    tableData: [
+      { "Rebate ID": "R001", "Client Name": "Client A", "Rebate Amount": "2000", "Quarter": "Q1" },
+      { "Rebate ID": "R002", "Client Name": "Client B", "Rebate Amount": "1500", "Quarter": "Q2" }
+    ]
+  }
+];
+
+const drawerWidth = 280;
+
+const CategoryViewer = () => {
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [fields, setFields] = useState([]);
+  const [data, setData] = useState([]);
+  const [tabIndex, setTabIndex] = useState(0);
+  const [selectedDownloads, setSelectedDownloads] = useState([]);
+  const [categorySearch, setCategorySearch] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [newFieldName, setNewFieldName] = useState('');
+  const [newFieldType, setNewFieldType] = useState('String');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [openAdvanced, setOpenAdvanced] = useState(false);
+
+  const filteredCategories = categoriesData.filter(cat =>
+    cat.categoryName.toLowerCase().includes(categorySearch.toLowerCase())
+  );
+
+  const handleCategoryClick = (cat) => {
+    setSelectedCategory(cat);
+    setFields(cat.fields);
+    setData(cat.tableData);
+  };
+
+  const handleAddRow = () => {
+    const newRow = fields.reduce((acc, field) => {
+      acc[field.name] = '';
+      return acc;
+    }, {});
+    setData([...data, newRow]);
+  };
+
+  const handleDeleteRow = (index) => {
+    const newData = data.filter((_, i) => i !== index);
+    setData(newData);
+  };
+
+  const handleCellChange = (rowIndex, fieldName, value) => {
+    const newData = [...data];
+    newData[rowIndex][fieldName] = value;
+    setData(newData);
+  };
+
+  const handleDownloadJSON = () => {
+    const blob = new Blob([
+      JSON.stringify({ categoryName: selectedCategory.categoryName, fields, data }, null, 2)
+    ], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${selectedCategory.categoryName}.json`;
+    a.click();
+  };
+
+  const handleDownloadCSV = () => {
+    const header = fields.map(f => f.name).join(',');
+    const rows = data.map(row => fields.map(f => row[f.name]).join(',')).join('\n');
+    const csv = `${header}\n${rows}`;
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${selectedCategory.categoryName}.csv`;
+    a.click();
+  };
+
+  const handleDragDownload = () => {
+    const allCSV = selectedDownloads.map(cat => {
+      const header = cat.fields.map(f => f.name).join(',');
+      const rows = cat.tableData.map(row => cat.fields.map(f => row[f.name]).join(',')).join('\n');
+      return `${cat.categoryName}\n${header}\n${rows}`;
+    }).join('\n\n');
+
+    const blob = new Blob([allCSV], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'AllCategories.csv';
+    a.click();
+  };
+
+  return (
+    <Box sx={{ display: 'flex' }}>
+      <Drawer
+        variant="permanent"
+        anchor="left"
+        sx={{
+          width: drawerWidth,
+          flexShrink: 0,
+          '& .MuiDrawer-paper': {
+            width: drawerWidth,
+            boxSizing: 'border-box',
+            padding: 2
+          }
+        }}
+      >
+        <Typography variant="h6">Categories</Typography>
+        <TextField
+          placeholder="Search categories"
+          size="small"
+          fullWidth
+          sx={{ mb: 2, mt: 1 }}
+          value={categorySearch}
+          onChange={(e) => setCategorySearch(e.target.value)}
+        />
+        {filteredCategories.map((cat, idx) => (
+          <ListItem key={idx} button onClick={() => handleCategoryClick(cat)}>
+            <ListItemText primary={cat.categoryName} />
+          </ListItem>
+        ))}
+        <Divider sx={{ my: 2 }} />
+        <Button
+          variant="outlined"
+          fullWidth
+          onClick={() => setOpenAdvanced(true)}
+          startIcon={<FileDownloadIcon />}
+        >
+          Advanced Download
+        </Button>
+      </Drawer>
+
+      <Box sx={{ flexGrow: 1, p: 3 }}>
+        <Tabs value={tabIndex} onChange={(e, val) => setTabIndex(val)}>
+          <Tab label="View/Edit" />
+          <Tab label="Export Options" />
+        </Tabs>
+
+        {tabIndex === 0 && selectedCategory && (
+          <>
+            <Typography variant="h5" sx={{ mt: 2 }}>{selectedCategory.categoryName}</Typography>
+
+            <Accordion defaultExpanded>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography>Manage Fields</Typography></AccordionSummary>
+              <AccordionDetails>
+                {fields.map((field, idx) => (
+                  <Box key={idx} sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                    <Typography>{field.name} ({field.type})</Typography>
+                    <Button size="small" color="error" onClick={() => {
+                      const newFields = fields.filter((_, i) => i !== idx);
+                      const newData = data.map(row => {
+                        const updatedRow = { ...row };
+                        delete updatedRow[field.name];
+                        return updatedRow;
+                      });
+                      setFields(newFields);
+                      setData(newData);
+                    }}>Delete</Button>
+                  </Box>
+                ))}
+                <Box sx={{ mt: 2 }}>
+                  <TextField label="Field Name" size="small" sx={{ mr: 2 }} value={newFieldName} onChange={(e) => setNewFieldName(e.target.value)} />
+                  <TextField label="Type" size="small" select sx={{ width: 120, mr: 2 }} value={newFieldType} onChange={(e) => setNewFieldType(e.target.value)}>
+                    <MenuItem value="String">String</MenuItem>
+                    <MenuItem value="Number">Number</MenuItem>
+                    <MenuItem value="Date">Date</MenuItem>
+                  </TextField>
+                  <Button variant="outlined" onClick={() => {
+                    if (newFieldName && newFieldType) {
+                      setFields([...fields, { name: newFieldName, type: newFieldType }]);
+                      setData(data.map(row => ({ ...row, [newFieldName]: '' })));
+                      setNewFieldName('');
+                      setNewFieldType('String');
+                    }
+                  }}>Add Field</Button>
+                </Box>
+              </AccordionDetails>
+            </Accordion>
+
+            <Accordion defaultExpanded>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography>Table Data</Typography></AccordionSummary>
+              <AccordionDetails>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
+                  <Button variant="contained" onClick={handleAddRow}>Add Row</Button>
+                  <TextField
+                    placeholder="Search..."
+                    size="small"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    sx={{ width: 200 }}
+                  />
+                </Box>
+
+                <TableContainer component={Paper}>
+                  <Table>
+                    <TableHead>
+                      <TableRow>
+                        {fields.map((field, idx) => (
+                          <TableCell key={idx}>{field.name}</TableCell>
+                        ))}
+                        <TableCell>Actions</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {data
+                        .filter(row => Object.values(row).some(val => val.toString().toLowerCase().includes(searchTerm.toLowerCase())))
+                        .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                        .map((row, rowIdx) => (
+                          <TableRow key={rowIdx}>
+                            {fields.map((field, colIdx) => (
+                              <TableCell key={colIdx}>
+                                <TextField
+                                  value={row[field.name] || ''}
+                                  onChange={(e) => handleCellChange(rowIdx + page * rowsPerPage, field.name, e.target.value)}
+                                  size="small"
+                                />
+                              </TableCell>
+                            ))}
+                            <TableCell>
+                              <Button color="error" onClick={() => handleDeleteRow(rowIdx + page * rowsPerPage)}>Delete</Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+                <TablePagination
+                  component="div"
+                  count={data.filter(row => Object.values(row).some(val => val.toString().toLowerCase().includes(searchTerm.toLowerCase()))).length}
+                  page={page}
+                  onPageChange={(e, newPage) => setPage(newPage)}
+                  rowsPerPage={rowsPerPage}
+                  onRowsPerPageChange={(e) => setRowsPerPage(parseInt(e.target.value, 10))}
+                />
+              </AccordionDetails>
+            </Accordion>
+          </>
+        )}
+
+        {tabIndex === 1 && selectedCategory && (
+          <Box mt={3}>
+            <Button variant="contained" color="success" onClick={handleDownloadJSON} startIcon={<DownloadIcon />}>Download JSON</Button>
+            <Button variant="contained" color="primary" onClick={handleDownloadCSV} sx={{ ml: 2 }} startIcon={<DownloadIcon />}>Download CSV</Button>
+          </Box>
+        )}
+      </Box>
+
+      {/* Advanced Download Split View */}
+      <Dialog fullWidth maxWidth="lg" open={openAdvanced} onClose={() => setOpenAdvanced(false)}>
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between' }}>
+          <Typography variant="h6">Advanced Download</Typography>
+          <IconButton onClick={() => setOpenAdvanced(false)}><CloseIcon /></IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <DragDropContext
+            onDragEnd={(result) => {
+              const { source, destination } = result;
+              if (!destination) return;
+              if (source.droppableId === 'available' && destination.droppableId === 'selected') {
+                const dragged = filteredCategories[source.index];
+                if (!selectedDownloads.some(cat => cat.categoryName === dragged.categoryName)) {
+                  setSelectedDownloads(prev => [...prev, dragged]);
+                }
+              }
+            }}
+          >
+            <Grid container spacing={2}>
+              <Grid item xs={6}>
+                <Typography variant="subtitle1">Available Categories</Typography>
+                <Droppable droppableId="available">
+                  {(provided) => (
+                    <Box ref={provided.innerRef} {...provided.droppableProps} sx={{ minHeight: 300, backgroundColor: '#f9f9f9', p: 1 }}>
+                      {filteredCategories.map((cat, index) => (
+                        <Draggable key={cat.categoryName} draggableId={cat.categoryName} index={index}>
+                          {(provided) => (
+                            <Box
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              {...provided.dragHandleProps}
+                              sx={{ p: 1, m: 1, backgroundColor: 'white', border: '1px solid #ccc', borderRadius: 1 }}
+                            >
+                              {cat.categoryName}
+                            </Box>
+                          )}
+                        </Draggable>
+                      ))}
+                      {provided.placeholder}
+                    </Box>
+                  )}
+                </Droppable>
+              </Grid>
+              <Grid item xs={6}>
+                <Typography variant="subtitle1">Selected Categories</Typography>
+                <Droppable droppableId="selected">
+                  {(provided) => (
+                    <Box ref={provided.innerRef} {...provided.droppableProps} sx={{ minHeight: 300, backgroundColor: '#e3f2fd', p: 1 }}>
+                      {selectedDownloads.map((cat, index) => (
+                        <Draggable key={cat.categoryName} draggableId={`selected-${cat.categoryName}`} index={index}>
+                          {(provided) => (
+                            <Box
+                              ref={provided.innerRef}
+                              {...provided.draggableProps}
+                              {...provided.dragHandleProps}
+                              sx={{ p: 1, m: 1, backgroundColor: '#b2ebf2', borderRadius: 1, display: 'flex', justifyContent: 'space-between' }}
+                            >
+                              {cat.categoryName}
+                              <Button
+                                size="small"
+                                color="error"
+                                onClick={() => setSelectedDownloads(prev => prev.filter(c => c.categoryName !== cat.categoryName))}
+                              >✖</Button>
+                            </Box>
+                          )}
+                        </Draggable>
+                      ))}
+                      {provided.placeholder}
+                    </Box>
+                  )}
+                </Droppable>
+                {selectedDownloads.length > 0 && (
+                  <Button variant="contained" color="primary" sx={{ mt: 2 }} onClick={handleDragDownload}>
+                    Download Selected Categories
+                  </Button>
+                )}
+              </Grid>
+            </Grid>
+          </DragDropContext>
+        </DialogContent>
+      </Dialog>
+    </Box>
+  );
+};
+
+export default CategoryViewer;
+=======================================
+
+// Dashboard.jsx
+import React, { useState } from 'react';
+import {
+  Box, Typography, Paper, Grid, List, ListItem, ListItemText, FormControl,
+  InputLabel, Select, MenuItem, ToggleButtonGroup, ToggleButton, Button, Card, CardContent, Tooltip
+} from '@mui/material';
+import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend,
+  BarChart, Bar, ResponsiveContainer
+} from 'recharts';
+
+const categories = ['Drug Pricing', 'Rebate Management'];
+const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+const heatmapData = [
+  [5, 3, 6, 2, 1, 0, 0],
+  [1, 0, 2, 4, 6, 5, 2]
+];
+
+const topDownloaded = {
+  name: 'Rebate Management',
+  downloads: 28,
+  previous: 21
+};
+
+const insights = [
+  'Rebate Management was updated 4 times last week.',
+  'Downloads increased by 25% compared to the previous week.'
+];
+
+const comparisonData = {
+  'Drug Pricing': {
+    previous: [
+      { name: 'Drug Name', type: 'String' },
+      { name: 'Price', type: 'Number' },
+      { name: 'Effective Date', type: 'Date' }
+    ],
+    current: [
+      { name: 'Drug Name', type: 'String' },
+      { name: 'Price', type: 'Number' },
+      { name: 'Effective Date', type: 'Date' },
+      { name: 'Discount %', type: 'Number' }
+    ]
+  },
+  'Rebate Management': {
+    previous: [
+      { name: 'Rebate ID', type: 'String' },
+      { name: 'Client Name', type: 'String' },
+      { name: 'Rebate Amount', type: 'Number' },
+      { name: 'Quarter', type: 'String' }
+    ],
+    current: [
+      { name: 'Rebate ID', type: 'String' },
+      { name: 'Customer Name', type: 'String' },
+      { name: 'Rebate Amount', type: 'Number' },
+      { name: 'Quarter', type: 'String' }
+    ]
+  }
+};
+
+const fullDownloadStats = [
+  { date: '2025-03-28', DrugPricing: 4, RebateManagement: 2 },
+  { date: '2025-03-29', DrugPricing: 2, RebateManagement: 5 },
+  { date: '2025-03-30', DrugPricing: 6, RebateManagement: 3 },
+  { date: '2025-03-31', DrugPricing: 1, RebateManagement: 4 },
+  { date: '2025-04-01', DrugPricing: 5, RebateManagement: 6 }
+];
+
+const changeLogs = [
+  { category: 'Drug Pricing', type: 'Field Added', detail: 'Added "Discount %"', date: '2025-04-01' },
+  { category: 'Rebate Management', type: 'Field Deleted', detail: 'Removed "Rebate Code"', date: '2025-03-30' },
+  { category: 'Drug Pricing', type: 'Value Edited', detail: 'Price changed from 10 to 12 for Aspirin', date: '2025-03-29' },
+  { category: 'Rebate Management', type: 'Field Edited', detail: 'Renamed "Client Name" to "Customer Name"', date: '2025-03-28' }
+];
+
+const Dashboard = () => {
+  const [chartType, setChartType] = useState('bar');
+  const [viewMode, setViewMode] = useState('daily');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedCompare, setSelectedCompare] = useState('Rebate Management');
+
+  const filteredStats = fullDownloadStats.map(item => ({
+    date: item.date,
+    ...(selectedCategory === 'All' ? item : { [selectedCategory]: item[selectedCategory] })
+  }));
+
+  const exportMetrics = (format) => {
+    const dataToExport = JSON.stringify({ downloads: filteredStats, changes: changeLogs }, null, 2);
+    const blob = new Blob([dataToExport], { type: format === 'json' ? 'application/json' : 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `dashboard_metrics.${format}`;
+    a.click();
+  };
+
+  const percentChange = ((topDownloaded.downloads - topDownloaded.previous) / topDownloaded.previous) * 100;
+
+  return (
+    <Box sx={{ p: 4 }}>
+      <Typography variant="h4" gutterBottom>Metrics Dashboard</Typography>
+
+      <Grid container spacing={2} mb={2}>
+        <Grid item xs={12} md={6}>
+          <Card sx={{ p: 2 }}>
+            <CardContent>
+              <Typography variant="h6">🏆 Top Downloaded This Week</Typography>
+              <Typography variant="body1" mt={1}><strong>{topDownloaded.name}</strong> with {topDownloaded.downloads} downloads</Typography>
+              <Typography variant="body2" color={percentChange >= 0 ? 'green' : 'red'}>
+                {percentChange >= 0 ? '+' : ''}{percentChange.toFixed(2)}% from last week
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <Card sx={{ p: 2 }}>
+            <CardContent>
+              <Typography variant="h6">🤖 AI Insights</Typography>
+              <ul>
+                {insights.map((item, idx) => (
+                  <li key={idx}><Typography variant="body2">{item}</Typography></li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      <Paper sx={{ p: 2, mb: 4 }}>
+        <Typography variant="h6">🔥 Category Usage Heatmap</Typography>
+        <Box mt={2}>
+          <Grid container spacing={1} sx={{ textAlign: 'center' }}>
+            <Grid item xs={1}></Grid>
+            {days.map((day, i) => (
+              <Grid item xs key={`day-${i}`}><strong>{day}</strong></Grid>
+            ))}
+            {categories.map((cat, rowIdx) => (
+              <React.Fragment key={`row-${rowIdx}`}>
+                <Grid item xs={1}><strong>{cat}</strong></Grid>
+                {heatmapData[rowIdx].map((val, colIdx) => (
+                  <Grid item xs key={`cell-${rowIdx}-${colIdx}`}>
+                    <Box
+                      sx={{
+                        width: '100%',
+                        p: 1,
+                        bgcolor: `rgba(0, 123, 255, ${val / 6})`,
+                        color: '#fff',
+                        borderRadius: 1
+                      }}
+                    >
+                      {val}
+                    </Box>
+                  </Grid>
+                ))}
+              </React.Fragment>
+            ))}
+          </Grid>
+        </Box>
+      </Paper>
+
+      <Paper sx={{ p: 2, mb: 3 }}>
+        <Grid container spacing={2} alignItems="center">
+          <Grid item xs={12} md={4}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Category</InputLabel>
+              <Select
+                value={selectedCategory}
+                label="Category"
+                onChange={(e) => setSelectedCategory(e.target.value)}
+              >
+                <MenuItem value="All">All</MenuItem>
+                <MenuItem value="DrugPricing">Drug Pricing</MenuItem>
+                <MenuItem value="RebateManagement">Rebate Management</MenuItem>
+              </Select>
+            </FormControl>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <ToggleButtonGroup
+              value={viewMode}
+              exclusive
+              onChange={(e, val) => val && setViewMode(val)}
+              size="small"
+            >
+              <ToggleButton value="daily">Daily</ToggleButton>
+              <ToggleButton value="weekly">Weekly</ToggleButton>
+              <ToggleButton value="monthly">Monthly</ToggleButton>
+            </ToggleButtonGroup>
+          </Grid>
+          <Grid item xs={12} md={4}>
+            <ToggleButtonGroup
+              value={chartType}
+              exclusive
+              onChange={(e, val) => val && setChartType(val)}
+              size="small"
+            >
+              <ToggleButton value="bar">Bar</ToggleButton>
+              <ToggleButton value="line">Line</ToggleButton>
+            </ToggleButtonGroup>
+          </Grid>
+        </Grid>
+      </Paper>
+
+      <Paper sx={{ p: 2, mb: 4 }}>
+        <Typography variant="h6">Download Activity ({viewMode})</Typography>
+        <ResponsiveContainer width="100%" height={300}>
+          {chartType === 'bar' ? (
+            <BarChart data={filteredStats} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <RechartsTooltip />
+              <Legend />
+              {selectedCategory === 'All' && (
+                <>
+                  <Bar dataKey="DrugPricing" fill="#8884d8" name="Drug Pricing" />
+                  <Bar dataKey="RebateManagement" fill="#82ca9d" name="Rebate Management" />
+                </>
+              )}
+              {selectedCategory !== 'All' && (
+                <Bar dataKey={selectedCategory} fill="#8884d8" name={selectedCategory} />
+              )}
+            </BarChart>
+          ) : (
+            <LineChart data={filteredStats} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <RechartsTooltip />
+              <Legend />
+              {selectedCategory === 'All' && (
+                <>
+                  <Line type="monotone" dataKey="DrugPricing" stroke="#8884d8" name="Drug Pricing" />
+                  <Line type="monotone" dataKey="RebateManagement" stroke="#82ca9d" name="Rebate Management" />
+                </>
+              )}
+              {selectedCategory !== 'All' && (
+                <Line type="monotone" dataKey={selectedCategory} stroke="#8884d8" name={selectedCategory} />
+              )}
+            </LineChart>
+          )}
+        </ResponsiveContainer>
+        <Box mt={2} display="flex" justifyContent="flex-end" gap={2}>
+          <Button variant="outlined" onClick={() => exportMetrics('json')}>Export JSON</Button>
+          <Button variant="outlined" onClick={() => exportMetrics('csv')}>Export CSV</Button>
+        </Box>
+      </Paper>
+
+      <Grid container spacing={2}>
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="h6">Change Logs</Typography>
+            <List>
+              {changeLogs.map((log, idx) => {
+                const isComparisonChange = log.type.includes('Field');
+                return (
+                  <ListItem key={idx} divider sx={{ display: 'flex', alignItems: 'flex-start' }}>
+                    {isComparisonChange && (
+                      <Tooltip title="Compare field structure">
+                        <CompareArrowsIcon color="primary" sx={{ mr: 1, mt: 0.5 }} />
+                      </Tooltip>
+                    )}
+                    <ListItemText
+                      primary={`${log.date} - ${log.category}`}
+                      secondary={`${log.type}: ${log.detail}`}
+                    />
+                  </ListItem>
+                );
+              })}
+            </List>
+          </Paper>
+        </Grid>
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="h6">Summary</Typography>
+            <ul>
+              <li>🧾 Total Categories Tracked: 2</li>
+              <li>🛠️ Recent Field Edits: 4</li>
+              <li>📈 Avg. Daily Downloads: {(fullDownloadStats.reduce((sum, d) => sum + d.DrugPricing + d.RebateManagement, 0) / fullDownloadStats.length).toFixed(2)}</li>
+            </ul>
+          </Paper>
+        </Grid>
+      </Grid>
+
+      <Paper sx={{ p: 2, mt: 4 }}>
+        <Typography variant="h6">🗃️ Change Comparison View</Typography>
+        <FormControl fullWidth size="small" sx={{ mt: 2, mb: 2 }}>
+          <InputLabel>Select Category</InputLabel>
+          <Select
+            value={selectedCompare}
+            label="Select Category"
+            onChange={(e) => setSelectedCompare(e.target.value)}
+          >
+            {Object.keys(comparisonData).map((cat) => (
+              <MenuItem key={cat} value={cat}>{cat}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        <Typography variant="subtitle2" mb={1}>Selected Category: {selectedCompare}</Typography>
+        <Grid container spacing={2}>
+          <Grid item xs={6}>
+            <Typography variant="subtitle1">Before</Typography>
+            <List>
+              {comparisonData[selectedCompare]?.previous.map((f, idx) => (
+                <ListItem key={idx}><ListItemText primary={`${f.name} (${f.type})`} /></ListItem>
+              ))}
+            </List>
+          </Grid>
+          <Grid item xs={6}>
+            <Typography variant="subtitle1">After</Typography>
+            <List>
+              {comparisonData[selectedCompare]?.current.map((f, idx) => (
+                <ListItem key={idx}><ListItemText primary={`${f.name} (${f.type})`} /></ListItem>
+              ))}
+            </List>
+          </Grid>
+        </Grid>
+      </Paper>
+    </Box>
+  );
+};
+
+export default Dashboard;
+
