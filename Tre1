@@ -1,0 +1,3 @@
+Please note that the CSV delimiter option was initially requested last year during the PoC phase in Spark. At that time, Satyam and team clearly highlighted issues related to the comma delimiter. While it’s a simple fix as per Don, we had not committed to any specific timelines.
+
+During yesterday’s Architecture call, we discussed whether the delimiter issue can be addressed. In Don’s absence, Daine clarified that the P&L team will need to han
