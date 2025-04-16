@@ -1,0 +1,492 @@
+import React, { useState, useRef } from 'react';
+import {
+  Box, Button, Stack, TextField, Typography,
+  Select, MenuItem, FormControl, InputLabel, Alert, Paper, List, ListItem, ListItemText,
+  Switch, FormControlLabel
+} from '@mui/material';
+import { DataGrid } from '@mui/x-data-grid';
+import { Parser } from 'expr-eval';
+
+// --- Custom Formula Functions ---
+const parser = new Parser({ operators: { conditional: true } });
+parser.functions.IF = (cond, a, b) => (cond ? a : b);
+parser.functions.SUM = (...args) => args.reduce((a, b) => a + b, 0);
+parser.functions.MIN = (...args) => Math.min(...args);
+parser.functions.MAX = (...args) => Math.max(...args);
+parser.functions.ROUND = (val) => Math.round(val);
+parser.functions.AVG = (...args) => args.reduce((a, b) => a + b, 0) / args.length;
+parser.functions.COUNT = (...args) => args.length;
+
+// --- Function Templates for Autocomplete ---
+const functionTemplates = [
+  { name: 'IF', usage: 'IF(condition, true, false)', description: 'Conditional logic', insert: 'IF(condition, true, false)' },
+  { name: 'SUM', usage: 'SUM(a, b, ...)', description: 'Sum of numbers', insert: 'SUM(a, b)' },
+  { name: 'MIN', usage: 'MIN(a, b, ...)', description: 'Minimum of values', insert: 'MIN(a, b)' },
+  { name: 'MAX', usage: 'MAX(a, b, ...)', description: 'Maximum of values', insert: 'MAX(a, b)' },
+  { name: 'ROUND', usage: 'ROUND(a)', description: 'Round a number', insert: 'ROUND(a)' },
+  { name: 'AVG', usage: 'AVG(a, b, ...)', description: 'Average of numbers', insert: 'AVG(a, b)' },
+  { name: 'COUNT', usage: 'COUNT(a, b, ...)', description: 'Count arguments', insert: 'COUNT(a, b)' }
+];
+
+// --- Base Columns & Initial Data ---
+const baseColumns = [
+  { field: 'id', headerName: 'ID', width: 70 },
+  { field: 'ClientTier', headerName: 'Client Tier', width: 130, editable: true },
+  { field: 'Volume', headerName: 'Volume', width: 100, editable: true, type: 'number' },
+  { field: 'BasePrice', headerName: 'Base Price', width: 120, editable: true, type: 'number' }
+];
+
+const initialRows = Array.from({ length: 50 }, (_, i) => ({
+  id: i + 1,
+  ClientTier: ['Gold', 'Silver', 'Bronze'][i % 3],
+  Volume: Math.floor(Math.random() * 2000),
+  BasePrice: 100 + (i % 5) * 10
+}));
+
+// --- Start of Main Component ---
+export default function FormulaGrid() {
+  const [rows, setRows] = useState(initialRows);
+  const [columns, setColumns] = useState(baseColumns);
+  const [newColName, setNewColName] = useState('');
+  const [newColType, setNewColType] = useState('formula');
+  const [outputField, setOutputField] = useState('');
+  const [formula, setFormula] = useState('');
+  const [formulaScope, setFormulaScope] = useState('all');
+  const [formulaError, setFormulaError] = useState('');
+  const [formulaExplanation, setFormulaExplanation] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(0);
+  const [hoveredSuggestion, setHoveredSuggestion] = useState(null);
+  const [formulaLibrary, setFormulaLibrary] = useState([]);
+  const formulaRef = useRef();
+
+  // --- Undo/Redo Stack ---
+  const [history, setHistory] = useState([]);
+  const [redoStack, setRedoStack] = useState([]);
+
+  // --- Show Formula or Value ---
+  const [showFormulas, setShowFormulas] = useState(false);
+
+  // --- Columns With Formula Display Toggle ---
+  const dynamicColumns = columns.map(col => {
+    if (col.editable) return col;
+    return {
+      ...col,
+      renderCell: (params) => {
+        const row = params.row;
+        const formulaKey = `${col.field}Formula`;
+        return showFormulas && row[formulaKey] ? row[formulaKey] : row[col.field];
+      }
+    };
+  });
+
+  // --- Formula Validation Before Adding Column ---
+  const validatedHandleAddColumn = () => {
+    if (!newColName) return;
+    const valueField = newColName;
+    const isFormula = newColType === 'formula';
+
+    if (isFormula && formula) {
+      try {
+        parser.parse(formula);
+      } catch (e) {
+        setFormulaError(`Invalid formula: ${e.message}`);
+        return;
+      }
+    }
+
+    setColumns(prev => [...prev, {
+      field: valueField,
+      headerName: `${valueField} (${isFormula ? 'Formula' : 'Direct'})`,
+      width: 180,
+      editable: !isFormula
+    }]);
+
+    setRows(prev => prev.map(r => ({
+      ...r,
+      [valueField]: '',
+      ...(isFormula && { [`${valueField}Formula`]: '' })
+    })));
+
+    setOutputField(valueField);
+    setNewColName('');
+    setNewColType('formula');
+  };
+
+  // --- Undo/Redo Stack Helpers ---
+  const pushHistory = (newRows) => {
+    setHistory(prev => [...prev, rows]);
+    setRedoStack([]);
+    setRows(newRows);
+  };
+
+  const undo = () => {
+    if (history.length === 0) return;
+    const last = history[history.length - 1];
+    setRedoStack(prev => [...prev, rows]);
+    setHistory(prev => prev.slice(0, -1));
+    setRows(last);
+  };
+
+  const redo = () => {
+    if (redoStack.length === 0) return;
+    const last = redoStack[redoStack.length - 1];
+    setHistory(prev => [...prev, rows]);
+    setRedoStack(prev => prev.slice(0, -1));
+    setRows(last);
+  };
+
+  const handleAddRow = () => {
+    const newRow = {
+      id: rows.length + 1,
+      ClientTier: 'Gold',
+      Volume: 0,
+      BasePrice: 100
+    };
+    pushHistory([...rows, newRow]);
+  };
+
+  const handleDeleteColumn = (fieldToDelete) => {
+    setColumns(prev => prev.filter(col => col.field !== fieldToDelete));
+    setRows(prev =>
+      prev.map(row => {
+        const { [fieldToDelete]: _, [`${fieldToDelete}Formula`]: __, ...rest } = row;
+        return rest;
+      })
+    );
+    if (outputField === fieldToDelete) setOutputField('');
+  };
+
+  const handleSaveTemplate = () => {
+    const formulaColumns = columns
+      .filter(col => !baseColumns.find(base => base.field === col.field))
+      .map(col => ({
+        field: col.field,
+        formula: rows.length > 0 ? rows[0][`${col.field}Formula`] || '' : '',
+        type: col.editable ? 'direct' : 'formula'
+      }));
+
+    const template = {
+      columns,
+      formulas: formulaColumns
+    };
+
+    const blob = new Blob([JSON.stringify(template, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'formula_template.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleLoadTemplate = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const template = JSON.parse(e.target.result);
+        if (template.columns && template.formulas) {
+          setColumns(template.columns);
+          setRows(prev => prev.map(row => {
+            const updated = { ...row };
+            template.formulas.forEach(f => {
+              if (f.type === 'formula') {
+                try {
+                  const expr = parser.parse(f.formula);
+                  updated[f.field] = expr.evaluate(row);
+                  updated[`${f.field}Formula`] = f.formula;
+                } catch (e) {
+                  updated[f.field] = `Error`;
+                }
+              }
+            });
+            return updated;
+          }));
+        }
+      } catch (err) {
+        alert('Invalid template file');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleRowClick = (params) => {
+    if (formulaScope !== 'row') return;
+    const rowId = params.id;
+    try {
+      const expr = parser.parse(formula);
+      const updatedRows = rows.map(r =>
+        r.id === rowId
+          ? {
+              ...r,
+              [outputField]: expr.evaluate(r),
+              [`${outputField}Formula`]: formula
+            }
+          : r
+      );
+      pushHistory(updatedRows);
+      setFormulaError('');
+      setFormulaExplanation(explainFormula(formula));
+    } catch (e) {
+      setFormulaError(e.message);
+      setFormulaExplanation('');
+    }
+  };
+
+  const handleApplyToAllRows = () => {
+    if (!outputField || !formula) return;
+    try {
+      const expr = parser.parse(formula);
+      const updatedRows = rows.map(row => ({
+        ...row,
+        [outputField]: expr.evaluate(row),
+        [`${outputField}Formula`]: formula
+      }));
+      pushHistory(updatedRows);
+      setFormulaError('');
+      setFormulaExplanation(explainFormula(formula));
+    } catch (e) {
+      setFormulaError(e.message);
+      setFormulaExplanation('');
+    }
+  };
+
+  const explainFormula = (f) => {
+    if (f.startsWith('IF(')) {
+      const match = f.match(/IF\\((.*?),\\s*(.*?),\\s*(.*?)\\)/);
+      if (match) {
+        return `If ${match[1]}, then ${match[2]}, else ${match[3]}`;
+      }
+    }
+    return '';
+  };
+
+  const getSuggestionTooltip = (item) => {
+    return item.usage || item.description || '';
+  };
+
+  const handleFormulaChange = (e) => {
+    const val = e.target.value;
+    setFormula(val);
+    setFormulaExplanation(explainFormula(val));
+
+    const cursor = formulaRef.current?.selectionStart || val.length;
+    const beforeCursor = val.slice(0, cursor);
+    const match = beforeCursor.match(/([a-zA-Z_][a-zA-Z0-9_]*)$/i);
+    const lastToken = match ? match[1].toLowerCase() : '';
+
+    const fieldSuggestions = columns
+      .filter(c => c.field.toLowerCase().startsWith(lastToken))
+      .map(c => ({ field: c.field, description: 'Column', insert: c.field }));
+
+    const fnSuggestions = functionTemplates
+      .filter(f => f.name.toLowerCase().startsWith(lastToken));
+
+    setSuggestions([...fnSuggestions, ...fieldSuggestions].slice(0, 5));
+  };
+
+  const handleSuggestionClick = (insertValue) => {
+    const cursor = formulaRef.current.selectionStart;
+    const before = formula.slice(0, cursor);
+    const after = formula.slice(cursor);
+
+    const match = before.match(/([a-zA-Z_][a-zA-Z0-9_]*)$/);
+    const lastToken = match ? match[1] : '';
+    const updatedBefore = lastToken
+      ? before.slice(0, before.length - lastToken.length) + insertValue
+      : before + insertValue;
+
+    const newFormula = updatedBefore + after;
+    setFormula(newFormula);
+    setSuggestions([]);
+
+    const newCursor = updatedBefore.length;
+    setTimeout(() => {
+      formulaRef.current.focus();
+      formulaRef.current.setSelectionRange(newCursor, newCursor);
+    }, 0);
+  };
+  return (
+    <Box sx={{ display: 'flex', height: '100vh' }}>
+      {/* Left Panel - Controls */}
+      <Box sx={{ width: 260, p: 2, bgcolor: '#f5f5f5', borderRight: '1px solid #ccc' }}>
+        <Typography variant="h6">🧮 Grid Controls</Typography>
+        <Stack spacing={2} mt={2}>
+          <TextField size="small" label="Column Name" value={newColName} onChange={(e) => setNewColName(e.target.value)} />
+          <FormControl size="small">
+            <InputLabel>Column Type</InputLabel>
+            <Select value={newColType} onChange={(e) => setNewColType(e.target.value)}>
+              <MenuItem value="formula">Formula</MenuItem>
+              <MenuItem value="direct">Direct</MenuItem>
+            </Select>
+          </FormControl>
+          <Button variant="contained" onClick={validatedHandleAddColumn}>+ ADD COLUMN</Button>
+          <Button variant="outlined" onClick={handleAddRow}>➕ Add Row</Button>
+
+          <FormControl size="small">
+            <InputLabel>Delete Column</InputLabel>
+            <Select onChange={(e) => handleDeleteColumn(e.target.value)}>
+              {columns.filter(col => !baseColumns.find(base => base.field === col.field)).map(col => (
+                <MenuItem key={col.field} value={col.field}>{col.headerName}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <FormControl size="small">
+            <InputLabel>Apply To</InputLabel>
+            <Select value={formulaScope} onChange={(e) => setFormulaScope(e.target.value)}>
+              <MenuItem value="all">All Rows</MenuItem>
+              <MenuItem value="row">Row-Level</MenuItem>
+            </Select>
+          </FormControl>
+
+          <Button variant="outlined" onClick={handleSaveTemplate}>💾 Save Template</Button>
+          <Button variant="outlined" component="label">
+            📂 Load Template
+            <input type="file" accept=".json" hidden onChange={handleLoadTemplate} />
+          </Button>
+          <Button variant="outlined" onClick={undo}>↩️ Undo</Button>
+          <Button variant="outlined" onClick={redo}>↪️ Redo</Button>
+        </Stack>
+      </Box>
+
+      {/* Center Panel - Data Grid */}
+      <Box sx={{ flex: 2, p: 2 }}>
+        <Typography variant="h6">📊 Main Grid</Typography>
+        <DataGrid
+          rows={rows}
+          columns={dynamicColumns}
+          onRowClick={handleRowClick}
+          getRowId={(r) => r.id}
+          pageSize={100}
+          sx={{ height: 'calc(100vh - 100px)' }}
+        />
+      </Box>
+
+      {/* Right Panel - Formula Panel */}
+      <Box sx={{ flex: 1.2, p: 3, bgcolor: '#f9f9f9', borderLeft: '1px solid #ccc' }}>
+        <Typography variant="h6" gutterBottom>🧠 Formula Panel</Typography>
+
+        <FormControl fullWidth sx={{ mb: 2 }}>
+          <InputLabel>Output Field</InputLabel>
+          <Select
+            value={outputField}
+            onChange={(e) => setOutputField(e.target.value)}
+            size="small"
+          >
+            {columns.map(col => (
+              <MenuItem key={col.field} value={col.field}>{col.headerName}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        <TextField
+          fullWidth
+          multiline
+          rows={4}
+          value={formula}
+          onChange={handleFormulaChange}
+          onKeyDown={(e) => {
+            if (suggestions.length === 0) return;
+            if (e.key === 'ArrowDown') {
+              e.preventDefault();
+              setSelectedSuggestionIndex((prev) => (prev + 1) % suggestions.length);
+            } else if (e.key === 'ArrowUp') {
+              e.preventDefault();
+              setSelectedSuggestionIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length);
+            } else if (e.key === 'Enter') {
+              e.preventDefault();
+              handleSuggestionClick(suggestions[selectedSuggestionIndex].insert);
+            } else if (e.key === 'Escape') {
+              setSuggestions([]);
+            }
+          }}
+          placeholder="e.g., IF(Volume > 1000, BasePrice * 0.9, BasePrice)"
+          inputRef={formulaRef}
+        />
+
+        {suggestions.length > 0 && (
+          <Paper variant="outlined" sx={{ mt: 1, maxHeight: 150, overflow: 'auto' }}>
+            <List dense>
+              {suggestions.map((s, index) => (
+                <ListItem
+                  button
+                  key={index}
+                  onClick={() => handleSuggestionClick(s.insert)}
+                  onMouseEnter={() => setHoveredSuggestion(index)}
+                  selected={index === selectedSuggestionIndex}
+                >
+                  <ListItemText
+                    primary={`${s.name || s.field}`}
+                    secondary={hoveredSuggestion === index ? getSuggestionTooltip(s) : ''}
+                  />
+                </ListItem>
+              ))}
+            </List>
+          </Paper>
+        )}
+
+        {formulaExplanation && (
+          <Typography variant="body2" color="green" mt={1}>💬 {formulaExplanation}</Typography>
+        )}
+        {formulaError && (
+          <Alert severity="error" sx={{ mt: 1 }}>{formulaError}</Alert>
+        )}
+
+        <Button
+          fullWidth
+          variant="contained"
+          sx={{ mt: 2 }}
+          onClick={() => handleApplyToAllRows()}
+          startIcon={<span style={{ fontSize: 18 }}>▶️</span>}
+        >
+          APPLY TO ALL ROWS
+        </Button>
+
+        <Button
+          fullWidth
+          variant="outlined"
+          sx={{ mt: 1 }}
+          onClick={() => {
+            const name = prompt('Enter a name for this formula:');
+            if (name) {
+              setFormulaLibrary((prev) => [...prev, { name, formula, outputField }]);
+            }
+          }}
+        >
+          ➕ Save Formula to Library
+        </Button>
+
+        <FormControlLabel
+          control={<Switch checked={showFormulas} onChange={() => setShowFormulas(prev => !prev)} />}
+          label={showFormulas ? '📝 Showing Formulas' : '📥 Showing Values'}
+          sx={{ mt: 2 }}
+        />
+
+        {formulaLibrary.length > 0 && (
+          <FormControl fullWidth sx={{ mt: 2 }}>
+            <InputLabel>📚 Load from Library</InputLabel>
+            <Select
+              onChange={(e) => {
+                const item = formulaLibrary.find(f => f.name === e.target.value);
+                if (item) {
+                  setFormula(item.formula);
+                  setOutputField(item.outputField);
+                }
+              }}
+              size="small"
+              defaultValue=""
+            >
+              <MenuItem value="" disabled>Select a formula</MenuItem>
+              {formulaLibrary.map((f, i) => (
+                <MenuItem key={i} value={f.name}>{f.name}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        )}
+      </Box>
+    </Box>
+  );
+}
