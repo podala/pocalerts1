@@ -1,0 +1,196 @@
+import React, { useState } from 'react';
+import {
+  Box, Typography, Button, Paper, TextField, InputBase, IconButton, List, ListItemButton, ListItemText, Divider
+} from '@mui/material';
+import { DataGrid } from '@mui/x-data-grid';
+import SearchIcon from '@mui/icons-material/Search';
+
+export default function SmartModelViewer() {
+  const [model, setModel] = useState(null);
+  const [selectedGridKey, setSelectedGridKey] = useState(null);
+  const [filename, setFilename] = useState('');
+  const [search, setSearch] = useState('');
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    setFilename(file?.name || '');
+
+    const fileReader = new FileReader();
+    fileReader.onload = (event) => {
+      try {
+        const json = JSON.parse(event.target.result);
+        if (!json.grids || !json.metadata) throw new Error('Missing "grids" or "metadata" section');
+        setModel(json);
+        setSelectedGridKey(Object.keys(json.grids)[0]);
+      } catch (err) {
+        alert('❌ Invalid Smart Model File: ' + err.message);
+        setModel(null);
+        setSelectedGridKey(null);
+      }
+    };
+    fileReader.readAsText(file);
+  };
+
+  const handleRowEdit = (updatedRow, gridKey) => {
+    const updatedGrid = {
+      ...model.grids[gridKey],
+      rows: model.grids[gridKey].rows.map(row =>
+        row.id === updatedRow.id ? updatedRow : row
+      )
+    };
+    setModel(prev => ({
+      ...prev,
+      grids: {
+        ...prev.grids,
+        [gridKey]: updatedGrid
+      }
+    }));
+    return updatedRow;
+  };
+
+  const renderGroupedHeaders = (grid) => {
+    const timeColumns = grid.columns.filter(col => /^(FY?\d{4}|\d{4})_Q[1-4]$/.test(col.field));
+    const otherColumns = grid.columns.filter(col => !/^(FY?\d{4}|\d{4})_Q[1-4]$/.test(col.field));
+    const firstColWidth = otherColumns.length > 0 ? (otherColumns[0].width || 130) : 130;
+
+    const quarterOrder = { Q1: 1, Q2: 2, Q3: 3, Q4: 4 };
+    const sorted = [...timeColumns].sort((a, b) => {
+      const [aY, aQ] = a.field.split('_');
+      const [bY, bQ] = b.field.split('_');
+      const yDiff = parseInt(aY.replace('FY', '')) - parseInt(bY.replace('FY', ''));
+      return yDiff === 0 ? quarterOrder[aQ] - quarterOrder[bQ] : yDiff;
+    });
+
+    const yearGroups = [];
+    let currentYear = null;
+    let span = 0;
+
+    sorted.forEach((col, idx) => {
+      const [year] = col.field.split('_');
+      if (year === currentYear) {
+        span++;
+      } else {
+        if (currentYear !== null) yearGroups.push({ year: currentYear, span });
+        currentYear = year;
+        span = 1;
+      }
+      if (idx === sorted.length - 1) {
+        yearGroups.push({ year, span });
+      }
+    });
+
+    const colors = ['#e0f7fa', '#e8f5e9', '#fff9c4', '#f3e5f5', '#fce4ec'];
+
+    return (
+      <Box sx={{ display: 'flex', borderBottom: '1px solid #ccc', mb: 1, ml: `${firstColWidth}px`, overflowX: 'auto' }}>
+        {yearGroups.map((group, index) => (
+          <Box
+            key={group.year}
+            sx={{
+              width: group.span * 130,
+              textAlign: 'center',
+              fontWeight: 'bold',
+              bgcolor: colors[index % colors.length],
+              borderRight: '1px solid #ccc',
+              py: 0.5
+            }}
+          >
+            {group.year}
+          </Box>
+        ))}
+      </Box>
+    );
+  };
+
+  const filteredGrids = model
+    ? Object.entries(model.grids).filter(([key, grid]) =>
+        grid.title.toLowerCase().includes(search.toLowerCase())
+      )
+    : [];
+
+  return (
+    <Box sx={{ display: 'flex', height: '100vh' }}>
+      {/* Sidebar */}
+      <Box sx={{ width: 280, bgcolor: '#f9f9f9', borderRight: '1px solid #ddd', p: 2 }}>
+        <Typography variant="h6" gutterBottom>Templates</Typography>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <InputBase
+            placeholder="Search templates..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            sx={{ flex: 1, backgroundColor: '#fff', px: 2, py: 0.5, borderRadius: 1 }}
+          />
+          <IconButton>
+            <SearchIcon />
+          </IconButton>
+        </Box>
+
+        <List dense>
+          {filteredGrids.map(([gridKey, grid]) => (
+            <ListItemButton
+              key={gridKey}
+              selected={gridKey === selectedGridKey}
+              onClick={() => setSelectedGridKey(gridKey)}
+            >
+              <ListItemText primary={grid.title} />
+            </ListItemButton>
+          ))}
+        </List>
+
+        <Divider sx={{ my: 2 }} />
+
+        <Button variant="contained" component="label" fullWidth>
+          Upload Model File
+          <input type="file" accept=".json" hidden onChange={handleFileUpload} />
+        </Button>
+
+        {filename && (
+          <Typography variant="caption" sx={{ mt: 1, display: 'block' }}>
+            Loaded: {filename}
+          </Typography>
+        )}
+      </Box>
+
+      {/* Main content */}
+      <Box sx={{ flex: 1, p: 3, overflow: 'auto' }}>
+        {model && selectedGridKey && model.grids[selectedGridKey] && (
+          <Box>
+            <Typography variant="subtitle1" sx={{ mb: 2 }}>
+              Client: <strong>{model.metadata.client}</strong> | Version: <strong>{model.metadata.version}</strong> | Created By: <strong>{model.metadata.createdBy}</strong>
+            </Typography>
+
+            {renderGroupedHeaders(model.grids[selectedGridKey])}
+
+            <Paper>
+              <DataGrid
+                rows={model.grids[selectedGridKey].rows}
+                columns={model.grids[selectedGridKey].columns.map(col => {
+                  const isEditable = model.grids[selectedGridKey].editableFields?.includes(col.field);
+                  return {
+                    ...col,
+                    editable: isEditable,
+                    cellClassName: !isEditable ? 'read-only-cell' : ''
+                  };
+                })}
+                processRowUpdate={(updatedRow) => handleRowEdit(updatedRow, selectedGridKey)}
+                experimentalFeatures={{ newEditingApi: true }}
+                getRowId={(row) => row.id}
+                sx={{
+                  '& .read-only-cell': {
+                    backgroundColor: '#f0f0f0'
+                  },
+                  minWidth: '100%',
+                  overflowX: 'auto'
+                }}
+              />
+            </Paper>
+          </Box>
+        )}
+      </Box>
+    </Box>
+  );
+}
+
+
+=
