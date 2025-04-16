@@ -1,0 +1,294 @@
+{
+  "template": "PBM All Layouts Supported",
+  "metadata": {
+    "client": "Client ABC",
+    "version": "v3.0",
+    "createdBy": "Underwriter_X"
+  },
+  "grids": {
+    "calendar_quarters": {
+      "title": "Calendar Year Grid",
+      "columns": [
+        {
+          "field": "category",
+          "headerName": "Category",
+          "width": 130
+        },
+        {
+          "field": "2026_Q1",
+          "headerName": "Q1",
+          "width": 130
+        },
+        {
+          "field": "2026_Q2",
+          "headerName": "Q2",
+          "width": 130
+        },
+        {
+          "field": "2026_Q3",
+          "headerName": "Q3",
+          "width": 130
+        },
+        {
+          "field": "2026_Q4",
+          "headerName": "Q4",
+          "width": 130
+        },
+        {
+          "field": "2027_Q1",
+          "headerName": "Q1",
+          "width": 130
+        },
+        {
+          "field": "2027_Q2",
+          "headerName": "Q2",
+          "width": 130
+        },
+        {
+          "field": "2027_Q3",
+          "headerName": "Q3",
+          "width": 130
+        },
+        {
+          "field": "2027_Q4",
+          "headerName": "Q4",
+          "width": 130
+        }
+      ],
+      "rows": [
+        {
+          "id": 1,
+          "category": "Retail 60",
+          "2026_Q1": 11,
+          "2026_Q2": 12,
+          "2026_Q3": 13,
+          "2026_Q4": 14,
+          "2027_Q1": 11,
+          "2027_Q2": 12,
+          "2027_Q3": 13,
+          "2027_Q4": 14
+        },
+        {
+          "id": 2,
+          "category": "Retail 90",
+          "2026_Q1": 21,
+          "2026_Q2": 22,
+          "2026_Q3": 23,
+          "2026_Q4": 24,
+          "2027_Q1": 21,
+          "2027_Q2": 22,
+          "2027_Q3": 23,
+          "2027_Q4": 24
+        },
+        {
+          "id": 3,
+          "category": "Retail 120",
+          "2026_Q1": 31,
+          "2026_Q2": 32,
+          "2026_Q3": 33,
+          "2026_Q4": 34,
+          "2027_Q1": 31,
+          "2027_Q2": 32,
+          "2027_Q3": 33,
+          "2027_Q4": 34
+        }
+      ],
+      "editableFields": [
+        "2026_Q2",
+        "2027_Q3"
+      ]
+    },
+    "fiscal_layout": {
+      "title": "Fiscal Year Grid",
+      "columns": [
+        {
+          "field": "category",
+          "headerName": "Category",
+          "width": 130
+        },
+        {
+          "field": "FY2025_Q1",
+          "headerName": "Q1",
+          "width": 130
+        },
+        {
+          "field": "FY2025_Q2",
+          "headerName": "Q2",
+          "width": 130
+        },
+        {
+          "field": "FY2025_Q3",
+          "headerName": "Q3",
+          "width": 130
+        },
+        {
+          "field": "FY2025_Q4",
+          "headerName": "Q4",
+          "width": 130
+        },
+        {
+          "field": "FY2026_Q1",
+          "headerName": "Q1",
+          "width": 130
+        },
+        {
+          "field": "FY2026_Q2",
+          "headerName": "Q2",
+          "width": 130
+        },
+        {
+          "field": "FY2026_Q3",
+          "headerName": "Q3",
+          "width": 130
+        },
+        {
+          "field": "FY2026_Q4",
+          "headerName": "Q4",
+          "width": 130
+        }
+      ],
+      "rows": [
+        {
+          "id": 1,
+          "category": "Retail 60",
+          "FY2025_Q1": 101,
+          "FY2025_Q2": 102,
+          "FY2025_Q3": 103,
+          "FY2025_Q4": 104,
+          "FY2026_Q1": 111,
+          "FY2026_Q2": 112,
+          "FY2026_Q3": 113,
+          "FY2026_Q4": 114
+        },
+        {
+          "id": 2,
+          "category": "Retail 90",
+          "FY2025_Q1": 201,
+          "FY2025_Q2": 202,
+          "FY2025_Q3": 203,
+          "FY2025_Q4": 204,
+          "FY2026_Q1": 211,
+          "FY2026_Q2": 212,
+          "FY2026_Q3": 213,
+          "FY2026_Q4": 214
+        }
+      ],
+      "editableFields": [
+        "FY2026_Q2",
+        "FY2025_Q4"
+      ]
+    },
+    "year_only": {
+      "title": "Year Only Grid",
+      "columns": [
+        {
+          "field": "category",
+          "headerName": "Category",
+          "width": 130
+        },
+        {
+          "field": "2024",
+          "headerName": "2024",
+          "width": 130
+        },
+        {
+          "field": "2025",
+          "headerName": "2025",
+          "width": 130
+        },
+        {
+          "field": "2026",
+          "headerName": "2026",
+          "width": 130
+        },
+        {
+          "field": "2027",
+          "headerName": "2027",
+          "width": 130
+        }
+      ],
+      "rows": [
+        {
+          "id": 1,
+          "category": "Retail 30",
+          "2024": 2124,
+          "2025": 2125,
+          "2026": 2126,
+          "2027": 2127
+        },
+        {
+          "id": 2,
+          "category": "Retail 60",
+          "2024": 2224,
+          "2025": 2225,
+          "2026": 2226,
+          "2027": 2227
+        },
+        {
+          "id": 3,
+          "category": "Retail 90",
+          "2024": 2324,
+          "2025": 2325,
+          "2026": 2326,
+          "2027": 2327
+        }
+      ],
+      "editableFields": [
+        "2025",
+        "2027"
+      ]
+    },
+    "flat_grid": {
+      "title": "Flat Grid",
+      "columns": [
+        {
+          "field": "category",
+          "headerName": "Category",
+          "width": 130
+        },
+        {
+          "field": "Volume",
+          "headerName": "Volume",
+          "width": 130
+        },
+        {
+          "field": "BasePrice",
+          "headerName": "Base Price",
+          "width": 130
+        },
+        {
+          "field": "Rebate",
+          "headerName": "Rebate",
+          "width": 130
+        }
+      ],
+      "rows": [
+        {
+          "id": 1,
+          "category": "Retail 30",
+          "Volume": 1000,
+          "BasePrice": 51,
+          "Rebate": 5
+        },
+        {
+          "id": 2,
+          "category": "Retail 60",
+          "Volume": 2000,
+          "BasePrice": 52,
+          "Rebate": 10
+        },
+        {
+          "id": 3,
+          "category": "Retail 90",
+          "Volume": 3000,
+          "BasePrice": 53,
+          "Rebate": 15
+        }
+      ],
+      "editableFields": [
+        "Volume",
+        "BasePrice"
+      ]
+    }
+  }
+}
