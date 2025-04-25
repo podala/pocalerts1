@@ -1,0 +1,53 @@
+{
+  "userId": "alice@example.com",
+  "submissionId": "subm-5678",
+  "submissionTimestamp": "2025-04-25T11:30:00Z",
+  "comparisonTitle": "AWP Inflation Analysis - Q2 2025",
+  "clients": ["ClientA", "ClientB"],
+  "formularies": ["Formulary1", "Formulary2"],
+  "years": [2025, 2026, 2027],
+  "metrics": ["AWP Inflation %"],
+  "saveConfig": false,
+  "jobs": [
+    {
+      "jobId": "job-0001",
+      "client": "ClientA",
+      "formulary": "Formulary1",
+      "parameters": {
+        "drugType": "Hep C",
+        "channel": "Retail 90",
+        "yearRange": [2025, 2026, 2027]
+      }
+    },
+    {
+      "jobId": "job-0002",
+      "client": "ClientA",
+      "formulary": "Formulary2",
+      "parameters": {
+        "drugType": "Hep C",
+        "channel": "Retail 90",
+        "yearRange": [2025, 2026, 2027]
+      }
+    },
+    {
+      "jobId": "job-0003",
+      "client": "ClientB",
+      "formulary": "Formulary1",
+      "parameters": {
+        "drugType": "Hep C",
+        "channel": "Retail 90",
+        "yearRange": [2025, 2026, 2027]
+      }
+    },
+    {
+      "jobId": "job-0004",
+      "client": "ClientB",
+      "formulary": "Formulary2",
+      "parameters": {
+        "drugType": "Hep C",
+        "channel": "Retail 90",
+        "yearRange": [2025, 2026, 2027]
+      }
+    }
+  ]
+}
