@@ -1594,6 +1594,34 @@ export const HighCostSpecialtyPanels = () => (
     </Box>
   );  
 ======================
+// App.js
+import React from 'react';
+import { Routes, Route } from 'react-router-dom';
+
+// Import components
+import LandingPage from './components/LandingPage';
+import CreateRPTModel from './components/CreateRPTModel';
+import ModelExecutionPanel from './components/ModelExecutionPanel';
+import ExecutionDashboard from './components/ExecutionDashboard';
+import ScheduledJobsPage from './components/ScheduledJobsPage';
+import BulkSubmissionsPage from './components/BulkSubmissionsPage';
+import PBMUnderwritingDashboard from './components/PBMUnderwritingDashboard';
+
+const App = () => {
+  return (
+    <Routes>
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/create-model" element={<CreateRPTModel />} />
+      <Route path="/model-execution-panel" element={<ModelExecutionPanel />} />
+      <Route path="/execution-dashboard" element={<ExecutionDashboard />} />
+      <Route path="/pbm-others" element={<PBMUnderwritingDashboard />} />
+      <Route path="/scheduled-jobs" element={<ScheduledJobsPage />} />
+      <Route path="/bulk-submissions" element={<BulkSubmissionsPage />} />
+    </Routes>
+  );
+};
+
+export default App;
 
 
 
