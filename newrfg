@@ -1623,6 +1623,114 @@ const App = () => {
 
 export default App;
 
+==============
+
+// components/ExecutionDashboard.jsx
+import React, { useState } from 'react';
+import {
+  Box, Typography, MenuItem, Select, Button, Grid, Paper, IconButton, Collapse
+} from '@mui/material';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { ExpandMore, ExpandLess } from '@mui/icons-material';
+import PreShiftDashboard from './PreShiftDashboard'; 
+import Visualizations from './Visualizations'; // 🔥 New Import
+
+const ExecutionDashboard = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const executionName = location.state?.executionName || 'Unknown Execution';
+  const clientName = location.state?.clientName || 'Unknown Client';
+
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [clientOpen, setClientOpen] = useState(true);
+  const [categoryOpen, setCategoryOpen] = useState(true);
+  const [visualizationOpen, setVisualizationOpen] = useState(false); // 🔥 For visualization collapse
+
+  const handleCategoryChange = (event) => {
+    setSelectedCategory(event.target.value);
+  };
+
+  return (
+    <Box sx={{ p: 4 }}>
+      {/* Client Header */}
+      <Paper elevation={3} sx={{ mb: 3, p: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6">Client and Execution Details</Typography>
+          <IconButton onClick={() => setClientOpen(!clientOpen)}>
+            {clientOpen ? <ExpandLess /> : <ExpandMore />}
+          </IconButton>
+        </Box>
+        <Collapse in={clientOpen}>
+          <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box>
+              <Typography variant="h5" fontWeight="bold">
+                Client: {clientName}
+              </Typography>
+              <Typography variant="h6" color="text.secondary">
+                Execution: {executionName}
+              </Typography>
+            </Box>
+            <Button variant="contained" color="secondary" onClick={() => navigate(-1)}>
+              Back
+            </Button>
+          </Box>
+        </Collapse>
+      </Paper>
+
+      {/* Category Selector */}
+      <Paper elevation={3} sx={{ mb: 3, p: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6">Category + Data</Typography>
+          <IconButton onClick={() => setCategoryOpen(!categoryOpen)}>
+            {categoryOpen ? <ExpandLess /> : <ExpandMore />}
+          </IconButton>
+        </Box>
+        <Collapse in={categoryOpen}>
+          <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Typography variant="h6">Select Category:</Typography>
+            <Select
+              value={selectedCategory}
+              onChange={handleCategoryChange}
+              displayEmpty
+              sx={{ minWidth: 250 }}
+            >
+              <MenuItem value="" disabled>Select...</MenuItem>
+              <MenuItem value="Rate Buildup">Rate Buildup</MenuItem>
+              <MenuItem value="Rate Forecast">Rate Forecast</MenuItem>
+              <MenuItem value="Buildup Summary">Buildup Summary</MenuItem>
+              <MenuItem value="RPT Forecast Output">RPT Forecast Output</MenuItem>
+              <MenuItem value="Output RPT">Output RPT</MenuItem>
+            </Select>
+          </Box>
+
+          {/* Show PreShiftDashboard ONLY if Rate Buildup is selected */}
+          <Box sx={{ mt: 4 }}>
+            {selectedCategory === 'Rate Buildup' && <PreShiftDashboard />}
+          </Box>
+        </Collapse>
+      </Paper>
+
+      {/* Visualization Section */}
+      {selectedCategory === 'Rate Buildup' && (
+        <Paper elevation={3} sx={{ p: 2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6">Visualizations</Typography>
+            <IconButton onClick={() => setVisualizationOpen(!visualizationOpen)}>
+              {visualizationOpen ? <ExpandLess /> : <ExpandMore />}
+            </IconButton>
+          </Box>
+          <Collapse in={visualizationOpen}>
+            <Box sx={{ mt: 4 }}>
+              <Visualizations /> {/* 🔥 Plugging in new full visualizations here */}
+            </Box>
+          </Collapse>
+        </Paper>
+      )}
+    </Box>
+  );
+};
+
+export default ExecutionDashboard;
 
 
 
