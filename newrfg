@@ -1,0 +1,1602 @@
+vis
+// components/Visualizations.jsx
+import React, { useState } from 'react';
+import { Box, Typography, Grid, Paper, Button, ButtonGroup } from '@mui/material';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area, ResponsiveContainer } from 'recharts';
+
+const pricingTerms = ['Base', 'MAF', 'PPL', 'PPA', 'Total Rebates'];
+
+const sampleData = [
+  { year: 2025, retail30: 1000, retail90: 1200, mail: 800, specialty: 600 },
+  { year: 2026, retail30: 1100, retail90: 1250, mail: 850, specialty: 620 },
+  { year: 2027, retail30: 1150, retail90: 1300, mail: 900, specialty: 650 },
+  { year: 2028, retail30: 1200, retail90: 1350, mail: 950, specialty: 680 },
+  { year: 2029, retail30: 1250, retail90: 1400, mail: 1000, specialty: 700 },
+];
+
+const pieData = [
+  { name: 'Retail 30', value: 400 },
+  { name: 'Retail 90', value: 300 },
+  { name: 'Mail', value: 200 },
+  { name: 'Specialty', value: 100 },
+];
+
+const COLORS = ['#8884d8', '#82ca9d', '#ffc658', '#ff8042'];
+
+const Visualizations = () => {
+  const [userPreference, setUserPreference] = useState('default');
+
+  return (
+    <Box sx={{ p: 2 }}>
+      {pricingTerms.map((term, idx) => (
+        <Box key={idx} sx={{ mb: 6 }}>
+          {/* Section Header */}
+          <Paper elevation={3} sx={{ p: 2, mb: 2, backgroundColor: '#fb8c00', color: 'white' }}>
+            <Typography variant="h5" fontWeight="bold">{term}</Typography>
+          </Paper>
+
+          {/* User Preference Buttons */}
+          <Box sx={{ mb: 2, textAlign: 'center' }}>
+            <ButtonGroup variant="contained">
+              <Button onClick={() => setUserPreference('default')}>Default View</Button>
+              <Button onClick={() => setUserPreference('preference1')}>User Preference 1</Button>
+              <Button onClick={() => setUserPreference('preference2')}>User Preference 2</Button>
+            </ButtonGroup>
+          </Box>
+
+          {/* Three Charts side by side */}
+          <Grid container spacing={2}>
+            {/* Chart 1 */}
+            <Grid item xs={12} md={4}>
+              <Paper sx={{ p: 2, height: 300 }}>
+                <Typography variant="subtitle1" textAlign="center">Total $</Typography>
+                <ResponsiveContainer width="100%" height="85%">
+                  {userPreference === 'default' && (
+                    <BarChart data={sampleData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="year" />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="retail30" fill="#8884d8" />
+                    </BarChart>
+                  )}
+                  {userPreference === 'preference1' && (
+                    <AreaChart data={sampleData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="year" />
+                      <YAxis />
+                      <Tooltip />
+                      <Area type="monotone" dataKey="retail90" stroke="#82ca9d" fill="#82ca9d" />
+                    </AreaChart>
+                  )}
+                  {userPreference === 'preference2' && (
+                    <BarChart data={sampleData} stackOffset="sign">
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="year" />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="retail30" stackId="a" fill="#8884d8" />
+                      <Bar dataKey="mail" stackId="a" fill="#82ca9d" />
+                    </BarChart>
+                  )}
+                </ResponsiveContainer>
+              </Paper>
+            </Grid>
+
+            {/* Chart 2 */}
+            <Grid item xs={12} md={4}>
+              <Paper sx={{ p: 2, height: 300 }}>
+                <Typography variant="subtitle1" textAlign="center">Per Brand Script</Typography>
+                <ResponsiveContainer width="100%" height="85%">
+                  {userPreference === 'default' && (
+                    <LineChart data={sampleData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="year" />
+                      <YAxis />
+                      <Tooltip />
+                      <Line type="monotone" dataKey="mail" stroke="#82ca9d" strokeWidth={2} />
+                    </LineChart>
+                  )}
+                  {userPreference === 'preference1' && (
+                    <AreaChart data={sampleData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="year" />
+                      <YAxis />
+                      <Tooltip />
+                      <Area type="monotone" dataKey="specialty" stroke="#ffc658" fill="#ffc658" />
+                    </AreaChart>
+                  )}
+                  {userPreference === 'preference2' && (
+                    <LineChart data={sampleData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="year" />
+                      <YAxis />
+                      <Tooltip />
+                      <Line type="monotone" dataKey="specialty" stroke="#ff8042" strokeWidth={2} />
+                    </LineChart>
+                  )}
+                </ResponsiveContainer>
+              </Paper>
+            </Grid>
+
+            {/* Chart 3 */}
+            <Grid item xs={12} md={4}>
+              <Paper sx={{ p: 2, height: 300 }}>
+                <Typography variant="subtitle1" textAlign="center">Per Total Script</Typography>
+                <ResponsiveContainer width="100%" height="85%">
+                  {userPreference === 'default' && (
+                    <PieChart>
+                      <Pie
+                        data={pieData}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={80}
+                        fill="#8884d8"
+                        label
+                      >
+                        {pieData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  )}
+                  {userPreference === 'preference1' && (
+                    <PieChart>
+                      <Pie
+                        data={pieData}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={40}
+                        outerRadius={80}
+                        fill="#82ca9d"
+                        label
+                      >
+                        {pieData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  )}
+                  {userPreference === 'preference2' && (
+                    <BarChart data={sampleData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="year" />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="specialty" fill="#ffc658" />
+                    </BarChart>
+                  )}
+                </ResponsiveContainer>
+              </Paper>
+            </Grid>
+
+          </Grid>
+        </Box>
+      ))}
+    </Box>
+  );
+};
+
+export default Visualizations;
+=============================
+// components/ScheduledJobsPage.jsx
+import React, { useState } from 'react';
+import { 
+  Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, 
+  TableHead, TableRow, Button, Dialog, DialogTitle, DialogContent, 
+  TextField, DialogActions, Snackbar 
+} from '@mui/material';
+
+const ScheduledJobsPage = () => {
+  const [scheduledJobs, setScheduledJobs] = useState([
+    {
+      id: 'job-001',
+      client: 'Client ABC',
+      executionName: 'Execution_RPT1',
+      scheduledTime: '2025-05-01T10:00',
+      status: 'Scheduled'
+    },
+    {
+      id: 'job-002',
+      client: 'Client XYZ',
+      executionName: 'Execution_RPT2',
+      scheduledTime: '2025-05-02T15:30',
+      status: 'Scheduled'
+    }
+  ]);
+
+  const [openDialog, setOpenDialog] = useState(false);
+  const [selectedJob, setSelectedJob] = useState(null);
+  const [newScheduledTime, setNewScheduledTime] = useState('');
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+
+  const handleCancelJob = (jobId) => {
+    setScheduledJobs(prev =>
+      prev.map(job => job.id === jobId ? { ...job, status: 'Cancelled' } : job)
+    );
+    setSnackbarMessage('Cancellation Request Submitted.');
+    setSnackbarOpen(true);
+  };
+
+  const handleOpenReschedule = (job) => {
+    setSelectedJob(job);
+    setNewScheduledTime(job.scheduledTime);
+    setOpenDialog(true);
+  };
+
+  const handleSaveReschedule = () => {
+    setScheduledJobs(prev =>
+      prev.map(job => job.id === selectedJob.id ? { ...job, scheduledTime: newScheduledTime } : job)
+    );
+    setSnackbarMessage('Reschedule Request Submitted.');
+    setSnackbarOpen(true);
+    setOpenDialog(false);
+  };
+
+  return (
+    <Box sx={{ p: 4 }}>
+      <Typography variant="h4" sx={{ mb: 4, fontWeight: 'bold' }}>
+        Scheduled Jobs
+      </Typography>
+
+      <Paper sx={{ p: 3 }}>
+        <TableContainer>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell><strong>Client Name</strong></TableCell>
+                <TableCell><strong>Execution Name</strong></TableCell>
+                <TableCell><strong>Scheduled Time</strong></TableCell>
+                <TableCell><strong>Status</strong></TableCell>
+                <TableCell><strong>Actions</strong></TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {scheduledJobs.map((job) => (
+                <TableRow key={job.id}>
+                  <TableCell>{job.client}</TableCell>
+                  <TableCell>{job.executionName}</TableCell>
+                  <TableCell>{new Date(job.scheduledTime).toLocaleString()}</TableCell>
+                  <TableCell>{job.status}</TableCell>
+                  <TableCell>
+                    {job.status !== 'Cancelled' && (
+                      <>
+                        <Button 
+                          variant="outlined" 
+                          size="small" 
+                          sx={{ mr: 1 }} 
+                          onClick={() => handleOpenReschedule(job)}
+                        >
+                          Reschedule
+                        </Button>
+                        <Button 
+                          variant="outlined" 
+                          color="error" 
+                          size="small" 
+                          onClick={() => handleCancelJob(job.id)}
+                        >
+                          Cancel
+                        </Button>
+                      </>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
+
+      {/* Reschedule Dialog */}
+      <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
+        <DialogTitle>Reschedule Job</DialogTitle>
+        <DialogContent>
+          <TextField
+            label="New Scheduled Time"
+            type="datetime-local"
+            fullWidth
+            value={newScheduledTime}
+            onChange={(e) => setNewScheduledTime(e.target.value)}
+            InputLabelProps={{
+              shrink: true,
+            }}
+            sx={{ mt: 2 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
+          <Button onClick={handleSaveReschedule} variant="contained">Save</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar for Submit Success */}
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={3000}
+        onClose={() => setSnackbarOpen(false)}
+        message={snackbarMessage}
+      />
+    </Box>
+  );
+};
+
+export default ScheduledJobsPage;
+============================
+// src/components/ModelExecutionPanel.jsx
+import React, { useEffect, useState } from 'react';
+import { Box, Typography, Grid, Paper, Button, Chip, IconButton, Collapse } from '@mui/material';
+import { ExpandMore, ExpandLess } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
+
+const ModelExecutionPanel = () => {
+  const navigate = useNavigate();
+
+  const [jobStatusList, setJobStatusList] = useState([
+    {
+      jobId: 'Execution_RPT1',
+      status: 'Pending',
+      timeline: [],
+      expanded: false,
+    }
+  ]);
+
+  useEffect(() => {
+    // Simulate Timeline Events
+    const timeout1 = setTimeout(() => updateTimeline('Execution_RPT1', 'EventHub Request Submitted', 0.1), 1000);
+    const timeout2 = setTimeout(() => updateTimeline('Execution_RPT1', 'ADF Pipeline Triggered', 0.1), 3000);
+    const timeout3 = setTimeout(() => updateTimeline('Execution_RPT1', 'PySpark Job 1 Completed', 0.5), 5000);
+    const timeout4 = setTimeout(() => updateTimeline('Execution_RPT1', 'PySpark Job 2 Completed', 0.7, true), 7000);
+
+    return () => {
+      clearTimeout(timeout1);
+      clearTimeout(timeout2);
+      clearTimeout(timeout3);
+      clearTimeout(timeout4);
+    };
+  }, []);
+
+  const updateTimeline = (jobId, step, timeTaken, finalStep = false) => {
+    setJobStatusList(prevList => prevList.map(job => {
+      if (job.jobId === jobId) {
+        const updatedTimeline = [...job.timeline, { step, timeTaken }];
+        return {
+          ...job,
+          timeline: updatedTimeline,
+          status: finalStep ? 'Success' : job.status,
+        };
+      }
+      return job;
+    }));
+  };
+
+  const handleToggleExpand = (jobId) => {
+    setJobStatusList(prevList => prevList.map(job =>
+      job.jobId === jobId ? { ...job, expanded: !job.expanded } : job
+    ));
+  };
+
+  const handleViewOutput = (job) => {
+    navigate('/execution-dashboard', { state: { executionName: job.jobId, clientName: 'Client A0' } });
+  };
+
+  const getStatusColor = (status) => {
+    if (status === 'Pending') return 'default';
+    if (status === 'Success') return 'success';
+    return 'warning';
+  };
+
+  return (
+    <Box sx={{ p: 4 }}>
+      <Typography variant="h4" fontWeight="bold" sx={{ mb: 4 }}>
+        Model Execution Panel
+      </Typography>
+
+      <Paper elevation={3} sx={{ p: 3 }}>
+        {jobStatusList.length === 0 ? (
+          <Typography>No jobs found. Please create a model first.</Typography>
+        ) : (
+          <Grid container spacing={2}>
+            {jobStatusList.map((job, idx) => (
+              <Grid item xs={12} key={idx}>
+                <Paper sx={{ p: 2, mb: 2 }}>
+                  <Grid container alignItems="center" spacing={2}>
+                    <Grid item xs={2}>
+                      <Typography variant="subtitle1" fontWeight="bold">{job.jobId}</Typography>
+                    </Grid>
+                    <Grid item xs={2}>
+                      <IconButton onClick={() => handleToggleExpand(job.jobId)}>
+                        {job.expanded ? <ExpandLess /> : <ExpandMore />}
+                      </IconButton>
+                    </Grid>
+                    <Grid item xs={2}>
+                      <Chip label={job.status} color={getStatusColor(job.status)} />
+                    </Grid>
+                    <Grid item xs={3}>
+                      <Button
+                        variant="outlined"
+                        disabled={job.status !== 'Success'}
+                        onClick={() => handleViewOutput(job)}
+                      >
+                        View Output
+                      </Button>
+                    </Grid>
+                  </Grid>
+
+                  <Collapse in={job.expanded}>
+                    <Box sx={{ mt: 2, ml: 4 }}>
+                      {job.timeline.map((t, index) => (
+                        <Typography key={index} variant="body2" sx={{ mb: 1 }}>
+                          {t.step} - {t.timeTaken} sec
+                        </Typography>
+                      ))}
+                      {job.timeline.length > 0 && (
+                        <Typography variant="body2" fontWeight="bold" sx={{ mt: 2 }}>
+                          Total Execution Time: {job.timeline.reduce((acc, cur) => acc + cur.timeTaken, 0).toFixed(2)} sec
+                        </Typography>
+                      )}
+                    </Box>
+                  </Collapse>
+                </Paper>
+              </Grid>
+            ))}
+          </Grid>
+        )}
+      </Paper>
+
+      <Button variant="contained" color="secondary" sx={{ mt: 4 }} onClick={() => navigate('/')}>Back to Home</Button>
+    </Box>
+  );
+};
+
+export default ModelExecutionPanel;
+===============================
+// components/ConfirmationModal.jsx
+import React from 'react';
+import { Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions, Button } from '@mui/material';
+
+const ConfirmationModal = ({ open, onClose, onConfirm }) => {
+  return (
+    <Dialog open={open} onClose={onClose}>
+      <DialogTitle>Model Submitted</DialogTitle>
+      <DialogContent>
+        <DialogContentText>
+          Model has been successfully submitted. 
+          <br />
+          Do you want to proceed to the Model Execution Panel to track job execution?
+        </DialogContentText>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} color="secondary">No, Stay</Button>
+        <Button onClick={onConfirm} color="primary" variant="contained">Yes, Proceed</Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+export default ConfirmationModal;
+=============================
+// components/CreateRPTModel.jsx
+import React, { useState } from 'react';
+import {
+  Box, Typography, Grid, TextField, Button, MenuItem, Paper, Accordion, AccordionSummary, AccordionDetails, Dialog, DialogTitle, DialogContent, DialogActions, Switch, FormControlLabel
+} from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import { useNavigate } from 'react-router-dom';
+
+const CreateRPTModel = () => {
+  const navigate = useNavigate();
+
+  const [formData, setFormData] = useState({
+    clientName: '', version: '', outputDate: '', forecastYears: '',
+    biAlternative: '', biLogic: '', businessSegment: '', exchangeBased: '',
+    umContinuation: '', biGDefinition: '', specialtyDefinition: '', specialtyScripts: '',
+    customSpecialtyList: '', liftType: '', applyShifting: '', applyRebateCredit: '',
+    rebateDollar: '', jobExecutionDateTime: '', forecastDataRequired: 'Yes',
+  });
+
+  const [specialtyRebucketing, setSpecialtyRebucketing] = useState({
+    HepB: 'Non-Sp', HIV: 'Non-Sp', IVIG: 'Sp', Narcolepsy: 'Sp', Nausea: 'Sp', Transplant: 'Non-Sp', PCSK9: 'Non-Sp'
+  });
+
+  const [utilizationTypes, setUtilizationTypes] = useState({
+    OTC: 'Include', Vaccines: 'Include', Repackaged: 'Include', MSB: 'Include', TestStrips: 'Include'
+  });
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  const handleChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSpecialtyChange = (key, value) => {
+    setSpecialtyRebucketing(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleUtilizationChange = (key, value) => {
+    setUtilizationTypes(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleSubmit = () => {
+    const now = new Date();
+    const executionTime = new Date(formData.jobExecutionDateTime);
+    if (isNaN(executionTime)) {
+      alert('Invalid Job Execution Date & Time!');
+      return;
+    }
+    const diffMinutes = (executionTime - now) / (1000 * 60);
+    if (diffMinutes <= 10) {
+      setDialogOpen(true);
+    } else {
+      alert('Job Scheduled Successfully! Redirecting to Landing Page...');
+      navigate('/');
+    }
+  };
+
+  const handleDialogClose = (goToExecutionPanel) => {
+    setDialogOpen(false);
+    if (goToExecutionPanel) {
+      navigate('/model-execution-panel');
+    } else {
+      navigate('/');
+    }
+  };
+
+  return (
+    <Box sx={{ p: 4 }}>
+      <Typography variant="h4" fontWeight="bold" sx={{ mb: 4 }}>
+        Create New RPT Model
+      </Typography>
+
+      <Paper elevation={3} sx={{ p: 3 }}>
+        {/* Step 1: Client Information */}
+        <Accordion defaultExpanded>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography variant="h6">Step 1: Client Information</Typography></AccordionSummary>
+          <AccordionDetails>
+            <Grid container spacing={2}>
+              {['clientName', 'version', 'outputDate', 'forecastYears'].map((field, idx) => (
+                <Grid item xs={12} md={6} key={idx}>
+                  <TextField
+                    label={field.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+                    type={field.includes('Date') ? 'date' : 'text'}
+                    fullWidth
+                    InputLabelProps={field.includes('Date') ? { shrink: true } : {}}
+                    value={formData[field]}
+                    onChange={(e) => handleChange(field, e.target.value)}
+                  />
+                </Grid>
+              ))}
+            </Grid>
+          </AccordionDetails>
+        </Accordion>
+
+        {/* Step 2: Formulary Selection */}
+        <Accordion>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography variant="h6">Step 2: Formulary Selection</Typography></AccordionSummary>
+          <AccordionDetails>
+            <TextField label="Formulary List" fullWidth value="Premium-AMPcap 4UMs" disabled />
+          </AccordionDetails>
+        </Accordion>
+
+        {/* Step 3: Biosimilar Strategy */}
+        <Accordion>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography variant="h6">Step 3: Biosimilar Strategy</Typography></AccordionSummary>
+          <AccordionDetails>
+            <Grid container spacing={2}>
+              {['Strategy for Humira', 'Strategy for Stelara'].map((strategy, idx) => (
+                <Grid item xs={12} md={6} key={idx}>
+                  <FormControlLabel control={<Switch />} label={strategy} />
+                </Grid>
+              ))}
+            </Grid>
+          </AccordionDetails>
+        </Accordion>
+
+        {/* Step 4: Forecast Data Requirement */}
+        <Accordion>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography variant="h6">Step 4: Forecast Data Requirement</Typography></AccordionSummary>
+          <AccordionDetails>
+            <TextField
+              label="Forecast Data Required"
+              select
+              fullWidth
+              value={formData.forecastDataRequired}
+              onChange={(e) => handleChange('forecastDataRequired', e.target.value)}
+            >
+              <MenuItem value="Yes">Yes</MenuItem>
+              <MenuItem value="No">No</MenuItem>
+            </TextField>
+          </AccordionDetails>
+        </Accordion>
+
+        {/* Step 5: Model Inputs */}
+        <Accordion>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography variant="h6">Step 5: Model Inputs</Typography></AccordionSummary>
+          <AccordionDetails>
+            <Grid container spacing={2}>
+              {['businessSegment', 'exchangeBased', 'umContinuation', 'biGDefinition', 'specialtyDefinition', 'specialtyScripts', 'customSpecialtyList', 'liftType', 'applyShifting', 'applyRebateCredit', 'rebateDollar'].map((field, idx) => (
+                <Grid item xs={12} md={6} key={idx}>
+                  <TextField
+                    label={field.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+                    fullWidth
+                    value={formData[field]}
+                    onChange={(e) => handleChange(field, e.target.value)}
+                  />
+                </Grid>
+              ))}
+
+              {/* Specialty Rebucketing */}
+              <Grid item xs={12}><Typography variant="subtitle1">Specialty Rebucketing:</Typography></Grid>
+              {Object.keys(specialtyRebucketing).map((key, idx) => (
+                <Grid item xs={6} md={4} key={idx}>
+                  <TextField
+                    select
+                    label={key}
+                    fullWidth
+                    value={specialtyRebucketing[key]}
+                    onChange={(e) => handleSpecialtyChange(key, e.target.value)}
+                  >
+                    <MenuItem value="Sp">Sp</MenuItem>
+                    <MenuItem value="Non-Sp">Non-Sp</MenuItem>
+                  </TextField>
+                </Grid>
+              ))}
+
+              {/* Utilization Types */}
+              <Grid item xs={12}><Typography variant="subtitle1">Utilization Types:</Typography></Grid>
+              {Object.keys(utilizationTypes).map((key, idx) => (
+                <Grid item xs={6} md={4} key={idx}>
+                  <TextField
+                    select
+                    label={key}
+                    fullWidth
+                    value={utilizationTypes[key]}
+                    onChange={(e) => handleUtilizationChange(key, e.target.value)}
+                  >
+                    <MenuItem value="Include">Include</MenuItem>
+                    <MenuItem value="Exclude">Exclude</MenuItem>
+                  </TextField>
+                </Grid>
+              ))}
+            </Grid>
+          </AccordionDetails>
+        </Accordion>
+
+        {/* Step 6: Job Execution Details */}
+        <Accordion>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}><Typography variant="h6">Step 6: Job Execution Details</Typography></AccordionSummary>
+          <AccordionDetails>
+            <TextField
+              label="Job Execution Date & Time"
+              type="datetime-local"
+              fullWidth
+              InputLabelProps={{ shrink: true }}
+              value={formData.jobExecutionDateTime}
+              onChange={(e) => handleChange('jobExecutionDateTime', e.target.value)}
+            />
+          </AccordionDetails>
+        </Accordion>
+
+        {/* Submit */}
+        <Box sx={{ mt: 4, textAlign: 'center' }}>
+          <Button variant="contained" size="large" onClick={handleSubmit}>
+            Submit Model
+          </Button>
+        </Box>
+      </Paper>
+
+      {/* Immediate Job Dialog */}
+      <Dialog open={dialogOpen} onClose={() => handleDialogClose(false)}>
+        <DialogTitle>Job Execution Confirmation</DialogTitle>
+        <DialogContent>
+          <Typography variant="body1">
+            This job is scheduled to run now or very soon. Would you like to view the Model Execution Panel?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => handleDialogClose(false)} color="secondary">
+            No, Go to Landing
+          </Button>
+          <Button onClick={() => handleDialogClose(true)} color="primary" autoFocus>
+            Yes, Go to Model Execution Panel
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+};
+
+export default CreateRPTModel;
+===================================
+// components/LandingPage.jsx
+import React, { useState } from 'react';
+import {
+  Box, Typography, Grid, Card, CardContent, TextField, Table, TableBody, TableCell,
+  TableContainer, TableHead, TableRow, Paper, IconButton, TablePagination, Menu, MenuItem, Snackbar
+} from '@mui/material';
+import { useNavigate } from 'react-router-dom';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
+
+const widgetData = [
+  { label: 'In Progress', count: 1, route: '/model-execution-panel' },
+  { label: 'Completed', count: 5, route: null },
+  { label: 'Scheduled', count: 2, route: '/scheduled-jobs' },
+  { label: 'UnderwritingDashboard', count: 6, route: '/pbm-others' },
+  { label: 'Bulk Submissions', count: 0, route: null },
+  { label: 'Formula Management', count: 0, route: null },
+];
+
+const dummyClients = Array.from({ length: 20 }).map((_, idx) => ({
+  clientName: `Client ${String.fromCharCode(65 + (idx % 26))}${idx}`,
+  businessSegment: idx % 2 === 0 ? 'Commercial' : 'Medicaid',
+  exchange: idx % 2 === 0 ? 'NYSE' : 'NASDAQ',
+  biAlternative: idx % 2 === 0 ? 'Alt1' : 'Alt2',
+  executions: [`Execution_RPT${idx + 1}`, `Execution_RPT${idx + 2}`],
+}));
+
+const LandingPage = () => {
+  const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [openClient, setOpenClient] = useState({});
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+
+  const handleSearchChange = (e) => setSearchQuery(e.target.value);
+
+  const handleMenuClick = (event) => setAnchorEl(event.currentTarget);
+
+  const handleMenuClose = () => setAnchorEl(null);
+
+  const filteredClients = dummyClients.filter(client =>
+    client.clientName.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const handleChangePage = (event, newPage) => setPage(newPage);
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  const toggleClient = (clientName) => {
+    setOpenClient(prev => ({ ...prev, [clientName]: !prev[clientName] }));
+  };
+
+  const handleExecutionClick = (executionName, clientName) => {
+    navigate('/execution-dashboard', { state: { executionName, clientName } });
+  };
+
+  const handleWidgetClick = (widget) => {
+    if (widget.route) {
+      navigate(widget.route);
+    } else {
+      setSnackbarOpen(true);
+    }
+  };
+
+  return (
+    <Box sx={{ p: 4 }}>
+      <Typography variant="h4" fontWeight="bold" gutterBottom>
+        REBATE PROCESSING ENGINE
+      </Typography>
+
+      {/* Widgets */}
+      <Grid container spacing={2} sx={{ mb: 4 }}>
+        {widgetData.map((widget, idx) => (
+          <Grid item xs={12} sm={6} md={2} key={idx}>
+            <Card
+              sx={{ height: 100, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+              onClick={() => handleWidgetClick(widget)}
+            >
+              <CardContent sx={{ textAlign: 'center' }}>
+                <Typography variant="subtitle1" fontWeight="bold">{widget.label}</Typography>
+                <Typography variant="h6" color="primary">{widget.count}</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+
+      {/* Search Field */}
+      <TextField
+        label="Search Clients"
+        variant="outlined"
+        value={searchQuery}
+        onChange={handleSearchChange}
+        fullWidth
+        sx={{ mb: 3 }}
+      />
+
+      {/* Client Table */}
+      <TableContainer component={Paper}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell />
+              <TableCell>Client Name</TableCell>
+              <TableCell>Business Segment</TableCell>
+              <TableCell>Exchange</TableCell>
+              <TableCell>BI/Alternative</TableCell>
+              <TableCell>Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {filteredClients.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((client, idx) => (
+              <React.Fragment key={idx}>
+                <TableRow>
+                  <TableCell>
+                    <IconButton size="small" onClick={() => toggleClient(client.clientName)}>
+                      {openClient[client.clientName] ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
+                    </IconButton>
+                  </TableCell>
+                  <TableCell>{client.clientName}</TableCell>
+                  <TableCell>{client.businessSegment}</TableCell>
+                  <TableCell>{client.exchange}</TableCell>
+                  <TableCell>{client.biAlternative}</TableCell>
+                  <TableCell>
+                    <IconButton size="small" onClick={handleMenuClick}>
+                      <MoreVertIcon />
+                    </IconButton>
+                    <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
+                      <MenuItem onClick={() => { navigate('/create-model'); handleMenuClose(); }}>
+                        Create New Model
+                      </MenuItem>
+                      <MenuItem onClick={handleMenuClose}>Export</MenuItem>
+                    </Menu>
+                  </TableCell>
+                </TableRow>
+
+                {/* Expand Executions */}
+                {openClient[client.clientName] && client.executions.map((execution, eIdx) => (
+                  <TableRow key={eIdx}>
+                    <TableCell />
+                    <TableCell colSpan={5}>
+                      <Typography
+                        variant="body2"
+                        color="primary"
+                        sx={{ cursor: 'pointer', pl: 4 }}
+                        onClick={() => handleExecutionClick(execution, client.clientName)}
+                      >
+                        {execution}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </React.Fragment>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      {/* Pagination */}
+      <TablePagination
+        component="div"
+        count={filteredClients.length}
+        page={page}
+        onPageChange={handleChangePage}
+        rowsPerPage={rowsPerPage}
+        onRowsPerPageChange={handleChangeRowsPerPage}
+        rowsPerPageOptions={[5, 10, 15]}
+      />
+
+      {/* Snackbar for Coming Soon */}
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={3000}
+        onClose={() => setSnackbarOpen(false)}
+        message="Coming Soon!"
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
+    </Box>
+  );
+};
+
+export default LandingPage;
+======================================
+// PreShiftDashboard.jsx
+import React from 'react';
+import { Box, Typography, Paper } from '@mui/material';
+import { DataGrid } from '@mui/x-data-grid';
+
+// Define years
+const years = ['2025', '2026', '2027', '2028', '2029'];
+
+// Define channels
+const channels = [
+  { id: 1, channel: 'Retail 30' },
+  { id: 2, channel: 'Retail 90' },
+  { id: 3, channel: 'Mail' },
+  { id: 4, channel: 'Specialty' },
+  { id: 5, channel: 'Total' },
+];
+
+// Define sections
+const sections = ['Base', 'MAF', 'PPL', 'PPA', 'Total Rebates'];
+
+// Generate columns dynamically
+const generateColumns = () => [
+  {
+    field: 'channel',
+    headerName: 'Channel',
+    width: 140,
+    headerAlign: 'center',
+    align: 'left',
+    sortable: false,
+    disableColumnMenu: true,
+    editable: false, // optional
+  },
+  ...years.map((year) => ({
+    field: year,
+    headerName: year,
+    width: 120,
+    headerAlign: 'center',
+    align: 'center',
+    sortable: false,
+    disableColumnMenu: true,
+    editable: true, // optional
+  })),
+];
+
+// Generate dummy row data
+const generateRows = () =>
+  channels.map((c) => ({
+    id: c.id,
+    channel: c.channel,
+    '2025': '$0.00',
+    '2026': '$0.00',
+    '2027': '$0.00',
+    '2028': '$0.00',
+    '2029': '$0.00',
+  }));
+
+// Grid Block - 3 DataGrids side by side
+const GridBlock = () => (
+  <Box sx={{ display: 'flex', gap: 2, width: '100%' }}>
+    {/* Total $ */}
+    <Paper elevation={3} sx={{ flex: 1 }}>
+      <Typography
+        variant="subtitle1"
+        align="center"
+        sx={{
+          backgroundColor: '#F28C28',
+          color: '#fff',
+          py: 1,
+          fontWeight: 'bold',
+          borderTopLeftRadius: 4,
+          borderTopRightRadius: 4,
+        }}
+      >
+        Total $
+      </Typography>
+      <DataGrid
+        columns={generateColumns()}
+        rows={generateRows()}
+        autoHeight
+        hideFooter
+        disableColumnMenu
+        disableSelectionOnClick
+        headerHeight={60}
+        sx={{
+          '& .MuiDataGrid-columnHeaders': {
+            backgroundColor: '#F28C28',
+            color: '#fff',
+            fontWeight: 'bold',
+            fontSize: '16px',
+            whiteSpace: 'normal',
+            lineHeight: '1.2',
+            minHeight: '60px',
+          },
+          '& .MuiDataGrid-columnHeaderTitle': {
+            fontWeight: 'bold',
+            color: '#fff', // 👈 Force title text to white
+            textOverflow: 'unset',
+            whiteSpace: 'normal',
+            overflow: 'visible',
+            lineHeight: '1.2',
+            backgroundColor: '#F28C28',
+          },
+          '& .MuiDataGrid-cell': {
+            borderBottom: '1px solid #e0e0e0',
+          },
+          '& .MuiDataGrid-row': {
+            borderBottom: '1px solid #e0e0e0',
+          },
+        }}
+      />
+    </Paper>
+
+    {/* Per Brand Script */}
+    <Paper elevation={3} sx={{ flex: 1 }}>
+      <Typography
+        variant="subtitle1"
+        align="center"
+        sx={{
+          backgroundColor: '#F28C28',
+          color: '#fff',
+          py: 1,
+          fontWeight: 'bold',
+          borderTopLeftRadius: 4,
+          borderTopRightRadius: 4,
+        }}
+      >
+        Per Brand Script
+      </Typography>
+      <DataGrid
+        columns={generateColumns()}
+        rows={generateRows()}
+        autoHeight
+        hideFooter
+        disableColumnMenu
+        disableSelectionOnClick
+        headerHeight={60}
+        sx={{
+          '& .MuiDataGrid-columnHeaders': {
+            backgroundColor: '#F28C28',
+            color: '#fff',
+            fontWeight: 'bold',
+            fontSize: '16px',
+            whiteSpace: 'normal',
+            lineHeight: '1.2',
+            minHeight: '60px',
+          },
+          '& .MuiDataGrid-columnHeaderTitle': {
+            fontWeight: 'bold',
+            color: '#fff',
+            textOverflow: 'unset',
+            whiteSpace: 'normal',
+            overflow: 'visible',
+            lineHeight: '1.2',
+            backgroundColor: '#F28C28',
+          },
+          '& .MuiDataGrid-cell': {
+            borderBottom: '1px solid #e0e0e0',
+          },
+          '& .MuiDataGrid-row': {
+            borderBottom: '1px solid #e0e0e0',
+          },
+        }}
+      />
+    </Paper>
+
+    {/* Per Total Script */}
+    <Paper elevation={3} sx={{ flex: 1 }}>
+      <Typography
+        variant="subtitle1"
+        align="center"
+        sx={{
+          backgroundColor: '#F28C28',
+          color: '#fff',
+          py: 1,
+          fontWeight: 'bold',
+          borderTopLeftRadius: 4,
+          borderTopRightRadius: 4,
+        }}
+      >
+        Per Total Script
+      </Typography>
+      <DataGrid
+        columns={generateColumns()}
+        rows={generateRows()}
+        autoHeight
+        hideFooter
+        disableColumnMenu
+        disableSelectionOnClick
+        headerHeight={60}
+        sx={{
+          '& .MuiDataGrid-columnHeaders': {
+            backgroundColor: '#F28C28',
+            color: '#fff',
+            fontWeight: 'bold',
+            fontSize: '16px',
+            whiteSpace: 'normal',
+            lineHeight: '1.2',
+            minHeight: '60px',
+          },
+          '& .MuiDataGrid-columnHeaderTitle': {
+            fontWeight: 'bold',
+            color: '#fff',
+            textOverflow: 'unset',
+            whiteSpace: 'normal',
+            overflow: 'visible',
+            lineHeight: '1.2',
+            backgroundColor: '#F28C28',
+          },
+          '& .MuiDataGrid-cell': {
+            borderBottom: '1px solid #e0e0e0',
+          },
+          '& .MuiDataGrid-row': {
+            borderBottom: '1px solid #e0e0e0',
+          },
+        }}
+      />
+    </Paper>
+  </Box>
+);
+
+// PreShiftDashboard - Complete Layout
+const PreShiftDashboard = () => {
+  return (
+    <Box sx={{ p: 4, backgroundColor: '#fafafa', minHeight: '100vh' }}>
+      <Typography variant="h4" gutterBottom fontWeight="bold">
+        Pre-Shift
+      </Typography>
+
+      {sections.map((sectionTitle) => (
+        <Box key={sectionTitle} sx={{ mb: 8 }}>
+          <Typography
+            variant="h5"
+            sx={{
+              backgroundColor: '#F28C28',
+              color: '#fff',
+              py: 1.5,
+              px: 3,
+              borderRadius: 2,
+              mb: 3,
+              fontWeight: 'bold',
+            }}
+          >
+            {sectionTitle}
+          </Typography>
+          <GridBlock />
+        </Box>
+      ))}
+    </Box>
+  );
+};
+
+export default PreShiftDashboard;
+==========================================
+// PBMUnderwritingDashboard.jsx
+
+import React, { useState } from "react";
+import { Tabs, Tab, Box, Typography, Container } from "@mui/material";
+import GroupedDashboardRenderer from "./GroupedDashboardRenderer";
+
+const tabLabels = [
+  "Performance Summary",
+  "Brand vs Generic Intelligence",
+  "Rebate & Pricing",
+  "High-Cost & Specialty Risk",
+  "Contract Compliance",
+  "Scenario Simulation"
+];
+
+export default function PBMUnderwritingDashboard() {
+  const [activeTab, setActiveTab] = useState(0);
+
+  return (
+    <Container maxWidth="xl" sx={{ mt: 4 }}>
+      <Box>
+        <Typography variant="h4" fontWeight="bold" gutterBottom>
+          PBM Underwriting Intelligence Dashboard
+        </Typography>
+
+        <Tabs
+          value={activeTab}
+          onChange={(e, newVal) => setActiveTab(newVal)}
+          variant="scrollable"
+          scrollButtons="auto"
+          aria-label="Dashboard Tabs"
+        >
+          {tabLabels.map((label, index) => (
+            <Tab key={index} label={label} />
+          ))}
+        </Tabs>
+
+        <Box sx={{ mt: 4 }}>
+          <GroupedDashboardRenderer activeGroup={tabLabels[activeTab]} />
+        </Box>
+      </Box>
+    </Container>
+  );
+}
+=================
+// GroupedDashboardRenderer.jsx (UPDATED to include all 20 panels across 6 tabs)
+
+import React from "react";
+import { Box, Typography, Grid } from "@mui/material";
+import {
+  PerformanceSummaryPanels,
+  BrandVsGenericPanels,
+  RebatePricingPanels,
+  HighCostSpecialtyPanels,
+  ContractCompliancePanels,
+  SimulationPanels,
+  ContractualPenaltyRiskPanel,
+  ScriptUtilizationImpactPanel,
+  PlanMigrationEstimatorPanel,
+  MemberImpactTrackerPanel
+} from "./PanelUIBlocks";
+
+export default function GroupedDashboardRenderer({ activeGroup }) {
+  const renderGroup = () => {
+    switch (activeGroup) {
+      case "Performance Summary":
+        return <PerformanceSummaryPanels />;
+      case "Brand vs Generic Intelligence":
+        return (
+          <>
+            <BrandVsGenericPanels />
+            <ScriptUtilizationImpactPanel />
+          </>
+        );
+      case "Rebate & Pricing":
+        return <RebatePricingPanels />;
+      case "High-Cost & Specialty Risk":
+        return <HighCostSpecialtyPanels />;
+      case "Contract Compliance":
+        return (
+          <>
+            <ContractCompliancePanels />
+            <ContractualPenaltyRiskPanel />
+          </>
+        );
+      case "Scenario Simulation":
+        return (
+          <>
+            <SimulationPanels />
+            <PlanMigrationEstimatorPanel />
+            <MemberImpactTrackerPanel />
+          </>
+        );
+      default:
+        return (
+          <Typography variant="body1" color="text.secondary">
+            No dashboard selected.
+          </Typography>
+        );
+    }
+  };
+
+  return (
+    <Box sx={{ width: "100%", mt: 3 }}>
+      <Grid container spacing={3}>{renderGroup()}</Grid>
+    </Box>
+  );
+}
+============================================================
+// PanelUIBlocks.jsx (Part 3 of 4)
+
+import React from "react";
+import { Grid, Card, CardContent, Typography, Box } from "@mui/material";
+import { Line, Bar, Pie } from "react-chartjs-2";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  PointElement,
+  LineElement,
+  ArcElement,
+  Tooltip,
+  Legend,
+} from "chart.js";
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  PointElement,
+  LineElement,
+  ArcElement,
+  Tooltip,
+  Legend
+);
+
+// 🔹 Utility tile component
+const Tile = ({ title, value, subtitle }) => (
+  <Card elevation={3} sx={{ height: "100%" }}>
+    <CardContent>
+      <Typography variant="subtitle2" color="text.secondary">{title}</Typography>
+      <Typography variant="h5" fontWeight={600}>{value}</Typography>
+      <Typography variant="caption" color="text.secondary">{subtitle}</Typography>
+    </CardContent>
+  </Card>
+);
+
+// 🔹 Utility chart wrapper
+const ChartCard = ({ title, children }) => (
+  <Card elevation={3} sx={{ height: 360 }}>
+    <CardContent>
+      <Typography variant="subtitle1" gutterBottom>{title}</Typography>
+      <Box sx={{ height: 280 }}>{children}</Box>
+    </CardContent>
+  </Card>
+);
+
+export const PerformanceSummaryPanels = () => (
+  <Box sx={{ mt: 3 }}>
+    <Typography variant="h6" gutterBottom>Client Performance Summary</Typography>
+    <Grid container spacing={3}>
+      <Grid item xs={12} sm={6} md={3}><Tile title="PMPM (Actual)" value="$72.85" subtitle="Target: $70.00" /></Grid>
+      <Grid item xs={12} sm={6} md={3}><Tile title="GDR (%)" value="86.2%" subtitle="Target: 88%" /></Grid>
+      <Grid item xs={12} sm={6} md={3}><Tile title="Rebate PMPM" value="$92.45" subtitle="Retail: $78.5, Specialty: $123.4" /></Grid>
+      <Grid item xs={12} sm={6} md={3}><Tile title="Specialty Drug %" value="33.4%" subtitle="Watch zone: High-cost risk" /></Grid>
+
+      <Grid item xs={12}>
+        <ChartCard title="PMPM Trend (12 Months)">
+          <Line
+            data={{
+              labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+              datasets: [{
+                label: "PMPM",
+                data: [70, 71.5, 72.2, 71.8, 72.4, 72.85, 73, 72.7, 72.3, 72.9, 73.2, 73.5],
+                borderColor: "#1976d2",
+                backgroundColor: "#1976d2",
+                tension: 0.4,
+              }]
+            }}
+            options={{ responsive: true, maintainAspectRatio: false }}
+          />
+        </ChartCard>
+      </Grid>
+    </Grid>
+  </Box>
+);
+
+export const BrandVsGenericPanels = () => (
+  <Box sx={{ mt: 6 }}>
+    <Typography variant="h6" gutterBottom>Brand vs Generic Intelligence</Typography>
+    <Grid container spacing={3}>
+      <Grid item xs={12} sm={6}><Tile title="Brand-to-Generic Switch Tracker" value="12 Drugs" subtitle="Top: Lipitor → Atorvastatin" /></Grid>
+      <Grid item xs={12} sm={6}><Tile title="Net Cost per Drug Class" value="$135 vs $12" subtitle="Brand vs Generic (Diabetes)" /></Grid>
+
+      <Grid item xs={12} md={6}>
+        <ChartCard title="GDR Trend YoY">
+          <Line
+            data={{
+              labels: ["2019", "2020", "2021", "2022", "2023", "2024"],
+              datasets: [{
+                label: "GDR %",
+                data: [81.5, 82.2, 83.8, 84.5, 85.7, 86.2],
+                borderColor: "#2e7d32",
+                backgroundColor: "#2e7d32",
+                tension: 0.3
+              }]
+            }}
+            options={{ responsive: true, maintainAspectRatio: false }}
+          />
+        </ChartCard>
+      </Grid>
+
+      <Grid item xs={12} md={6}>
+        <ChartCard title="Brand vs Generic Mix (%)">
+          <Pie
+            data={{
+              labels: ["Generic Scripts", "Brand Scripts"],
+              datasets: [{
+                data: [86.2, 13.8],
+                backgroundColor: ["#4caf50", "#ef5350"]
+              }]
+            }}
+            options={{ responsive: true, maintainAspectRatio: false }}
+          />
+        </ChartCard>
+      </Grid>
+    </Grid>
+  </Box>
+);
+
+export const RebatePricingPanels = () => (
+  <Box sx={{ mt: 6 }}>
+    <Typography variant="h6" gutterBottom>Rebate & Pricing Dashboard</Typography>
+    <Grid container spacing={3}>
+      <Grid item xs={12} sm={6}><Tile title="Rebate Guarantee vs Actual" value="$90 vs $92.45" subtitle="Surplus: $2.45 PMPM" /></Grid>
+      <Grid item xs={12} sm={6}><Tile title="AWP Inflation" value="+8.6%" subtitle="Top Class: Oncology" /></Grid>
+
+      <Grid item xs={12}>
+        <ChartCard title="Rebate Yield by Channel">
+          <Bar
+            data={{
+              labels: ["Retail", "Mail", "Specialty"],
+              datasets: [{
+                label: "Rebate PMPM",
+                data: [78.5, 96.1, 123.4],
+                backgroundColor: "#0288d1"
+              }]
+            }}
+            options={{ responsive: true, maintainAspectRatio: false }}
+          />
+        </ChartCard>
+      </Grid>
+    </Grid>
+  </Box>
+);
+export const HighCostSpecialtyPanels = () => (
+    <Box sx={{ mt: 6 }}>
+      <Typography variant="h6" gutterBottom>High-Cost Claimants & Specialty Spend</Typography>
+      <Grid container spacing={3}>
+        <Grid item xs={12} sm={6}><Tile title="High-Cost Claimants" value="18 Members" subtitle=">$100K/year spend" /></Grid>
+        <Grid item xs={12} sm={6}><Tile title="Avg Cost per HCC" value="$198,234" subtitle="↑ from $175K last year" /></Grid>
+  
+        <Grid item xs={12}>
+          <ChartCard title="Top Specialty Drug Costs">
+            <Bar
+              data={{
+                labels: ["Humira", "Ozempic", "Revlimid", "Skyrizi"],
+                datasets: [{
+                  label: "Avg Annual Cost",
+                  data: [15000, 18300, 20000, 22000],
+                  backgroundColor: "#d32f2f"
+                }]
+              }}
+              options={{ responsive: true, maintainAspectRatio: false }}
+            />
+          </ChartCard>
+        </Grid>
+      </Grid>
+    </Box>
+  );
+  
+  export const ContractCompliancePanels = () => (
+    <Box sx={{ mt: 6 }}>
+      <Typography variant="h6" gutterBottom>Contract Compliance & Admin Audit</Typography>
+      <Grid container spacing={3}>
+        <Grid item xs={12} sm={6}><Tile title="GDR Compliance" value="86.2%" subtitle="Target: 88.0%" /></Grid>
+        <Grid item xs={12} sm={6}><Tile title="MAC Compliance" value="93.6%" subtitle="Target: 95%" /></Grid>
+        <Grid item xs={12} sm={6}><Tile title="Admin Fee Audit" value="$5.15 vs $5.00" subtitle="Exceeded contract by $0.15 PMPM" /></Grid>
+  
+        <Grid item xs={12}>
+          <ChartCard title="Compliance Trends">
+            <Bar
+              data={{
+                labels: ["GDR", "MAC", "Admin Fee"],
+                datasets: [{
+                  label: "Compliance %",
+                  data: [86.2, 93.6, 97.0],
+                  backgroundColor: ["#43a047", "#29b6f6", "#f9a825"]
+                }]
+              }}
+              options={{ responsive: true, maintainAspectRatio: false }}
+            />
+          </ChartCard>
+        </Grid>
+      </Grid>
+    </Box>
+  );
+  
+  export const SimulationPanels = () => (
+    <Box sx={{ mt: 6 }}>
+      <Typography variant="h6" gutterBottom>Scenario Simulation & Plan Modeling</Typography>
+      <Grid container spacing={3}>
+        <Grid item xs={12} sm={6}><Tile title="Scenario A: Higher GDR" value="$69.30 PMPM" subtitle="GDR: 88%" /></Grid>
+        <Grid item xs={12} sm={6}><Tile title="Scenario B: Tier Shift" value="$68.10 PMPM" subtitle="More brands tiered up" /></Grid>
+        <Grid item xs={12} sm={6}><Tile title="Scenario C: Copay Adjust" value="$67.40 PMPM" subtitle="Member shift to generics" /></Grid>
+  
+        <Grid item xs={12}>
+          <ChartCard title="Scenario Comparison (PMPM)">
+            <Bar
+              data={{
+                labels: ["Current", "Higher GDR", "Tier Shift", "Copay Adjust"],
+                datasets: [{
+                  label: "Projected PMPM",
+                  data: [72.85, 69.3, 68.1, 67.4],
+                  backgroundColor: "#7b1fa2"
+                }]
+              }}
+              options={{ responsive: true, maintainAspectRatio: false }}
+            />
+          </ChartCard>
+        </Grid>
+      </Grid>
+    </Box>
+  );
+  export const ContractualPenaltyRiskPanel = () => (
+    <Box sx={{ mt: 6 }}>
+      <Typography variant="h6" gutterBottom>Contractual Penalty Risk</Typography>
+      <Grid container spacing={3}>
+        <Grid item xs={12} sm={6}><Tile title="GDR Target Breach" value="Yes" subtitle="Below 88% target – penalty may apply" /></Grid>
+        <Grid item xs={12} sm={6}><Tile title="Admin Cap Breach" value="Yes" subtitle="Exceeded $0.15 PMPM – alert triggered" /></Grid>
+        <Grid item xs={12}>
+          <ChartCard title="Penalty Risk Indicators">
+            <Bar
+              data={{
+                labels: ["GDR", "MAC", "Admin"],
+                datasets: [{
+                  label: "% Below Compliance",
+                  data: [1.8, 1.4, 3.0],
+                  backgroundColor: ["#ef5350", "#ffb300", "#d32f2f"]
+                }]
+              }}
+              options={{ responsive: true, maintainAspectRatio: false }}
+            />
+          </ChartCard>
+        </Grid>
+      </Grid>
+    </Box>
+  );
+  
+  export const ScriptUtilizationImpactPanel = () => (
+    <Box sx={{ mt: 6 }}>
+      <Typography variant="h6" gutterBottom>Script Utilization Impact</Typography>
+      <Grid container spacing={3}>
+        <Grid item xs={12} sm={6}><Tile title="Top Utilized Brand" value="Humira" subtitle="High-cost, low GDR" /></Grid>
+        <Grid item xs={12} sm={6}><Tile title="Script Volume Risk" value="Moderate" subtitle="Brand-to-generic migration pending" /></Grid>
+        <Grid item xs={12}>
+          <ChartCard title="Script Volume vs Net Cost">
+            <Bar
+              data={{
+                labels: ["Humira", "Ozempic", "Jardiance", "Xeljanz"],
+                datasets: [{
+                  label: "Scripts",
+                  data: [720, 610, 430, 290],
+                  backgroundColor: "#42a5f5"
+                }, {
+                  label: "Net Cost",
+                  data: [19000, 16000, 14500, 12000],
+                  type: 'line',
+                  borderColor: "#ef5350",
+                  tension: 0.3
+                }]
+              }}
+              options={{ responsive: true, maintainAspectRatio: false }}
+            />
+          </ChartCard>
+        </Grid>
+      </Grid>
+    </Box>
+  );
+  
+  export const PlanMigrationEstimatorPanel = () => (
+    <Box sx={{ mt: 6 }}>
+      <Typography variant="h6" gutterBottom>Plan Migration Estimator</Typography>
+      <Grid container spacing={3}>
+        <Grid item xs={12} sm={6}><Tile title="Estimated Migration" value="28%" subtitle="Members shifting to lower-cost plan" /></Grid>
+        <Grid item xs={12} sm={6}><Tile title="Avg Savings per Migrated Member" value="$312/year" subtitle="Net of copay and PMPM adjustments" /></Grid>
+        <Grid item xs={12}>
+          <ChartCard title="Plan Tier Migration Breakdown">
+            <Pie
+              data={{
+                labels: ["Remain on Current Plan", "Move to Lower Cost", "Opt Out"],
+                datasets: [{
+                  data: [72, 24, 4],
+                  backgroundColor: ["#4caf50", "#ffb300", "#e53935"]
+                }]
+              }}
+              options={{ responsive: true, maintainAspectRatio: false }}
+            />
+          </ChartCard>
+        </Grid>
+      </Grid>
+    </Box>
+  );
+  
+  export const MemberImpactTrackerPanel = () => (
+    <Box sx={{ mt: 6 }}>
+      <Typography variant="h6" gutterBottom>Member Impact Tracker</Typography>
+      <Grid container spacing={3}>
+        <Grid item xs={12} sm={6}><Tile title="Affected Members" value="34" subtitle="Impacted by brand-to-generic switch" /></Grid>
+        <Grid item xs={12} sm={6}><Tile title="Avg Copay Savings" value="$21/month" subtitle="Across 3 major drug classes" /></Grid>
+        <Grid item xs={12}>
+          <ChartCard title="Member Cost Change Distribution">
+            <Bar
+              data={{
+                labels: ["Saved $0–$10", "$10–$20", "$20–$50", ">$50"],
+                datasets: [{
+                  label: "Member Count",
+                  data: [8, 12, 10, 4],
+                  backgroundColor: "#7e57c2"
+                }]
+              }}
+              options={{ responsive: true, maintainAspectRatio: false }}
+            />
+          </ChartCard>
+        </Grid>
+      </Grid>
+    </Box>
+  );  
+======================
+
+
+
+
+
+
