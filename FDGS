@@ -1,0 +1,862 @@
+import React from 'react';
+import {
+  Paper, Box, Typography, Button, Accordion,
+  AccordionSummary, AccordionDetails, Grid
+} from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+
+// Data Definitions
+const sections = [
+  {
+    section: 'PPT Information',
+    fields: [
+      'PPT Version', 'PPT ID', 'PPT Run Date', 'PPT Repository Location',
+      'PPT Model Year 1', 'PPT Model Year 2', 'PPT Model Year 3',
+      'PPT Model Year 4', 'PPT Model Year 5',
+      'Base Start Date', 'Base End Date',
+      'Client Name', 'Line of Business',
+    ]
+  },
+  {
+    section: 'Exclusions',
+    fields: [
+      'Exclusions - OTCs', 'Exclusions - Devices', 'Exclusions - Vaccines',
+      'Exclusions - MSBs', 'Exclusions - Test Strips', 'Exclusions - Insulin',
+      'Exclusions - Non FDA Approved', 'Exclusions - LDD', 'Exclusions - Institutional NDCs',
+      'Exclusions - Formulary Exclusions', 'Exclusions - Synthroid', 'Exclusions - PCSK9',
+      'Exclusions - HIV', 'Exclusions - Non-Rebatable', 'Exclusions - Custom NDC List',
+      'Exclusions - Custom NDC List Desc', 'Exclusions - [Placeholder]'
+    ]
+  },
+  {
+    section: 'Specialty Rebucketing',
+    fields: [
+      'Specialty Rebucketing - Hep B', 'Specialty Rebucketing - HIV',
+      'Specialty Rebucketing - MIG', 'Specialty Rebucketing - Narcolepsy',
+      'Specialty Rebucketing - Nausea', 'Specialty Rebucketing - Transplant',
+      'Specialty Rebucketing - PCSK9', 'Specialty Rebucketing - [Placeholder]'
+    ]
+  },
+  {
+    section: 'ABA UM',
+    fields: [
+      'ABA UM - Misc', 'ABA UM - Respiratory', 'ABA UM - Specialty', 'ABA UM - [Placeholder]'
+    ]
+  },
+  {
+    section: 'Other Details',
+    fields: [
+      'Specialty List', 'B/G Definition', 'Lift Type', 'Shifting'
+    ]
+  }
+];
+
+const vectors = [
+  {
+    name: 'Vector 1',
+    data: [
+      'PPT 2025.01.10 v21.0g', 'PPT2410011536224HA8N', '00/1/00', 'N/A',
+      '2025', '2026', '2027', '2028', '2029',
+      '01/01/2025', '12/31/2029',
+      'Client A0', 'Commercial',
+      // Exclusions
+      'None', 'Include', 'Include', 'Include', 'Include', 'Include',
+      'Include', 'Include', 'Include', 'Include', 'Include',
+      'Include', 'Include', 'Include', 'Include', 'N/A', 'N/A',
+      // Specialty Rebucketing
+      'Hep B, HIV, Transplant, PCSK9', 'Non-Sp', 'Non-Sp', 'Sp',
+      'Sp', 'Non-Sp', 'Sp', 'N/A',
+      // ABA UM
+      'N/A', 'Use Default', 'Use Default', 'Use Default',
+      // Other Details
+      'N/A', 'ORx Standard', 'Medispan w override', 'Non-Intergalactic'
+    ]
+  },
+  {
+    name: 'Vector 2',
+    data: [
+      'PPT 2025.02.15 v22.1b', 'PPT2410011536224HB9N', '01/2/00', 'Repo-002',
+      '2026', '2027', '2028', '2029', '2030',
+      '01/01/2026', '12/31/2030',
+      'Client B1', 'Medicare',
+      // Exclusions
+      'None', 'Include', 'Include', 'Include', 'Include', 'Include',
+      'Include', 'Include', 'Include', 'Include', 'Include',
+      'Include', 'Include', 'Include', 'Include', 'N/A', 'N/A',
+      // Specialty Rebucketing
+      'Hep B, HIV', 'Sp', 'Non-Sp', 'Sp',
+      'Non-Sp', 'Non-Sp', 'Sp', 'N/A',
+      // ABA UM
+      'Use Default', 'Use Default', 'Use Default', 'Use Default',
+      // Other Details
+      'N/A', 'ORx Standard', 'Override Manual', 'Galactic'
+    ]
+  },
+  {
+    name: 'Vector 3',
+    data: [
+      'PPT 2025.03.20 v23.0z', 'PPT2410011536224HC7N', '03/3/00', 'Repo-003',
+      '2027', '2028', '2029', '2030', '2031',
+      '01/01/2027', '12/31/2031',
+      'Client C3', 'Exchange',
+      // Exclusions
+      'None', 'Exclude', 'Include', 'Exclude', 'Include', 'Include',
+      'Include', 'Include', 'Exclude', 'Include', 'Exclude',
+      'Include', 'Exclude', 'Include', 'Include', 'N/A', 'N/A',
+      // Specialty Rebucketing
+      'Hep B', 'Non-Sp', 'Sp', 'Non-Sp',
+      'Sp', 'Non-Sp', 'Sp', 'N/A',
+      // ABA UM
+      'Use Default', 'Override', 'Override', 'Override',
+      // Other Details
+      'Included', 'Custom Standard', 'Custom Logic', 'Hypergalactic'
+    ]
+  }
+];
+
+// Component Start
+const PPTOutputPanel = () => {
+  const exportToCSV = () => {
+    const headers = ['Field', ...vectors.map(v => v.name)];
+    let rows = [];
+
+    let absoluteIndex = 0;
+    sections.forEach((section) => {
+      section.fields.forEach((field) => {
+        const row = [field];
+        vectors.forEach(vector => {
+          row.push(vector.data[absoluteIndex] || '-');
+        });
+        rows.push(row);
+        absoluteIndex++;
+      });
+    });
+
+    const csvContent = [headers, ...rows]
+      .map(r => r.map(val => `"${val}"`).join(','))
+      .join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'ppt_output_vectors.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <Paper elevation={3} sx={{ p: 4, width: '100%', overflowX: 'auto' }}>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Typography variant="h5" fontWeight="bold">PPT Output Vectors</Typography>
+        <Button variant="outlined" color="primary" onClick={exportToCSV}>
+          Export as CSV
+        </Button>
+      </Box>
+
+      {sections.map((section, sectionIndex) => {
+        const sectionStartIndex = sections
+          .slice(0, sectionIndex)
+          .reduce((acc, sec) => acc + sec.fields.length, 0);
+
+        return (
+          <Accordion key={section.section} defaultExpanded>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <Typography variant="h6" fontWeight="bold">{section.section}</Typography>
+            </AccordionSummary>
+
+            <AccordionDetails>
+              <Grid container sx={{ backgroundColor: '#e6f4ea', py: 1 }}>
+                <Grid item xs={3}>
+                  <Typography variant="subtitle1" fontWeight="bold" pl={2}>
+                    Field Name
+                  </Typography>
+                </Grid>
+                {vectors.map((v, idx) => (
+                  <Grid item xs={3} key={idx}>
+                    <Typography variant="subtitle1" fontWeight="bold">
+                      {v.name}
+                    </Typography>
+                  </Grid>
+                ))}
+              </Grid>
+
+              {section.fields.map((field, fieldIndex) => {
+                const absoluteIndex = sections
+                  .slice(0, sectionIndex)
+                  .reduce((acc, sec) => acc + sec.fields.length, 0) + fieldIndex;
+
+                return (
+                  <Grid
+                    container
+                    key={field}
+                    sx={{
+                      py: 1,
+                      borderBottom: '1px solid #eee',
+                      alignItems: 'center'
+                    }}
+                  >
+                    {/* Field Name */}
+                    <Grid item xs={3}>
+                      <Typography variant="body1" fontWeight={500} pl={2}>
+                        {field}
+                      </Typography>
+                    </Grid>
+
+                    {/* Vector Values */}
+                    {vectors.map((v, idx) => (
+                      <Grid item xs={3} key={idx}>
+                        <Typography variant="body2">
+                          {v.data[absoluteIndex] || '-'}
+                        </Typography>
+                      </Grid>
+                    ))}
+                  </Grid>
+                );
+              })}
+            </AccordionDetails>
+          </Accordion>
+        );
+      })}
+    </Paper>
+  );
+};
+
+export default PPTOutputPanel;
+=======================
+
+import React, { useState } from 'react';
+import {
+  Box, Typography, Grid, Card, CardContent, TextField, Table, TableBody, TableCell,
+  TableContainer, TableHead, TableRow, Paper, IconButton, TablePagination, Menu, MenuItem, Snackbar
+} from '@mui/material';
+import { useNavigate } from 'react-router-dom';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
+
+const widgetData = [
+  { label: 'In Progress', count: 1, route: '/model-execution-panel' },
+  { label: 'Completed', count: 5, route: null },
+  { label: 'Scheduled', count: 2, route: '/scheduled-jobs' },
+  { label: 'UnderwritingDashboard', count: 6, route: '/pbm-others' },
+  { label: 'Bulk Submissions', count: 0, route: null },
+  { label: 'Formula Management', count: 0, route: null },
+];
+
+const dummyClients = Array.from({ length: 20 }).map((_, idx) => ({
+  clientName: `Client ${String.fromCharCode(65 + (idx % 26))}${idx}`,
+  businessSegment: idx % 2 === 0 ? 'Commercial' : 'Medicaid',
+  exchange: idx % 2 === 0 ? 'NYSE' : 'NASDAQ',
+  biAlternative: idx % 2 === 0 ? 'Alt1' : 'Alt2',
+  executions: [`Execution_RPT${idx + 1}`, `Execution_RPT${idx + 2}`],
+}));
+
+const LandingPage = () => {
+  const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [openClient, setOpenClient] = useState({});
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+
+  const handleSearchChange = (e) => setSearchQuery(e.target.value);
+
+  const handleMenuClick = (event) => setAnchorEl(event.currentTarget);
+
+  const handleMenuClose = () => setAnchorEl(null);
+
+  const filteredClients = dummyClients.filter(client =>
+    client.clientName.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const handleChangePage = (event, newPage) => setPage(newPage);
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  const toggleClient = (clientName) => {
+    setOpenClient(prev => ({ ...prev, [clientName]: !prev[clientName] }));
+  };
+
+  const handleExecutionClick = (executionName, clientName) => {
+    navigate('/execution-dashboard', { state: { executionName, clientName } });
+  };
+
+  const handleWidgetClick = (widget) => {
+    if (widget.route) {
+      navigate(widget.route);
+    } else {
+      setSnackbarOpen(true);
+    }
+  };
+
+  const handleMenuItemClick = (action) => {
+    handleMenuClose();
+    if (action === 'createModel') {
+      navigate('/create-model');
+    } else if (action === 'viewAuditTrail') {
+      navigate('/formula-audit-trail');
+    }
+  };
+
+  return (
+    <Box sx={{ p: 4 }}>
+      <Typography variant="h4" fontWeight="bold" gutterBottom>
+        REBATE PROCESSING ENGINE
+      </Typography>
+
+      {/* Widgets */}
+      <Grid container spacing={2} sx={{ mb: 4 }}>
+        {widgetData.map((widget, idx) => (
+          <Grid item xs={12} sm={6} md={2} key={idx}>
+            <Card
+              sx={{ height: 100, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+              onClick={() => handleWidgetClick(widget)}
+            >
+              <CardContent sx={{ textAlign: 'center' }}>
+                <Typography variant="subtitle1" fontWeight="bold">{widget.label}</Typography>
+                <Typography variant="h6" color="primary">{widget.count}</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+
+      {/* Search Field */}
+      <TextField
+        label="Search Clients"
+        variant="outlined"
+        value={searchQuery}
+        onChange={handleSearchChange}
+        fullWidth
+        sx={{ mb: 3 }}
+      />
+
+      {/* Client Table */}
+      <TableContainer component={Paper}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell />
+              <TableCell>Client Name</TableCell>
+              <TableCell>Business Segment</TableCell>
+              <TableCell>Exchange</TableCell>
+              <TableCell>BI/Alternative</TableCell>
+              <TableCell>Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {filteredClients.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map((client, idx) => (
+              <React.Fragment key={idx}>
+                <TableRow>
+                  <TableCell>
+                    <IconButton size="small" onClick={() => toggleClient(client.clientName)}>
+                      {openClient[client.clientName] ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
+                    </IconButton>
+                  </TableCell>
+                  <TableCell>{client.clientName}</TableCell>
+                  <TableCell>{client.businessSegment}</TableCell>
+                  <TableCell>{client.exchange}</TableCell>
+                  <TableCell>{client.biAlternative}</TableCell>
+                  <TableCell>
+                    <IconButton size="small" onClick={handleMenuClick}>
+                      <MoreVertIcon />
+                    </IconButton>
+                  </TableCell>
+                </TableRow>
+
+                {/* Expand Executions */}
+                {openClient[client.clientName] && client.executions.map((execution, eIdx) => (
+                  <TableRow key={eIdx}>
+                    <TableCell />
+                    <TableCell colSpan={5}>
+                      <Typography
+                        variant="body2"
+                        color="primary"
+                        sx={{ cursor: 'pointer', pl: 4 }}
+                        onClick={() => handleExecutionClick(execution, client.clientName)}
+                      >
+                        {execution}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </React.Fragment>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      {/* Menu Actions */}
+      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
+        <MenuItem onClick={() => handleMenuItemClick('createModel')}>Create New Model</MenuItem>
+        <MenuItem onClick={() => handleMenuItemClick('viewAuditTrail')}>View Audit Trail</MenuItem>
+        <MenuItem onClick={handleMenuClose}>Export</MenuItem>
+      </Menu>
+
+      {/* Pagination */}
+      <TablePagination
+        component="div"
+        count={filteredClients.length}
+        page={page}
+        onPageChange={handleChangePage}
+        rowsPerPage={rowsPerPage}
+        onRowsPerPageChange={handleChangeRowsPerPage}
+        rowsPerPageOptions={[5, 10, 15]}
+      />
+
+      {/* Snackbar for Coming Soon */}
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={3000}
+        onClose={() => setSnackbarOpen(false)}
+        message="Coming Soon!"
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
+    </Box>
+  );
+};
+
+export default LandingPage;
+=====
+import React, { useEffect, useState } from 'react';
+import {
+  Box, Typography, Paper, Grid, Button, Collapse, Chip, Dialog, DialogTitle, DialogContent,
+  IconButton, TextField, MenuItem, Table, TableHead, TableBody, TableRow, TableCell, Snackbar, Alert
+} from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import CloseIcon from '@mui/icons-material/Close';
+import { useNavigate } from 'react-router-dom';
+
+const ModelExecutionPanel = () => {
+  const navigate = useNavigate();
+  const [compareOpen, setCompareOpen] = useState(false);
+  const [selectedFormula, setSelectedFormula] = useState('ABC');
+  const [comment, setComment] = useState('');
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const [jobStatusList, setJobStatusList] = useState([
+    {
+      jobId: 'Job-001',
+      clientName: 'Client A0',
+      businessSegment: 'Commercial',
+      formula: 'Formula_ABC',
+      status: 'Pending',
+      executionDetails: [],
+      expanded: false,
+    },
+    {
+      jobId: 'Job-002',
+      clientName: 'Client A0',
+      businessSegment: 'Commercial',
+      formula: 'Formula_XYZ',
+      status: 'Pending',
+      executionDetails: [],
+      expanded: false,
+    },
+  ]);
+
+  useEffect(() => {
+    jobStatusList.forEach((job, idx) => {
+      simulateJobSteps(job.jobId, idx);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const simulateJobSteps = (jobId, delayMultiplier) => {
+    const steps = [
+      { step: 'EventHub Publish', status: 'Success', timeTaken: 0.1 },
+      { step: 'ADF Pipeline Trigger', status: 'Success', timeTaken: 0.1 },
+      { step: 'PySpark Step 1', status: 'Success', timeTaken: 0.5 },
+      { step: 'PySpark Step 2', status: 'Success', timeTaken: 0.7 },
+    ];
+
+    steps.forEach((detail, i) => {
+      setTimeout(() => updateStep(jobId, detail), 2000 + i * 1500 + delayMultiplier * 300);
+    });
+
+    setTimeout(() => updateFinalStatus(jobId, 'Success'), 2000 + steps.length * 1500 + delayMultiplier * 300);
+  };
+
+  const updateStep = (jobId, detail) => {
+    setJobStatusList(prev => prev.map(job => {
+      if (job.jobId === jobId) {
+        const exists = job.executionDetails.some(d => d.step === detail.step);
+        if (!exists) {
+          return {
+            ...job,
+            executionDetails: [...job.executionDetails, detail]
+          };
+        }
+      }
+      return job;
+    }));
+  };
+
+  const updateFinalStatus = (jobId, status) => {
+    setJobStatusList(prev => prev.map(job =>
+      job.jobId === jobId ? { ...job, status } : job
+    ));
+  };
+
+  const toggleExpand = (jobId) => {
+    setJobStatusList(prev => prev.map(job =>
+      job.jobId === jobId ? { ...job, expanded: !job.expanded } : job
+    ));
+  };
+
+  const handleViewOutput = (jobId) => {
+    navigate('/execution-dashboard', { state: { jobId } });
+  };
+
+  const handleSaveDetails = () => {
+    setSaveSuccess(true);
+  };
+
+  const allJobsCompleted = jobStatusList.every(job => job.status === 'Success');
+
+  return (
+    <Box sx={{ p: 4 }}>
+      <Typography variant="h4" fontWeight="bold" sx={{ mb: 4 }}>
+        Model Execution Panel
+      </Typography>
+
+      <Grid container spacing={3}>
+        {jobStatusList.map((job, idx) => (
+          <Grid item xs={12} key={idx}>
+            <Paper elevation={3} sx={{ p: 3 }}>
+              <Grid container spacing={2} alignItems="center">
+                <Grid item xs={2}><Typography><strong>{job.clientName}</strong></Typography></Grid>
+                <Grid item xs={2}><Typography>{job.businessSegment}</Typography></Grid>
+                <Grid item xs={2}><Typography>{job.formula}</Typography></Grid>
+                <Grid item xs={2}><Chip label={job.status} color={job.status === 'Success' ? 'success' : job.status === 'Pending' ? 'default' : 'warning'} /></Grid>
+                <Grid item xs={2}>
+                  {job.status === 'Success' && (
+                    <Button variant="outlined" onClick={() => handleViewOutput(job.jobId)}>View Output</Button>
+                  )}
+                </Grid>
+                <Grid item xs={2}>
+                  <Button size="small" onClick={() => toggleExpand(job.jobId)}>
+                    {job.expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                  </Button>
+                </Grid>
+              </Grid>
+
+              <Collapse in={job.expanded}>
+                <Box sx={{ mt: 2, ml: 4 }}>
+                  {job.executionDetails.map((detail, index) => (
+                    <Typography key={index} sx={{ mb: 1 }}>
+                      ✅ {detail.step} - {detail.status} ({detail.timeTaken}s)
+                    </Typography>
+                  ))}
+                  <Typography sx={{ mt: 2 }}>
+                    <strong>Total Time Taken:</strong> {job.executionDetails.reduce((acc, cur) => acc + cur.timeTaken, 0).toFixed(2)} sec
+                  </Typography>
+                </Box>
+              </Collapse>
+            </Paper>
+          </Grid>
+        ))}
+      </Grid>
+
+      {allJobsCompleted && (
+        <Box sx={{ mt: 4, textAlign: 'center' }}>
+          <Button variant="contained" color="primary" onClick={() => setCompareOpen(true)}>
+            Compare Formulas
+          </Button>
+        </Box>
+      )}
+
+      <Dialog open={compareOpen} onClose={() => setCompareOpen(false)} maxWidth="lg" fullWidth>
+        <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between' }}>
+          Compare Formulas
+          <IconButton onClick={() => setCompareOpen(false)}><CloseIcon /></IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="h6" sx={{ mb: 2 }}>Metric Comparison</Typography>
+          <Table size="small" sx={{ mb: 3, border: '1px solid lightgray' }}>
+            <TableHead>
+              <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                <TableCell align="center"><strong>Metric</strong></TableCell>
+                <TableCell align="center"><strong>Formula ABC</strong></TableCell>
+                <TableCell align="center"><strong>Formula XYZ</strong></TableCell>
+                <TableCell align="center"><strong>Winner</strong></TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              <TableRow><TableCell align="center">AWP $</TableCell><TableCell align="center">$1,200,000</TableCell><TableCell align="center">$1,100,000</TableCell><TableCell align="center">XYZ ✅</TableCell></TableRow>
+              <TableRow><TableCell align="center">Rebates $</TableCell><TableCell align="center">$300,000</TableCell><TableCell align="center">$220,000</TableCell><TableCell align="center">ABC ✅</TableCell></TableRow>
+              <TableRow><TableCell align="center">Net Cost $</TableCell><TableCell align="center">$900,000</TableCell><TableCell align="center">$880,000</TableCell><TableCell align="center">XYZ ✅</TableCell></TableRow>
+              <TableRow><TableCell align="center">PMPM $</TableCell><TableCell align="center">$42.50</TableCell><TableCell align="center">$41.80</TableCell><TableCell align="center">XYZ ✅</TableCell></TableRow>
+            </TableBody>
+          </Table>
+
+          <Typography variant="h6" sx={{ mb: 2 }}>Channel Breakdown</Typography>
+          <Table size="small" sx={{ mb: 3, border: '1px solid lightgray' }}>
+            <TableHead>
+              <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                <TableCell align="center"><strong>Metric</strong></TableCell>
+                <TableCell align="center"><strong>ABC – Retail 30</strong></TableCell>
+                <TableCell align="center"><strong>XYZ – Retail 30</strong></TableCell>
+                <TableCell align="center"><strong>ABC – Mail</strong></TableCell>
+                <TableCell align="center"><strong>XYZ – Mail</strong></TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              <TableRow><TableCell align="center">Net Cost $</TableCell><TableCell align="center">$250K</TableCell><TableCell align="center">$230K</TableCell><TableCell align="center">$300K</TableCell><TableCell align="center">$310K</TableCell></TableRow>
+              <TableRow><TableCell align="center">Rebate %</TableCell><TableCell align="center">22%</TableCell><TableCell align="center">20%</TableCell><TableCell align="center">26%</TableCell><TableCell align="center">24%</TableCell></TableRow>
+            </TableBody>
+          </Table>
+
+          <Typography variant="h6" sx={{ mb: 2 }}>Trend Impact Estimator</Typography>
+          <Table size="small" sx={{ mb: 3, border: '1px solid lightgray' }}>
+            <TableHead>
+              <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                <TableCell align="center"><strong>Year</strong></TableCell>
+                <TableCell align="center"><strong>Formula ABC PMPM</strong></TableCell>
+                <TableCell align="center"><strong>Formula XYZ PMPM</strong></TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              <TableRow><TableCell align="center">2025</TableCell><TableCell align="center">$42.50</TableCell><TableCell align="center">$41.80</TableCell></TableRow>
+              <TableRow><TableCell align="center">2026</TableCell><TableCell align="center">$44.00</TableCell><TableCell align="center">$43.50</TableCell></TableRow>
+              <TableRow><TableCell align="center">2027</TableCell><TableCell align="center">$45.80</TableCell><TableCell align="center">$45.00</TableCell></TableRow>
+            </TableBody>
+          </Table>
+
+          <Box sx={{ mt: 3 }}>
+            <Grid container spacing={2}>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  select
+                  label="Formula Section"
+                  value={selectedFormula}
+                  onChange={(e) => setSelectedFormula(e.target.value)}
+                  fullWidth
+                >
+                  <MenuItem value="ABC">ABC</MenuItem>
+                  <MenuItem value="XYZ">XYZ</MenuItem>
+                </TextField>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label="Comment"
+                  fullWidth
+                  multiline
+                  rows={3}
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                />
+              </Grid>
+            </Grid>
+
+            <Box sx={{ textAlign: 'right', mt: 2 }}>
+              <Button variant="contained" color="primary" onClick={handleSaveDetails}>
+                Save Details
+              </Button>
+            </Box>
+          </Box>
+        </DialogContent>
+
+        <Snackbar open={saveSuccess} autoHideDuration={3000} onClose={() => setSaveSuccess(false)}>
+          <Alert severity="success" sx={{ width: '100%' }}>
+            Formula {selectedFormula} details saved successfully!
+          </Alert>
+        </Snackbar>
+      </Dialog>
+    </Box>
+  );
+};
+
+export default ModelExecutionPanel;
+=========================================
+// components/FormulaAuditTrail.jsx
+import React, { useState } from 'react';
+import {
+  Box, Typography, Table, TableBody, TableCell, TableContainer,
+  TableHead, TableRow, Paper
+} from '@mui/material';
+
+const FormulaAuditTrail = () => {
+  // Sample audit data (later replace with real API data)
+  const [auditData, setAuditData] = useState([
+    {
+      underwriterId: 'Underwriter A',
+      selectedFormula: 'ABC',
+      comment: 'Better rebate values on mail channel.',
+      timestamp: '2025-04-29T19:25:30.000Z',
+      jobId: 'Job-001',
+      status: 'Selected', // <-- New field
+    },
+    {
+      underwriterId: 'Underwriter B',
+      selectedFormula: 'XYZ',
+      comment: 'Lower PMPM impact across retail channels.',
+      timestamp: '2025-04-29T19:26:45.000Z',
+      jobId: 'Job-002',
+      status: 'Rejected', // <-- New field
+    },
+  ]);
+
+  return (
+    <Box sx={{ p: 4 }}>
+      <Typography variant="h4" fontWeight="bold" sx={{ mb: 4 }}>
+        Formula Selection Audit Trail
+      </Typography>
+
+      <TableContainer component={Paper} elevation={3}>
+        <Table size="small">
+          <TableHead>
+            <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+              <TableCell align="center"><strong>Underwriter Name</strong></TableCell>
+              <TableCell align="center"><strong>Selected Formula</strong></TableCell>
+              <TableCell align="center"><strong>Comment</strong></TableCell>
+              <TableCell align="center"><strong>Timestamp</strong></TableCell>
+              <TableCell align="center"><strong>Job ID</strong></TableCell>
+              <TableCell align="center"><strong>Status</strong></TableCell> {/* <-- New Column */}
+            </TableRow>
+          </TableHead>
+
+          <TableBody>
+            {auditData.map((entry, idx) => (
+              <TableRow key={idx} hover>
+                <TableCell align="center">{entry.underwriterId}</TableCell>
+                <TableCell align="center">{entry.selectedFormula}</TableCell>
+                <TableCell align="center">{entry.comment}</TableCell>
+                <TableCell align="center">{new Date(entry.timestamp).toLocaleString()}</TableCell>
+                <TableCell align="center">{entry.jobId}</TableCell>
+                <TableCell align="center">{entry.status}</TableCell> {/* <-- New Value */}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Box>
+  );
+};
+
+export default FormulaAuditTrail;
+======================================
+// components/ExecutionDashboard.jsx
+import React, { useState } from 'react';
+import {
+  Box, Typography, MenuItem, Select, Button, Grid, Paper, IconButton, Collapse
+} from '@mui/material';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { ExpandMore, ExpandLess } from '@mui/icons-material';
+import PreShiftDashboard from './PreShiftDashboard';
+import PPTOutputPanel from './PPTOutputPanel';
+import ExclusionSummaryTable from './ExclusionSummaryTable';
+import FormularyMasterTable from './FormularyMasterTable';
+import Visualizations from './Visualizations';
+
+const ExecutionDashboard = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const executionName = location.state?.executionName || 'Unknown Execution';
+  const clientName = location.state?.clientName || 'Unknown Client';
+
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [clientOpen, setClientOpen] = useState(true);
+  const [categoryOpen, setCategoryOpen] = useState(true);
+  const [visualizationOpen, setVisualizationOpen] = useState(false);
+
+  const handleCategoryChange = (event) => {
+    setSelectedCategory(event.target.value);
+  };
+
+  return (
+    <Box sx={{ p: 4 }}>
+      {/* Client Header */}
+      <Paper elevation={3} sx={{ mb: 3, p: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6">Client and Execution Details</Typography>
+          <IconButton onClick={() => setClientOpen(!clientOpen)}>
+            {clientOpen ? <ExpandLess /> : <ExpandMore />}
+          </IconButton>
+        </Box>
+        <Collapse in={clientOpen}>
+          <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box>
+              <Typography variant="h5" fontWeight="bold">
+                Client: {clientName}
+              </Typography>
+              <Typography variant="h6" color="text.secondary">
+                Execution: {executionName}
+              </Typography>
+            </Box>
+            <Button variant="contained" color="secondary" onClick={() => navigate(-1)}>
+              Back
+            </Button>
+          </Box>
+        </Collapse>
+      </Paper>
+
+      {/* Category Selector */}
+      <Paper elevation={3} sx={{ mb: 3, p: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h6">Category + Data</Typography>
+          <IconButton onClick={() => setCategoryOpen(!categoryOpen)}>
+            {categoryOpen ? <ExpandLess /> : <ExpandMore />}
+          </IconButton>
+        </Box>
+        <Collapse in={categoryOpen}>
+          <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Typography variant="h6">Select Category:</Typography>
+            <Select
+              value={selectedCategory}
+              onChange={handleCategoryChange}
+              displayEmpty
+              sx={{ minWidth: 250 }}
+            >
+              <MenuItem value="" disabled>Select...</MenuItem>
+              <MenuItem value="Rate Buildup">Rate Buildup</MenuItem>
+              <MenuItem value="Rate Forecast">Rate Forecast</MenuItem>
+              <MenuItem value="Buildup Summary">Buildup Summary</MenuItem>
+              <MenuItem value="RPT Forecast Output">RPT Forecast Output</MenuItem>
+              <MenuItem value="Output RPT">Output RPT</MenuItem>
+              <MenuItem value="Formula Table">Formula</MenuItem>
+              <MenuItem value="ExclusionSummary">Exclusion Summary</MenuItem>
+            </Select>
+          </Box>
+          
+          {/* Render based on selected category */}
+          <Box sx={{ mt: 4 }}>
+            {selectedCategory === 'Rate Buildup' && <PreShiftDashboard />}
+            {selectedCategory === 'Formula Table' && <FormularyMasterTable />}
+            {selectedCategory === 'Output RPT'  && <PPTOutputPanel />}
+            {selectedCategory === 'ExclusionSummary' && <ExclusionSummaryTable />}
+          </Box>
+        </Collapse>
+      </Paper>
+
+      {/* Visualization Section */}
+      {selectedCategory === 'Rate Buildup' && (
+        <Paper elevation={3} sx={{ p: 2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h6">Visualizations</Typography>
+            <IconButton onClick={() => setVisualizationOpen(!visualizationOpen)}>
+              {visualizationOpen ? <ExpandLess /> : <ExpandMore />}
+            </IconButton>
+          </Box>
+          <Collapse in={visualizationOpen}>
+            <Box sx={{ mt: 4 }}>
+              <Visualizations />
+            </Box>
+          </Collapse>
+        </Paper>
+      )}
+    </Box>
+  );
+};
+
+export default ExecutionDashboard;
+=====================================
+
