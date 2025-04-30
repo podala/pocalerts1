@@ -743,121 +743,7 @@ const FormulaAuditTrail = () => {
 };
 
 export default FormulaAuditTrail;
-======================================
-// components/ExecutionDashboard.jsx
-import React, { useState } from 'react';
-import {
-  Box, Typography, MenuItem, Select, Button, Grid, Paper, IconButton, Collapse
-} from '@mui/material';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { ExpandMore, ExpandLess } from '@mui/icons-material';
-import PreShiftDashboard from './PreShiftDashboard';
-import PPTOutputPanel from './PPTOutputPanel';
-import ExclusionSummaryTable from './ExclusionSummaryTable';
-import FormularyMasterTable from './FormularyMasterTable';
-import Visualizations from './Visualizations';
 
-const ExecutionDashboard = () => {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const executionName = location.state?.executionName || 'Unknown Execution';
-  const clientName = location.state?.clientName || 'Unknown Client';
-
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [clientOpen, setClientOpen] = useState(true);
-  const [categoryOpen, setCategoryOpen] = useState(true);
-  const [visualizationOpen, setVisualizationOpen] = useState(false);
-
-  const handleCategoryChange = (event) => {
-    setSelectedCategory(event.target.value);
-  };
-
-  return (
-    <Box sx={{ p: 4 }}>
-      {/* Client Header */}
-      <Paper elevation={3} sx={{ mb: 3, p: 2 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h6">Client and Execution Details</Typography>
-          <IconButton onClick={() => setClientOpen(!clientOpen)}>
-            {clientOpen ? <ExpandLess /> : <ExpandMore />}
-          </IconButton>
-        </Box>
-        <Collapse in={clientOpen}>
-          <Box sx={{ mt: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Box>
-              <Typography variant="h5" fontWeight="bold">
-                Client: {clientName}
-              </Typography>
-              <Typography variant="h6" color="text.secondary">
-                Execution: {executionName}
-              </Typography>
-            </Box>
-            <Button variant="contained" color="secondary" onClick={() => navigate(-1)}>
-              Back
-            </Button>
-          </Box>
-        </Collapse>
-      </Paper>
-
-      {/* Category Selector */}
-      <Paper elevation={3} sx={{ mb: 3, p: 2 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h6">Category + Data</Typography>
-          <IconButton onClick={() => setCategoryOpen(!categoryOpen)}>
-            {categoryOpen ? <ExpandLess /> : <ExpandMore />}
-          </IconButton>
-        </Box>
-        <Collapse in={categoryOpen}>
-          <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Typography variant="h6">Select Category:</Typography>
-            <Select
-              value={selectedCategory}
-              onChange={handleCategoryChange}
-              displayEmpty
-              sx={{ minWidth: 250 }}
-            >
-              <MenuItem value="" disabled>Select...</MenuItem>
-              <MenuItem value="Rate Buildup">Rate Buildup</MenuItem>
-              <MenuItem value="Rate Forecast">Rate Forecast</MenuItem>
-              <MenuItem value="Buildup Summary">Buildup Summary</MenuItem>
-              <MenuItem value="RPT Forecast Output">RPT Forecast Output</MenuItem>
-              <MenuItem value="Output RPT">Output RPT</MenuItem>
-              <MenuItem value="Formula Table">Formula</MenuItem>
-              <MenuItem value="ExclusionSummary">Exclusion Summary</MenuItem>
-            </Select>
-          </Box>
-          
-          {/* Render based on selected category */}
-          <Box sx={{ mt: 4 }}>
-            {selectedCategory === 'Rate Buildup' && <PreShiftDashboard />}
-            {selectedCategory === 'Formula Table' && <FormularyMasterTable />}
-            {selectedCategory === 'Output RPT'  && <PPTOutputPanel />}
-            {selectedCategory === 'ExclusionSummary' && <ExclusionSummaryTable />}
-          </Box>
-        </Collapse>
-      </Paper>
-
-      {/* Visualization Section */}
-      {selectedCategory === 'Rate Buildup' && (
-        <Paper elevation={3} sx={{ p: 2 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Typography variant="h6">Visualizations</Typography>
-            <IconButton onClick={() => setVisualizationOpen(!visualizationOpen)}>
-              {visualizationOpen ? <ExpandLess /> : <ExpandMore />}
-            </IconButton>
-          </Box>
-          <Collapse in={visualizationOpen}>
-            <Box sx={{ mt: 4 }}>
-              <Visualizations />
-            </Box>
-          </Collapse>
-        </Paper>
-      )}
-    </Box>
-  );
-};
-
-export default ExecutionDashboard;
 =====================================
 // components/CreateRPTModel.jsx
 import React, { useState } from 'react';
@@ -1158,12 +1044,248 @@ const CreateRPTModel = () => {
 
 export default CreateRPTModel;
 
-===========================
-// App.js
+================
+
+// ExecutionDashboard.jsx (Updated with Visualizations widget support)
+import React from 'react';
+import {
+  Box, Typography, Grid, Paper, Button
+} from '@mui/material';
+import { useNavigate } from 'react-router-dom';
+import InsightsIcon from '@mui/icons-material/Insights';
+import TuneIcon from '@mui/icons-material/Tune';
+import RuleIcon from '@mui/icons-material/Rule';
+import SummarizeIcon from '@mui/icons-material/Summarize';
+import FunctionsIcon from '@mui/icons-material/Functions';
+import TimelineIcon from '@mui/icons-material/Timeline';
+import DashboardCustomizeIcon from '@mui/icons-material/DashboardCustomize';
+import InsertChartIcon from '@mui/icons-material/InsertChart';
+import FormulaAuditTracker from './FormulaAuditTracker';
+
+const ExecutionDashboard = () => {
+  const navigate = useNavigate();
+
+  const widgets = [
+    {
+      key: 'rateBuildup', label: 'Rate Buildup', icon: <InsightsIcon sx={{ fontSize: 40, color: '#1976d2' }} />, color: '#e3f2fd', buttonColor: 'primary', path: '/rate-buildup'
+    },
+    {
+      key: 'exclusionSummary', label: 'Exclusion Summary', icon: <RuleIcon sx={{ fontSize: 40, color: '#d32f2f' }} />, color: '#ffebee', buttonColor: 'error', path: '/exclusion-summary'
+    },
+    {
+      key: 'outputRPT', label: 'Output RPT', icon: <SummarizeIcon sx={{ fontSize: 40, color: '#f9a825' }} />, color: '#fff8e1', buttonColor: 'warning', path: '/output-rpt'
+    },
+    {
+      key: 'formularyMaster', label: 'Formulary Master', icon: <FunctionsIcon sx={{ fontSize: 40, color: '#388e3c' }} />, color: '#e8f5e9', buttonColor: 'success', path: '/formulary-master'
+    },
+    {
+      key: 'rateForecast', label: 'Rate Forecast Summary', icon: <TimelineIcon sx={{ fontSize: 40, color: '#6a1b9a' }} />, color: '#f3e5f5', buttonColor: 'secondary', path: '/rate-forecast'
+    },
+    {
+      key: 'buildupSummary', label: 'Buildup Summary', icon: <DashboardCustomizeIcon sx={{ fontSize: 40, color: '#00838f' }} />, color: '#e0f7fa', buttonColor: 'info', path: '/buildup-summary'
+    },
+    {
+      key: 'visualizations', label: 'Visualizations', icon: <InsertChartIcon sx={{ fontSize: 40, color: '#6d4c41' }} />, color: '#ede7f6', buttonColor: 'secondary', path: '/visualizations'
+    },
+  ];
+
+  return (
+    <Box sx={{ p: 4 }}>
+      <Paper elevation={3} sx={{ mb: 4, p: 3, backgroundColor: '#fafafa' }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box>
+            <Typography variant="h5" fontWeight="bold">Client: Client A0</Typography>
+            <Typography variant="subtitle1" color="text.secondary">Execution: Execution_RPT1</Typography>
+          </Box>
+        </Box>
+      </Paper>
+
+      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 4 }}>
+        <Grid container spacing={4} sx={{ flex: 1, pr: 2 }}>
+          {widgets.map(widget => (
+            <Grid item xs={12} sm={6} key={widget.key}>
+              <Box sx={{ p: 1 }}>
+                <Paper
+                  elevation={6}
+                  sx={{
+                    p: 3,
+                    height: '100%',
+                    textAlign: 'center',
+                    borderRadius: 3,
+                    backgroundColor: widget.color,
+                    transition: 'transform 0.3s ease',
+                    '&:hover': {
+                      transform: 'scale(1.04)',
+                      boxShadow: 10
+                    }
+                  }}
+                >
+                  <Box sx={{ mb: 2 }}>{widget.icon}</Box>
+                  <Typography variant="h6" sx={{ mb: 2 }}>{widget.label}</Typography>
+                  <Button
+                    variant="contained"
+                    color={widget.buttonColor}
+                    sx={{ mt: 1 }}
+                    onClick={() => navigate(widget.path)}
+                  >
+                    View
+                  </Button>
+                </Paper>
+              </Box>
+            </Grid>
+          ))}
+        </Grid>
+
+        {/* Side Panel: Model Inputs */}
+        <Paper elevation={4} sx={{ width: { xs: '100%', md: 400 }, p: 3, backgroundColor: '#f0f4ff', borderRadius: 2, boxShadow: 4 }}>
+          <Typography variant="h6" fontWeight="bold" sx={{ mb: 2, color: 'text.primary' }}>
+            Model Inputs
+          </Typography>
+          <Box sx={{ maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', pr: 1 }}>
+            <FormulaAuditTracker />
+          </Box>
+        </Paper>
+      </Box>
+    </Box>
+  );
+};
+
+export default ExecutionDashboard;
+==========================================
+import React from 'react';
+import {
+  Box, Typography, Table, TableBody, TableCell, TableRow, Paper
+} from '@mui/material';
+
+const FormulaAuditTracker = () => {
+  const auditEntry = {
+    underwriterName: 'Underwriter A',
+    submittedDate: '2025-04-30T15:45:00.000Z',
+    formData: {
+      clientName: 'Client A0',
+      version: 'v1.0',
+      outputDate: '2025-12-31',
+      forecastYears: '2025,2026,2027,2028,2029',
+      biAlternative: 'Yes',
+      biLogic: 'Standard',
+      businessSegment: 'Commercial',
+      exchangeBased: 'No',
+      umContinuation: 'Yes',
+      biGDefinition: 'Defined',
+      specialtyDefinition: 'Special',
+      specialtyScripts: 'Enabled',
+      customSpecialtyList: 'List1,List2',
+      liftType: 'Dynamic',
+      applyShifting: 'Yes',
+      applyRebateCredit: 'Yes',
+      rebateDollar: '5000',
+      jobExecutionDateTime: '2025-12-31T23:59',
+      forecastDataRequired: 'Yes',
+      selectedFormula: 'Formula ABC'
+    },
+    specialtyRebucketing: {
+      HepB: 'Non-Sp', HIV: 'Sp', IVIG: 'Sp',
+      Narcolepsy: 'Non-Sp', Nausea: 'Sp', Transplant: 'Sp', PCSK9: 'Non-Sp'
+    },
+    utilizationTypes: {
+      OTC: 'Include', Vaccines: 'Include', Repackaged: 'Exclude',
+      MSB: 'Include', TestStrips: 'Exclude'
+    }
+  };
+
+  const renderTable = (dataObject) => (
+    <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
+      <TableBody>
+        {Object.entries(dataObject).map(([key, value]) => (
+          <TableRow key={key}>
+            <TableCell sx={{ fontWeight: 500, width: '40%', wordBreak: 'break-word' }}>
+              {key}
+            </TableCell>
+            <TableCell
+              sx={{
+                whiteSpace: 'normal',
+                wordBreak: 'break-word',
+                maxWidth: 300
+              }}
+            >
+              {value}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+
+  return (
+    <Box sx={{ p: 4 }}>
+      <Typography variant="h4" gutterBottom fontWeight="bold">
+        RPT Model Audit Snapshot
+      </Typography>
+
+      {/* General Info */}
+      <Paper elevation={3} sx={{ p: 3, mb: 4, maxWidth: '100%', overflowX: 'auto' }}>
+        <Box sx={{ backgroundColor: '#e3f2fd', p: 1, mb: 2 }}>
+          <Typography variant="h6" fontWeight="bold">General Info</Typography>
+        </Box>
+        <Table size="small" sx={{ tableLayout: 'fixed', width: '100%' }}>
+          <TableBody>
+            <TableRow>
+              <TableCell sx={{ fontWeight: 500 }}>Underwriter Name</TableCell>
+              <TableCell sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                {auditEntry.underwriterName}
+              </TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell sx={{ fontWeight: 500 }}>Submitted Date</TableCell>
+              <TableCell sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                {new Date(auditEntry.submittedDate).toLocaleString()}
+              </TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell sx={{ fontWeight: 500 }}>Selected Formula</TableCell>
+              <TableCell sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                {auditEntry.formData.selectedFormula}
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </Paper>
+
+      {/* Model Inputs */}
+      <Paper elevation={3} sx={{ p: 3, mb: 4, maxWidth: '100%', overflowX: 'auto' }}>
+        <Box sx={{ backgroundColor: '#fce4ec', p: 1, mb: 2 }}>
+          <Typography variant="h6" fontWeight="bold">Model Inputs</Typography>
+        </Box>
+        {renderTable(auditEntry.formData)}
+      </Paper>
+
+      {/* Specialty Rebucketing */}
+      <Paper elevation={3} sx={{ p: 3, mb: 4, maxWidth: '100%', overflowX: 'auto' }}>
+        <Box sx={{ backgroundColor: '#e8f5e9', p: 1, mb: 2 }}>
+          <Typography variant="h6" fontWeight="bold">Specialty Rebucketing</Typography>
+        </Box>
+        {renderTable(auditEntry.specialtyRebucketing)}
+      </Paper>
+
+      {/* Utilization Types */}
+      <Paper elevation={3} sx={{ p: 3, maxWidth: '100%', overflowX: 'auto' }}>
+        <Box sx={{ backgroundColor: '#fff3e0', p: 1, mb: 2 }}>
+          <Typography variant="h6" fontWeight="bold">Utilization Types</Typography>
+        </Box>
+        {renderTable(auditEntry.utilizationTypes)}
+      </Paper>
+    </Box>
+  );
+};
+
+export default FormulaAuditTracker;
+============================
+
+// App.js (Updated to add new route: Visualizations)
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 
-// Import components
+// Core page imports
 import LandingPage from './components/LandingPage';
 import CreateRPTModel from './components/CreateRPTModel';
 import ModelExecutionPanel from './components/ModelExecutionPanel';
@@ -1171,7 +1293,22 @@ import ExecutionDashboard from './components/ExecutionDashboard';
 import ScheduledJobsPage from './components/ScheduledJobsPage';
 import BulkSubmissionsPage from './components/BulkSubmissionsPage';
 import PBMUnderwritingDashboard from './components/PBMUnderwritingDashboard';
-import FormulaAuditTrail from './components/FormulaAuditTrail';  // <-- New Import
+import FormulaAuditTrail from './components/FormulaAuditTrail';
+
+// Widget-based view imports
+import PreShiftDashboard from './components/PreShiftDashboard';
+import FormularyMasterTable from './components/FormularyMasterTable';
+import PPTOutputPanel from './components/PPTOutputPanel';
+import ExclusionSummaryTable from './components/ExclusionSummaryTable';
+import Visualizations from './components/Visualizations'; // ✅ New Visualization Widget
+
+// Placeholder views
+const RateForecastSummary = () => (
+  <div style={{ padding: 40 }}><h2>Rate Forecast Summary</h2><p>Coming soon...</p></div>
+);
+const BuildupSummary = () => (
+  <div style={{ padding: 40 }}><h2>Buildup Summary</h2><p>Coming soon...</p></div>
+);
 
 const App = () => {
   return (
@@ -1183,7 +1320,16 @@ const App = () => {
       <Route path="/pbm-others" element={<PBMUnderwritingDashboard />} />
       <Route path="/scheduled-jobs" element={<ScheduledJobsPage />} />
       <Route path="/bulk-submissions" element={<BulkSubmissionsPage />} />
-      <Route path="/formula-audit-trail" element={<FormulaAuditTrail />} /> {/* <-- New Route */}
+      <Route path="/formula-audit-trail" element={<FormulaAuditTrail />} />
+
+      {/* Widget-based routes */}
+      <Route path="/rate-buildup" element={<PreShiftDashboard />} />
+      <Route path="/formulary-master" element={<FormularyMasterTable />} />
+      <Route path="/output-rpt" element={<PPTOutputPanel />} />
+      <Route path="/exclusion-summary" element={<ExclusionSummaryTable />} />
+      <Route path="/rate-forecast" element={<RateForecastSummary />} />
+      <Route path="/buildup-summary" element={<BuildupSummary />} />
+      <Route path="/visualizations" element={<Visualizations />} /> {/* ✅ New Widget Route */}
     </Routes>
   );
 };
