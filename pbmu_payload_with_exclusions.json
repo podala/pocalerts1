@@ -1,0 +1,211 @@
+{
+  "clientId": "Client_A0",
+  "clientName": "Acme Health",
+  "businessSegment": "Commercial",
+  "submittedBy": "Underwriter A",
+  "submissionDate": "2025-05-01T09:30:00Z",
+  "version": "v1.0",
+  "autoExecute": true,
+  "requiredFilesStatus": "complete",
+  "formulas": [
+    {
+      "formulaId": "Formula_ABC",
+      "formulaName": "ABC",
+      "version": "v1.0",
+      "comment": "Aggressive biosim strategy",
+      "validationStatus": "passed",
+      "processingTimeEstimate": "fast",
+      "sourceFileMeta": {
+        "fileName": "ABC_input_v1.xlsx",
+        "uploadedBy": "Underwriter A",
+        "uploadDate": "2025-05-01T09:00:00Z"
+      },
+      "modelInputs": {
+        "pmpmTarget": 72.5,
+        "liftPercentage": 8.5,
+        "utilizationTrend": "Upward",
+        "excludeSpecialty": true,
+        "channelsIncluded": [
+          "Retail 30",
+          "Mail",
+          "Specialty"
+        ],
+        "assumptionNotes": "Exclude Hep C & injectables",
+        "customLiftScenarios": [
+          {
+            "scenarioName": "Aggressive",
+            "lift": 10.0
+          },
+          {
+            "scenarioName": "Moderate",
+            "lift": 6.5
+          }
+        ]
+      },
+      "biosimStrategies": [
+        {
+          "biosimId": "BIS01",
+          "biosimName": "Humira Biosimilar",
+          "rebatePct": 12.5,
+          "tier": "Preferred",
+          "weightingFactor": 0.4,
+          "includeGenerics": true,
+          "exclusionRule": "Exclude Medicaid plans"
+        },
+        {
+          "biosimId": "BIS02",
+          "biosimName": "Stewart Biosimilar",
+          "rebatePct": 10.0,
+          "tier": "Non-Preferred",
+          "weightingFactor": 0.3,
+          "includeGenerics": false
+        }
+      ],
+      "therapeuticCategories": [
+        {
+          "categoryId": "THR01",
+          "name": "Weight Loss",
+          "drugs": [
+            "DrugA",
+            "DrugB"
+          ],
+          "impactScore": 0.7,
+          "channelFocus": [
+            "Retail 30",
+            "Specialty"
+          ],
+          "coverageStatus": "Included",
+          "authorizedBrandOnly": true
+        },
+        {
+          "categoryId": "THR02",
+          "name": "Diabetes",
+          "drugs": [
+            "DrugC"
+          ],
+          "impactScore": 0.5,
+          "coverageStatus": "Included",
+          "medicarePartBCoverage": false,
+          "authorizedBrandOnly": true
+        },
+        {
+          "categoryId": "THR03",
+          "name": "Cardiology",
+          "drugs": [
+            "DrugD"
+          ],
+          "coverageStatus": "Included"
+        },
+        {
+          "categoryId": "THR05",
+          "name": "OGLP1",
+          "drugs": [
+            "DrugGLP1A"
+          ],
+          "coverageStatus": "Excluded",
+          "reason": "Too costly for Medicare Part D"
+        }
+      ],
+      "pricingModels": [
+        {
+          "modelId": "PRC01",
+          "name": "MFP",
+          "rate": 0.15,
+          "compliance": "CMS",
+          "appliesTo": [
+            "Humira Biosimilar",
+            "Enbrel Biosimilar"
+          ]
+        },
+        {
+          "modelId": "PRC02",
+          "name": "Custom Rebate Model",
+          "rate": 0.18,
+          "compliance": "Internal Policy"
+        }
+      ],
+      "clinicalPolicyExclusions": {
+        "excludeHIV": false,
+        "excludeInsulin": true,
+        "coverAuthorizedBrandsOnly": true,
+        "excludeInjectables": false,
+        "coverGLP1OralOnly": false
+      }
+    },
+    {
+      "formulaId": "Formula_XYZ",
+      "formulaName": "XYZ",
+      "version": "v1.0",
+      "comment": "Control scenario",
+      "validationStatus": "passed",
+      "processingTimeEstimate": "standard",
+      "sourceFileMeta": {
+        "fileName": "XYZ_input_v1.xlsx",
+        "uploadedBy": "Underwriter A",
+        "uploadDate": "2025-05-01T09:10:00Z"
+      },
+      "modelInputs": {
+        "pmpmTarget": 80.0,
+        "liftPercentage": 6.0,
+        "utilizationTrend": "Stable",
+        "excludeSpecialty": false,
+        "channelsIncluded": [
+          "Retail 90",
+          "Mail"
+        ],
+        "assumptionNotes": "Include all brands",
+        "customLiftScenarios": [
+          {
+            "scenarioName": "Baseline",
+            "lift": 6.0
+          }
+        ]
+      },
+      "biosimStrategies": [
+        {
+          "biosimId": "BIS03",
+          "biosimName": "Enbrel Biosimilar",
+          "rebatePct": 11.0,
+          "tier": "Preferred",
+          "weightingFactor": 0.35,
+          "includeGenerics": true
+        }
+      ],
+      "therapeuticCategories": [
+        {
+          "categoryId": "THR04",
+          "name": "Oncology",
+          "drugs": [
+            "DrugX"
+          ],
+          "coverageStatus": "Excluded",
+          "reason": "High cost and alternative treatments available"
+        },
+        {
+          "categoryId": "THR05",
+          "name": "OGLP1",
+          "drugs": [
+            "DrugGLP1A"
+          ],
+          "coverageStatus": "Excluded",
+          "reason": "Too costly for Medicare Part D"
+        }
+      ],
+      "pricingModels": [
+        {
+          "modelId": "PRC01",
+          "name": "MFP",
+          "rate": 0.15,
+          "compliance": "CMS"
+        }
+      ],
+      "clinicalPolicyExclusions": {
+        "excludeHIV": false,
+        "excludeInsulin": true,
+        "coverAuthorizedBrandsOnly": true,
+        "excludeInjectables": false,
+        "coverGLP1OralOnly": false
+      }
+    }
+  ]
+}
