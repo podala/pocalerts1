@@ -1,0 +1,71 @@
+{
+  "options": [
+    {
+      "optionId": 1,
+      "name": "Option 1",
+      "rebateSummary": {
+        "totalRebates": {
+          "Base": { "Y1": 0, "Y2": 0, "Y3": 0, "Y4": 0, "Y5": 0 },
+          "Change": { "Y1": 0, "Y2": 0, "Y3": 0, "Y4": 0, "Y5": 0 }
+        },
+        "rebateCreditByYear": {
+          "2023": 0,
+          "2024": 0,
+          "2025": 0,
+          "2026": 0,
+          "2027": 0,
+          "2028": 0
+        }
+      },
+      "drugInputs": [
+        {
+          "drugName": "Humira",
+          "manufacturer": "AbbVie",
+          "quarterlyData": {
+            "objectiveRates": {
+              "2023": { "Q1": 0.657, "Q2": 0.0, "Q3": 0.0, "Q4": 0.0 },
+              "2024": { "Q1": 0.0, "Q2": 0.0, "Q3": 0.0, "Q4": 0.0 },
+              "2025": { "Q1": 0.0, "Q2": 0.0, "Q3": 0.0, "Q4": 0.0 }
+            },
+            "shiftCurve": {
+              "2023": { "Q1": 1.0, "Q2": 0.8, "Q3": 0.6, "Q4": 0.4 }
+            },
+            "wacDiscount": {
+              "2023": { "Q1": 0.0, "Q2": 0.0, "Q3": 0.0, "Q4": 0.0 }
+            },
+            "projectedWacPerRx": {
+              "2023": { "Q1": 5000, "Q2": 5000, "Q3": 5000, "Q4": 5000 }
+            }
+          },
+          "projectedRebatesPerRx": {
+            "Acop": { "Y1": 1000, "Y2": 900, "Y3": 800, "Y4": 700, "Y5": 600 },
+            "Base": { "Y1": 1000, "Y2": 1000, "Y3": 1000, "Y4": 1000, "Y5": 1000 }
+          }
+        },
+        {
+          "drugName": "Blended Biosimilar",
+          "manufacturer": "Various",
+          "quarterlyData": {
+            "objectiveRates": {
+              "2023": { "Q1": 0.1, "Q2": 0.15, "Q3": 0.2, "Q4": 0.25 }
+            },
+            "shiftCurve": {
+              "2023": { "Q1": 0.0, "Q2": 0.2, "Q3": 0.4, "Q4": 0.6 }
+            },
+            "wacDiscount": {
+              "2023": { "Q1": 0.5, "Q2": 0.5, "Q3": 0.5, "Q4": 0.5 }
+            },
+            "projectedWacPerRx": {
+              "2023": { "Q1": 2500, "Q2": 2400, "Q3": 2300, "Q4": 2200 }
+            }
+          },
+          "projectedRebatesPerRx": {
+            "Acop": { "Y1": 800, "Y2": 850, "Y3": 900, "Y4": 950, "Y5": 1000 },
+            "Base": { "Y1": 0, "Y2": 200, "Y3": 400, "Y4": 600, "Y5": 800 }
+          }
+        }
+      ]
+    }
+    // Repeat up to optionId 9
+  ]
+}
