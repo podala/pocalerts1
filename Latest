@@ -1,0 +1,106 @@
+{
+  "clientId": "Client_A0",
+  "clientName": "Acme Health",
+  "businessSegment": "Commercial",
+  "submittedBy": "Underwriter A",
+  "submissionDate": "2025-05-01T09:30:00Z",
+  "autoExecute": true,
+  "jobStatus": "InProgress",
+  "formularyData": {
+    "formulary": "Formula_ABC",
+    "modelInputs": {
+      "specialtyRebucketing": {
+        "hepB": "Non-Sp",
+        "hiv": "Non-Sp",
+        "ivig": "Sp",
+        "narcolepsy": "Sp",
+        "nausea": "Sp",
+        "transplant": "Non-Sp",
+        "pcsk9": "Non-Sp"
+      },
+      "liftType": "Non-Intergalactic",
+      "applyShifting": false,
+      "applyRebateCredit": true,
+      "applyAnnualization": true,
+      "exclusions": {
+        "rebateDollars": "Include",
+        "utilization": {
+          "otcs": "Include",
+          "devices": "Include",
+          "vaccines": "Include",
+          "repackaged": "Include",
+          "mbss": "Include",
+          "testStrips": "Include",
+          "insulin": "Include",
+          "nonFdaApproved": "Include",
+          "add": "Include",
+          "institutionalNDCs": "Include",
+          "formularyExclusions": "Include",
+          "synthetic": "Include",
+          "pcsk9": "Include",
+          "hiv": "Include",
+          "nonRebatable": "Include"
+        },
+        "customNdcList": {
+          "include": true,
+          "description": "Include Rebates for Custom NDC List"
+        }
+      },
+      "authorizedBrandAlternative": {
+        "umClass": {
+          "diabetes": {
+            "currentAssumption": "UM Applied",
+            "override": "Use Default"
+          },
+          "misc": {
+            "currentAssumption": "UM Applied",
+            "override": "Use Default"
+          },
+          "respiratory": {
+            "currentAssumption": "UM Applied",
+            "override": "Use Default"
+          },
+          "specialty": {
+            "currentAssumption": "UM Applied",
+            "override": "Use Default"
+          }
+        }
+      },
+      "weightLoss": {
+        "willWeightLossBeCovered": true,
+        "applyEnhancedUm": false,
+        "isWeightLossCoveredToday": true
+      },
+      "coverageOglp1": {
+        "selectScenario": "Remove Adjustments",
+        "membership": 0,
+        "appliedAdjustment": "--",
+        "version": "--"
+      },
+      "medicarePlans": {
+        "partBCoverage": false
+      },
+      "biosimStrategies": [
+        {
+          "biosimId": "BIS01",
+          "biosimName": "Humira Biosimilar"
+        },
+        {
+          "biosimId": "BIS02",
+          "biosimName": "Stewart Biosimilar"
+        }
+      ],
+      "additionalDetails": {
+        "clientName": "Acme Health",
+        "version": "v1.0",
+        "outputDate": "2025-05-01",
+        "analystName": "Analyst A",
+        "sourceTable": "Source_Table_1",
+        "forecastedYears": 5,
+        "utilizationTrend": "Stable",
+        "costTrend": "Increasing",
+        "r90Threshold": "Threshold_Value"
+      }
+    }
+  }
+}
