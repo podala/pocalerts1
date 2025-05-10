@@ -1,0 +1,43 @@
+import pandas as pd
+from pyxlsb import open_workbook
+
+def column_letter(n):
+    """Convert 1-based column index to Excel-style letter (A, B, ..., AA, AB, ...)"""
+    result = ""
+    while n:
+        n, rem = divmod(n - 1, 26)
+        result = chr(65 + rem) + result
+    return result
+
+def extract_xlsb_formulas(xlsb_path):
+    data = []
+
+    with open_workbook(xlsb_path) as wb:
+        for sheet_name in wb.sheets:
+            with wb.get_sheet(sheet_name) as sheet:
+                for row_idx, row in enumerate(sheet.rows(), start=1):
+                    for col_idx, cell in enumerate(row, start=1):
+                        address = f"{column_letter(col_idx)}{row_idx}"
+                        value = cell.v
+                        formula = getattr(cell, 'formula', None)
+                        is_formula = bool(formula)
+
+                        data.append({
+                            "Sheet": sheet_name,
+                            "Cell": address,
+                            "Column_Index": col_idx,
+                            "Is_Formula_Driven": is_formula,
+                            "Raw_Formula": formula if is_formula else "",
+                            "Static_Value": value if not is_formula else "",
+                            "Evaluated_Result": value
+                        })
+
+    return pd.DataFrame(data)
+
+# 🔁 Run this with your actual .xlsb file
+xlsb_file_path = "your_file_path_here.xlsb"
+df = extract_xlsb_formulas(xlsb_file_path)
+
+# 🔽 Save to Excel or CSV
+df.to_excel("xlsb_formula_extract_report.xlsx", index=False)
+print("✅ Extraction complete. Saved to 'xlsb_formula_extract_report.xlsx'")
