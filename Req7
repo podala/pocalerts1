@@ -1,0 +1,95 @@
+import os
+import json
+import win32com.client
+
+
+def is_probable_header(row_cells):
+    text_values = [cell["value"] for cell in row_cells if isinstance(cell["value"], str)]
+    return len(text_values) >= 3
+
+
+def extract_structured_tables_with_formulas(xlsb_path, max_rows=5000, max_cols=100):
+    excel = win32com.client.Dispatch("Excel.Application")
+    excel.Visible = False
+    excel.DisplayAlerts = False
+
+    try:
+        wb = excel.Workbooks.Open(xlsb_path, ReadOnly=True)
+        output = {}
+
+        for sheet in wb.Sheets:
+            tables = []
+            current_table = None
+
+            used_range = sheet.UsedRange
+            row_count = min(used_range.Rows.Count, max_rows)
+            col_count = min(used_range.Columns.Count, max_cols)
+
+            for row in range(1, row_count + 1):
+                row_cells = []
+                for col in range(1, col_count + 1):
+                    cell = sheet.Cells(row, col)
+                    value = cell.Value
+                    formula = cell.Formula
+                    row_cells.append({
+                        "col": col,
+                        "value": value,
+                        "formula": formula if isinstance(formula, str) and formula.startswith("=") else None
+                    })
+
+                non_empty = [c for c in row_cells if c["value"] not in (None, "", " ")]
+                if not non_empty:
+                    if current_table:
+                        current_table["end_row"] = row - 1
+                        tables.append(current_table)
+                        current_table = None
+                    continue
+
+                if not current_table and is_probable_header(row_cells):
+                    current_table = {
+                        "start_row": row,
+                        "header_row": row,
+                        "headers": {},
+                        "rows": []
+                    }
+                    for cell in row_cells:
+                        current_table["headers"][cell["col"]] = str(cell["value"]).strip()
+                elif current_table:
+                    row_data = {}
+                    for cell in row_cells:
+                        col = cell["col"]
+                        header = current_table["headers"].get(col)
+                        if header:
+                            row_data[header] = {
+                                "value": cell["value"],
+                                "formula": cell["formula"]
+                            }
+                    if any(val["value"] is not None or val["formula"] for val in row_data.values()):
+                        current_table["rows"].append(row_data)
+
+            if current_table:
+                current_table["end_row"] = row_count
+                tables.append(current_table)
+
+            output[sheet.Name] = [
+                {
+                    "table_range": f"R{tbl['start_row']}:R{tbl['end_row']}",
+                    "headers": tbl["headers"],
+                    "data": tbl["rows"]
+                } for tbl in tables
+            ]
+
+        out_file = os.path.splitext(xlsb_path)[0] + "_structured_with_formulas.json"
+        with open(out_file, "w", encoding="utf-8") as f:
+            json.dump(output, f, indent=2, ensure_ascii=False)
+
+        print(f"✅ Structured tables with formulas saved to: {out_file}")
+        return out_file
+
+    finally:
+        wb.Close(False)
+        excel.Quit()
+
+
+# 🔁 Run this with a valid XLSB file
+extract_structured_tables_with_formulas("C:\\Path\\To\\Your\\File.xlsb")
