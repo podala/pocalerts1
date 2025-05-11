@@ -1,0 +1,59 @@
+import json
+import os
+from pyxlsb import open_workbook
+
+def extract_schema_clean(xlsb_path, max_rows=5000, max_columns=5000):
+    base_folder = os.path.dirname(xlsb_path)
+    base_name = os.path.splitext(os.path.basename(xlsb_path))[0]
+    output_path = os.path.join(base_folder, f"{base_name}_schema_output.json")
+
+    sheet_headers = {}
+    sheet_data = {}
+
+    with open_workbook(xlsb_path) as wb:
+        for sheet_name in wb.sheets:
+            with wb.get_sheet(sheet_name) as sheet:
+                headers = {}
+                data_rows = []
+                empty_cols = set()
+
+                for row_idx, row in enumerate(sheet.rows(), start=1):
+                    if row_idx == 1:
+                        for col_idx, cell in enumerate(row, start=1):
+                            if col_idx > max_columns:
+                                break
+                            val = cell.v if cell.v is not None else getattr(cell, 'f', None)
+                            if val is None or str(val).strip() == "":
+                                empty_cols.add(col_idx)
+                                continue
+                            header = str(val).strip()
+                            headers[col_idx] = header
+                        sheet_headers[sheet_name] = headers
+                        continue
+
+                    if row_idx > max_rows:
+                        break
+
+                    row_data = {}
+                    has_data = False
+                    for col_idx, cell in enumerate(row, start=1):
+                        if col_idx > max_columns or col_idx in empty_cols:
+                            continue
+                        col_name = headers.get(col_idx, f"Column{col_idx}")
+                        cell_val = cell.v
+                        if cell_val not in (None, "", " "):
+                            has_data = True
+                        row_data[col_name] = cell_val
+                    if has_data:
+                        data_rows.append(row_data)
+
+                sheet_data[sheet_name] = data_rows
+
+    result = {"headers": sheet_headers, "data": sheet_data}
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2, ensure_ascii=False)
+
+    return output_path
+
+# Call with real uploaded file path
+extract_schema_clean("/mnt/data/RPT_sample.xlsb")
