@@ -1,0 +1,43 @@
+import json
+from pyxlsb import open_workbook
+
+def extract_schema_and_data(xlsb_path, max_rows=5000, max_columns=5000):
+    sheet_headers = {}
+    sheet_data = {}
+
+    with open_workbook(xlsb_path) as wb:
+        for sheet_name in wb.sheets:
+            with wb.get_sheet(sheet_name) as sheet:
+                headers = {}
+                data_rows = []
+                for row_idx, row in enumerate(sheet.rows(), start=1):
+                    if row_idx == 1:
+                        for col_idx, cell in enumerate(row, start=1):
+                            if col_idx > max_columns:
+                                break
+                            header = str(cell.v).strip() if cell.v else f"Column{col_idx}"
+                            headers[col_idx] = header
+                        sheet_headers[sheet_name] = headers
+                    elif row_idx <= max_rows:
+                        row_data = {}
+                        for col_idx, cell in enumerate(row, start=1):
+                            if col_idx > max_columns:
+                                break
+                            col_name = headers.get(col_idx, f"Column{col_idx}")
+                            row_data[col_name] = cell.v
+                        data_rows.append(row_data)
+                sheet_data[sheet_name] = data_rows
+
+    return {
+        "headers": sheet_headers,
+        "data": sheet_data
+    }
+
+# Simulated call to write to JSON
+# Replace 'your_file.xlsb' with your actual .xlsb file path
+output_path = "/mnt/data/xlsb_schema_output.json"
+result = extract_schema_and_data("your_file.xlsb")
+with open(output_path, "w", encoding="utf-8") as f:
+    json.dump(result, f, indent=2, ensure_ascii=False)
+
+output_path
