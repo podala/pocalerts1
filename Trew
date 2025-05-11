@@ -1,0 +1,112 @@
+import os
+import json
+import subprocess
+from openpyxl import load_workbook
+
+
+def convert_xlsb_to_xlsx(input_path, output_dir=None):
+    if output_dir is None:
+        output_dir = os.path.dirname(input_path)
+
+    cmd = [
+        "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+        "--headless",
+        "--convert-to", "xlsx",
+        "--outdir", output_dir,
+        input_path
+    ]
+
+    try:
+        subprocess.run(cmd, check=True)
+        base_name = os.path.splitext(os.path.basename(input_path))[0]
+        xlsx_path = os.path.join(output_dir, base_name + ".xlsx")
+        if not os.path.exists(xlsx_path):
+            raise FileNotFoundError("Conversion failed. Output file not found.")
+        print(f"✅ Converted to: {xlsx_path}")
+        return xlsx_path
+    except subprocess.CalledProcessError as e:
+        print("❌ LibreOffice conversion failed:", e)
+        raise
+
+
+def is_probable_header(row_cells):
+    text_values = [cell["value"] for cell in row_cells if isinstance(cell["value"], str)]
+    return len(text_values) >= 3
+
+
+def extract_structured_tables_with_formulas(xlsx_path, max_rows=5000, max_cols=100):
+    wb = load_workbook(filename=xlsx_path, data_only=False)
+    output = {}
+
+    for sheet in wb.worksheets:
+        tables = []
+        current_table = None
+
+        for row_idx, row in enumerate(sheet.iter_rows(max_row=max_rows), start=1):
+            row_cells = []
+            for col_idx, cell in enumerate(row[:max_cols], start=1):
+                row_cells.append({
+                    "col": col_idx,
+                    "value": cell.value,
+                    "formula": cell.value if cell.data_type == "f" else None
+                })
+
+            non_empty = [c for c in row_cells if c["value"] not in (None, "", " ")]
+            if not non_empty:
+                if current_table:
+                    current_table["end_row"] = row_idx - 1
+                    tables.append(current_table)
+                    current_table = None
+                continue
+
+            if not current_table and is_probable_header(row_cells):
+                current_table = {
+                    "start_row": row_idx,
+                    "header_row": row_idx,
+                    "headers": {},
+                    "rows": []
+                }
+                for cell in row_cells:
+                    current_table["headers"][cell["col"]] = str(cell["value"]).strip()
+            elif current_table:
+                row_data = {}
+                for cell in row_cells:
+                    col = cell["col"]
+                    header = current_table["headers"].get(col)
+                    if header:
+                        row_data[header] = {
+                            "value": cell["value"],
+                            "formula": cell["formula"]
+                        }
+                if any(val["value"] is not None or val["formula"] for val in row_data.values()):
+                    current_table["rows"].append(row_data)
+
+        if current_table:
+            current_table["end_row"] = row_idx
+            tables.append(current_table)
+
+        output[sheet.title] = [
+            {
+                "table_range": f"R{tbl['start_row']}:R{tbl['end_row']}",
+                "headers": tbl["headers"],
+                "data": tbl["rows"]
+            } for tbl in tables
+        ]
+
+    output_path = os.path.splitext(xlsx_path)[0] + "_structured_with_formulas.json"
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(output, f, indent=2, ensure_ascii=False)
+
+    print(f"✅ Structured tables with formulas saved to: {output_path}")
+    return output_path
+
+
+def convert_and_extract(xlsb_path):
+    xlsx_path = convert_xlsb_to_xlsx(xlsb_path)
+    json_path = extract_structured_tables_with_formulas(xlsx_path)
+    return json_path
+
+
+# 🟢 Example use:
+# Replace with your local file path to `.xlsb`
+convert_and_extract("/path/to/your/file.xlsb")
