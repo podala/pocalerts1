@@ -1,0 +1,45 @@
+import json
+import os
+
+# Update: write JSON to same folder as input .xlsb
+def write_schema_json_next_to_xlsb(xlsb_path, max_rows=5000, max_columns=5000):
+    base_folder = os.path.dirname(xlsb_path)
+    base_name = os.path.splitext(os.path.basename(xlsb_path))[0]
+    output_path = os.path.join(base_folder, f"{base_name}_schema_output.json")
+
+    def extract_schema_and_data(xlsb_path, max_rows=5000, max_columns=5000):
+        from pyxlsb import open_workbook
+        sheet_headers = {}
+        sheet_data = {}
+        with open_workbook(xlsb_path) as wb:
+            for sheet_name in wb.sheets:
+                with wb.get_sheet(sheet_name) as sheet:
+                    headers = {}
+                    data_rows = []
+                    for row_idx, row in enumerate(sheet.rows(), start=1):
+                        if row_idx == 1:
+                            for col_idx, cell in enumerate(row, start=1):
+                                if col_idx > max_columns:
+                                    break
+                                header = str(cell.v).strip() if cell.v else f"Column{col_idx}"
+                                headers[col_idx] = header
+                            sheet_headers[sheet_name] = headers
+                        elif row_idx <= max_rows:
+                            row_data = {}
+                            for col_idx, cell in enumerate(row, start=1):
+                                if col_idx > max_columns:
+                                    break
+                                col_name = headers.get(col_idx, f"Column{col_idx}")
+                                row_data[col_name] = cell.v
+                            data_rows.append(row_data)
+                    sheet_data[sheet_name] = data_rows
+        return {"headers": sheet_headers, "data": sheet_data}
+
+    result = extract_schema_and_data(xlsb_path, max_rows, max_columns)
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2, ensure_ascii=False)
+
+    return output_path
+
+# Placeholder path for testing
+write_schema_json_next_to_xlsb("/mnt/data/sample_model.xlsb")  # <-- replace with real file when uploaded
