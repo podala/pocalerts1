@@ -1,0 +1,164 @@
+import pandas as pd
+import re
+from pyxlsb import open_workbook
+
+# Utility to convert column index to Excel-style letters
+def column_letter(n):
+    result = ""
+    while n:
+        n, rem = divmod(n - 1, 26)
+        result = chr(65 + rem) + result
+    return result
+
+# Converts column names into snake_case Python-safe names
+def to_python_safe_name(name):
+    return re.sub(r'\W|^(?=\d)', '_', name.strip().replace(" ", "_"))
+
+# Build headers from all sheets (row 1)
+def build_sheet_headers(xlsb_path, max_columns=5000):
+    headers_map = {}
+    with open_workbook(xlsb_path) as wb:
+        for sheet_name in wb.sheets:
+            with wb.get_sheet(sheet_name) as sheet:
+                for row_idx, row in enumerate(sheet.rows(), start=1):
+                    if row_idx == 1:
+                        col_map = {}
+                        for col_idx, cell in enumerate(row, start=1):
+                            if col_idx > max_columns:
+                                break
+                            col_val = str(cell.v).strip() if cell.v else f"Column{col_idx}"
+                            col_map[col_idx] = col_val
+                        headers_map[sheet_name] = col_map
+                        break
+    return headers_map
+
+# Extract and replace raw formulas with readable headers
+def extract_xlsb_formulas_with_readable(xlsb_path, max_rows=5000, max_columns=5000):
+    data = []
+    sheet_headers = build_sheet_headers(xlsb_path, max_columns)
+
+    def replace_refs_with_column_names(raw_formula, current_sheet):
+        def cell_to_colname(match):
+            ref = match.group(0)
+            if '!' in ref:
+                sheet, cell = ref.split('!')
+                col_letters = re.match(r"[A-Z]+", cell).group()
+            else:
+                sheet = current_sheet
+                col_letters = re.match(r"[A-Z]+", ref).group()
+            col_idx = sum((ord(c) - 64) * (26 ** i) for i, c in enumerate(reversed(col_letters)))
+            col_name = sheet_headers.get(sheet, {}).get(col_idx, f"{sheet}_Col{col_letters}")
+            return to_python_safe_name(col_name)
+        return re.sub(r"\b(?:[A-Za-z0-9_]+!)?[A-Z]{1,3}[0-9]+\b", cell_to_colname, raw_formula)
+
+    with open_workbook(xlsb_path) as wb:
+        for sheet_name in wb.sheets:
+            headers = sheet_headers.get(sheet_name, {})
+            with wb.get_sheet(sheet_name) as sheet:
+                for row_idx, row in enumerate(sheet.rows(), start=1):
+                    if row_idx > max_rows:
+                        break
+                    if row_idx == 1:
+                        continue
+                    for col_idx, cell in enumerate(row, start=1):
+                        if col_idx > max_columns:
+                            break
+                        col_name = headers.get(col_idx, f"Column{col_idx}")
+                        address = f"{column_letter(col_idx)}{row_idx}"
+                        value = cell.v
+                        formula = getattr(cell, 'formula', None)
+                        is_formula = bool(formula)
+                        replaced_formula = replace_refs_with_column_names(formula, sheet_name) if is_formula else ""
+
+                        data.append({
+                            "Sheet": sheet_name,
+                            "Cell": address,
+                            "Column_Index": col_idx,
+                            "Column_Name": col_name,
+                            "Is_Formula_Driven": is_formula,
+                            "Raw_Formula": formula if is_formula else "",
+                            "Readable_Formula": replaced_formula,
+                            "Static_Value": value if not is_formula else "",
+                            "Evaluated_Result": value
+                        })
+    return pd.DataFrame(data)
+
+# Extended parser for robust Excel-to-Python conversion with INDEX/MATCH support
+def robust_excel_to_python(expr):
+    if not expr or not isinstance(expr, str):
+        return ""
+
+    expr = expr.strip()
+
+    replacements = {
+        'TRUE': 'True',
+        'FALSE': 'False',
+        'NOW()': 'datetime.now()',
+        'TODAY()': 'date.today()',
+        'PI()': 'math.pi',
+        'LEN(': 'len(',
+        'ABS(': 'abs(',
+        'ROUND(': 'round(',
+    }
+
+    for k, v in replacements.items():
+        expr = expr.replace(k, v)
+
+    if expr.startswith('='):
+        expr = expr[1:]
+
+    # Handle IF
+    def handle_if(match):
+        content = match.group(1)
+        parts = []
+        depth = 0
+        current = ''
+        for char in content:
+            if char == ',' and depth == 0:
+                parts.append(current.strip())
+                current = ''
+            else:
+                if char == '(':
+                    depth += 1
+                elif char == ')':
+                    depth -= 1
+                current += char
+        parts.append(current.strip())
+        if len(parts) == 3:
+            return f"{parts[1]} if {parts[0]} else {parts[2]}"
+        return match.group(0)
+
+    expr = re.sub(r"IF\s*\(([^)]+)\)", handle_if, expr, flags=re.IGNORECASE)
+
+    # Handle AND, OR, NOT
+    expr = re.sub(r"\bAND\(([^)]+)\)", lambda m: ' and '.join(map(str.strip, m.group(1).split(','))), expr, flags=re.IGNORECASE)
+    expr = re.sub(r"\bOR\(([^)]+)\)", lambda m: ' or '.join(map(str.strip, m.group(1).split(','))), expr, flags=re.IGNORECASE)
+    expr = re.sub(r"\bNOT\(([^)]+)\)", lambda m: f"not ({m.group(1).strip()})", expr, flags=re.IGNORECASE)
+
+    # Handle ISBLANK
+    expr = re.sub(r"ISBLANK\(([^)]+)\)", r"\1 is None or \1 == ''", expr, flags=re.IGNORECASE)
+
+    # Handle basic INDEX(MATCH()) to lookup()
+    def index_match_handler(match):
+        inside = match.group(1)
+        index_part, match_part = inside.split('MATCH', 1)
+        index_range = index_part.strip('(').strip(', ')
+        match_args = re.findall(r'\((.*?)\)', 'MATCH' + match_part)[0].split(',')
+        if len(match_args) >= 2:
+            lookup_val = match_args[0].strip()
+            lookup_range = match_args[1].strip()
+            return f"lookup({index_range}, {lookup_val}, {lookup_range})"
+        return match.group(0)
+
+    expr = re.sub(r"INDEX\(([^)]+MATCH[^)]+\))", index_match_handler, expr, flags=re.IGNORECASE)
+
+    # Replace power operator and concat
+    expr = expr.replace('^', '**')
+    expr = re.sub(r'(".*?")\s*&\s*(".*?")', r'\1 + \2', expr)
+
+    return expr
+
+# Example usage:
+# df = extract_xlsb_formulas_with_readable("your_file.xlsb")
+# df["Python_Equivalent"] = df["Readable_Formula"].apply(robust_excel_to_python)
+# df.to_excel("final_formula_report.xlsx", index=False)
