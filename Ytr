@@ -1,0 +1,81 @@
+import os
+import json
+from pyxlsb import open_workbook
+
+def is_probable_header(row):
+    non_empty = [cell for cell in row if cell.v and isinstance(cell.v, str) and not str(cell.v).startswith("'")]
+    return len(non_empty) >= 3  # Heuristic: likely a header if 3+ text labels
+
+def extract_tables_from_sheet(sheet, max_rows=5000, max_columns=100):
+    tables = []
+    current_table = None
+
+    for row_idx, row in enumerate(sheet.rows(), start=1):
+        if row_idx > max_rows:
+            break
+
+        row_values = [cell.v for cell in row]
+        non_empty_count = sum(1 for val in row_values if val not in (None, "", " "))
+
+        if non_empty_count == 0:
+            if current_table:
+                current_table["end_row"] = row_idx - 1
+                tables.append(current_table)
+                current_table = None
+            continue
+
+        if not current_table and is_probable_header(row):
+            current_table = {
+                "start_row": row_idx,
+                "header_row": row_idx,
+                "headers": {},
+                "rows": []
+            }
+            for col_idx, cell in enumerate(row, start=1):
+                if col_idx > max_columns:
+                    break
+                if cell.v:
+                    current_table["headers"][col_idx] = str(cell.v).strip()
+        elif current_table:
+            row_data = {}
+            for col_idx, cell in enumerate(row, start=1):
+                if col_idx > max_columns:
+                    break
+                header = current_table["headers"].get(col_idx)
+                if header:
+                    row_data[header] = cell.v
+            if any(v not in (None, "", " ") for v in row_data.values()):
+                current_table["rows"].append(row_data)
+
+    if current_table:
+        current_table["end_row"] = row_idx
+        tables.append(current_table)
+
+    return tables
+
+def extract_logical_tables(xlsb_path):
+    base_folder = os.path.dirname(xlsb_path)
+    base_name = os.path.splitext(os.path.basename(xlsb_path))[0]
+    output_path = os.path.join(base_folder, f"{base_name}_structured_tables.json")
+
+    output = {}
+
+    with open_workbook(xlsb_path) as wb:
+        for sheet_name in wb.sheets:
+            with wb.get_sheet(sheet_name) as sheet:
+                tables = extract_tables_from_sheet(sheet)
+                output[sheet_name] = [
+                    {
+                        "table_range": f"R{tbl['start_row']}:R{tbl['end_row']}",
+                        "headers": tbl["headers"],
+                        "data": tbl["rows"]
+                    } for tbl in tables
+                ]
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(output, f, indent=2, ensure_ascii=False)
+
+    return output_path
+
+# Run the smart extractor (replace path with real file after upload)
+extract_logical_tables("/mnt/data/RPT_sample.xlsb")
