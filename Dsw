@@ -1,0 +1,39 @@
+{
+  "executionPlan": [
+    {
+      "step": 1,
+      "name": "calculate_final",
+      "type": "python_function",
+      "inputs": ["Tier", "Adjustment", "RebateMatrix"],
+      "logic": "if row['Tier'] == 'High': return row['Adjustment'] + rebate_lookup[row['Tier']] else: return 1",
+      "outputs": ["FinalCost"]
+    }
+  ]
+}
+import pandas as pd
+
+# Step 1: Create input data
+df = pd.DataFrame({
+    "Tier": ["High", "Mid", "Low"],
+    "Adjustment": [10, 5, 3]
+})
+
+rebate_lookup = {
+    "High": 25,
+    "Mid": 20,
+    "Low": 15
+}
+
+# Step 2: Apply logic (from LLM executionPlan logic)
+def calculate_final(row):
+    if row["Tier"] == "High":
+        return row["Adjustment"] + rebate_lookup.get(row["Tier"], 0)
+    else:
+        return 1
+
+df["FinalCost"] = df.apply(calculate_final, axis=1)
+print(df)
+Tier  Adjustment  Excel_FinalCost  Python_FinalCost  Match
+0  High          10               35                35   True
+1   Mid           5                1                 1   True
+2   Low           3                1                 1   True
