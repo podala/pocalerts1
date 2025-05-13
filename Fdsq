@@ -1,0 +1,143 @@
+import os
+import re
+import json
+import numpy as np
+import pandas as pd
+import openpyxl
+from openpyxl.utils import column_index_from_string
+from pyxlsb import open_workbook as open_xlsb
+
+def get_column_name(header_map, col_index):
+    return header_map.get(col_index, f"Col{col_index}")
+
+def parse_formula(formula: str, header_map: dict) -> (str, str):
+    if not formula or not formula.startswith("="):
+        return "", ""
+
+    expr = formula[1:]
+
+    def replace_cell_refs(match):
+        ref = match.group(0)
+        col_letters = re.match(r"[A-Z]+", ref).group(0)
+        col_index = column_index_from_string(col_letters)
+        header = get_column_name(header_map, col_index)
+        return f"row['{header}']"
+
+    expr = re.sub(r"\b[A-Z]+[0-9]+\b", replace_cell_refs, expr)
+
+    expr = expr.replace("IF(", "np.where(")
+    expr = expr.replace("IFERROR(", "np.where(pd.isna(")
+    expr = expr.replace("AND(", "np.logical_and(")
+    expr = expr.replace("OR(", "np.logical_or(")
+
+    if "INDEX(" in formula and "MATCH(" in formula:
+        python_eq = "# Use lookup_df.loc[...] with MATCH and INDEX logic"
+        plain_english = "Look up a value from a table using row/column match"
+    elif "VLOOKUP(" in formula:
+        python_eq = "# Use vlookup_df.set_index('Key').loc[row['LookupKey']]"
+        plain_english = "Use VLOOKUP to find a value from a vertical table"
+    else:
+        python_eq = expr
+        plain_english = f"Converted logic from Excel formula: {formula}"
+
+    return python_eq, plain_english
+
+def load_headers(sheet, is_xlsb=False):
+    headers = {}
+    if is_xlsb:
+        for row in sheet.rows():
+            for i, cell in enumerate(row):
+                headers[i + 1] = cell.v
+            break
+    else:
+        for col_idx in range(1, sheet.max_column + 1):
+            headers[col_idx] = sheet.cell(row=1, column=col_idx).value
+    return headers
+
+def process_xlsx(file_path, sheet_name):
+    wb_values = openpyxl.load_workbook(file_path, data_only=True)
+    wb_formulas = openpyxl.load_workbook(file_path, data_only=False)
+
+    if sheet_name not in wb_values.sheetnames:
+        raise ValueError(f"Sheet '{sheet_name}' not found in file.")
+
+    ws_values = wb_values[sheet_name]
+    ws_formulas = wb_formulas[sheet_name]
+    header_map = load_headers(ws_values)
+
+    all_data = []
+    for row in range(2, ws_values.max_row + 1):
+        for col in range(1, ws_values.max_column + 1):
+            val_cell = ws_values.cell(row=row, column=col)
+            formula_cell = ws_formulas.cell(row=row, column=col)
+            is_formula = formula_cell.data_type == 'f'
+            formula = formula_cell.value if is_formula else None
+
+            python_eq, plain_english = ("", "")
+            if is_formula:
+                python_eq, plain_english = parse_formula(formula, header_map)
+
+            all_data.append({
+                "sheet_name": sheet_name,
+                "row": row,
+                "column_index": col,
+                "column_name": header_map.get(col, f"Col{col}"),
+                "is_formula": is_formula,
+                "formula": formula,
+                "value": val_cell.value,
+                "python_equivalent": python_eq,
+                "plain_english": plain_english if is_formula else f"Static value: {header_map.get(col, f'Col{col}')}"
+            })
+    return all_data
+
+def process_xlsb(file_path, sheet_name):
+    data = []
+    with open_xlsb(file_path) as wb:
+        if sheet_name not in wb.sheets:
+            raise ValueError(f"Sheet '{sheet_name}' not found in file.")
+
+        with wb.get_sheet(sheet_name) as sheet:
+            header_map = load_headers(sheet, is_xlsb=True)
+            for i, row in enumerate(sheet.rows()):
+                if i == 0:
+                    continue
+                for col_index, cell in enumerate(row):
+                    col_idx = col_index + 1
+                    value = cell.v
+                    data.append({
+                        "sheet_name": sheet_name,
+                        "row": i + 1,
+                        "column_index": col_idx,
+                        "column_name": header_map.get(col_idx, f"Col{col_idx}"),
+                        "is_formula": False,
+                        "formula": None,
+                        "value": value,
+                        "python_equivalent": "",
+                        "plain_english": f"Static value: {header_map.get(col_idx, f'Col{col_idx}')}"
+                    })
+    return data
+
+def extract_sheet_formulas(file_path, sheet_name):
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext in [".xlsx", ".xlsm"]:
+        return process_xlsx(file_path, sheet_name)
+    elif ext == ".xlsb":
+        return process_xlsb(file_path, sheet_name)
+    else:
+        raise ValueError("Only .xlsx, .xlsm, and .xlsb files are supported")
+
+def save_output(data, output_path="parsed_excel_logic.json"):
+    with open(output_path, "w") as f:
+        json.dump(data, f, indent=2)
+    print(f"✅ Output saved to: {output_path}")
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) < 3:
+        print("Usage: python excel_formula_parser.py <excel_file> <sheet_name>")
+        sys.exit(1)
+
+    file_path = sys.argv[1]
+    sheet_name = sys.argv[2]
+    parsed = extract_sheet_formulas(file_path, sheet_name)
+    save_output(parsed)
