@@ -1,0 +1,149 @@
+' Enhanced VBScript to extract formulas, values, full_row, and column_references
+Const ForWriting = 2
+Const OutputFile = "C:\Path\To\Output\formulas.json"
+Const InputFile = "C:\Path\To\Input\file.xlsb"
+
+Set excelApp = CreateObject("Excel.Application")
+excelApp.Visible = False
+
+Set workbook = excelApp.Workbooks.Open(InputFile)
+Set fso = CreateObject("Scripting.FileSystemObject")
+Set jsonFile = fso.OpenTextFile(OutputFile, ForWriting, True)
+
+jsonFile.WriteLine "["
+recordCount = 0
+
+Function ColumnLetterToIndex(col)
+  Dim i, result
+  result = 0
+  For i = 1 To Len(col)
+    result = result * 26 + (Asc(UCase(Mid(col, i, 1))) - 64)
+  Next
+  ColumnLetterToIndex = result
+End Function
+
+Function ExtractReferences(formula, currentSheet, headerMap)
+  Set refList = CreateObject("Scripting.Dictionary")
+  Set regex = New RegExp
+  regex.Global = True
+  regex.IgnoreCase = True
+  regex.Pattern = "(?:([A-Za-z0-9_]+)!)*\$?([A-Z]{1,3})\$?[0-9]+"
+
+  Set matches = regex.Execute(formula)
+  For Each m In matches
+    refSheet = m.SubMatches(0)
+    If refSheet = "" Then refSheet = currentSheet
+    colLetter = m.SubMatches(1)
+    colIndex = ColumnLetterToIndex(colLetter)
+    If headerMap.Exists(refSheet) Then
+      If headerMap(refSheet).Exists(CStr(colIndex)) Then
+        colName = headerMap(refSheet)(CStr(colIndex))
+      Else
+        colName = "Col" & colIndex
+      End If
+    Else
+      colName = "Col" & colIndex
+    End If
+    refKey = refSheet & "!" & colLetter
+    If Not refList.Exists(refKey) Then
+      Set refObj = CreateObject("Scripting.Dictionary")
+      refObj("ref") = refKey
+      refObj("sheet") = refSheet
+      refObj("column_letter") = colLetter
+      refObj("column_index") = colIndex
+      refObj("column_name") = colName
+      refList.Add refKey, refObj
+    End If
+  Next
+  Set ExtractReferences = refList
+End Function
+
+' --- Build Header Map ---
+Set headerMap = CreateObject("Scripting.Dictionary")
+For Each sheet In workbook.Sheets
+  Set headers = CreateObject("Scripting.Dictionary")
+  For col = 1 To sheet.UsedRange.Columns.Count
+    header = sheet.Cells(1, col).Value
+    If Not IsEmpty(header) Then
+      headers.Add CStr(col), header
+    End If
+  Next
+  headerMap.Add sheet.Name, headers
+Next
+
+' --- Parse Each Sheet ---
+For Each sheet In workbook.Sheets
+  Set headerRow = sheet.Rows(1)
+  lastRow = sheet.UsedRange.Rows.Count
+  lastCol = sheet.UsedRange.Columns.Count
+
+  For row = 2 To lastRow
+    Set fullRow = CreateObject("Scripting.Dictionary")
+    For col = 1 To lastCol
+      header = headerRow.Cells(1, col).Value
+      If Not IsEmpty(header) Then
+        cellVal = sheet.Cells(row, col).Value
+        fullRow(header) = cellVal
+      End If
+    Next
+
+    For col = 1 To lastCol
+      Set cell = sheet.Cells(row, col)
+      If cell.HasFormula Then
+        If recordCount > 0 Then jsonFile.WriteLine ","
+        recordCount = recordCount + 1
+
+        header = headerRow.Cells(1, col).Value
+        formulaText = Replace(cell.Formula, """", "\""")
+        valueText = Replace(cell.Value, """", "\""")
+
+        jsonFile.WriteLine "  {"
+        jsonFile.WriteLine "    \"sheet_name\": \"" & sheet.Name & "\"," 
+        jsonFile.WriteLine "    \"row\": " & row & ","
+        jsonFile.WriteLine "    \"column_index\": " & col & ","
+        jsonFile.WriteLine "    \"column_name\": \"" & header & "\"," 
+        jsonFile.WriteLine "    \"is_formula\": true,"
+        jsonFile.WriteLine "    \"formula\": \"" & formulaText & "\"," 
+        jsonFile.WriteLine "    \"value\": \"" & valueText & "\"," 
+        jsonFile.WriteLine "    \"column_references\": ["
+
+        Set refs = ExtractReferences(cell.Formula, sheet.Name, headerMap)
+        refKeys = refs.Keys
+        For i = 0 To refs.Count - 1
+          Set refObj = refs(refKeys(i))
+          jsonFile.WriteLine "      {"
+          jsonFile.WriteLine "        \"ref\": \"" & refObj("ref") & "\"," 
+          jsonFile.WriteLine "        \"sheet\": \"" & refObj("sheet") & "\"," 
+          jsonFile.WriteLine "        \"column_letter\": \"" & refObj("column_letter") & "\"," 
+          jsonFile.WriteLine "        \"column_index\": " & refObj("column_index") & ","
+          jsonFile.WriteLine "        \"column_name\": \"" & refObj("column_name") & "\""
+          If i < refs.Count - 1 Then
+            jsonFile.WriteLine "      },"
+          Else
+            jsonFile.WriteLine "      }"
+          End If
+        Next
+        jsonFile.WriteLine "    ],"
+
+        jsonFile.WriteLine "    \"full_row\": {"
+        keys = fullRow.Keys
+        rowText = ""
+        For Each key In keys
+          val = Replace(fullRow(key), """", "\""")
+          rowText = rowText & "      \"" & key & "\": \"" & val & "\"," & vbCrLf
+        Next
+        If Len(rowText) > 0 Then rowText = Left(rowText, Len(rowText) - 3)
+        jsonFile.WriteLine rowText
+        jsonFile.WriteLine "    }"
+        jsonFile.WriteLine "  }"
+      End If
+    Next
+  Next
+Next
+
+jsonFile.WriteLine "]"
+
+workbook.Close False
+excelApp.Quit
+jsonFile.Close
+WScript.Echo "✅ Output saved to: " & OutputFile
