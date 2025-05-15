@@ -1,0 +1,83 @@
+Dim xlApp, xlBook, xlSheet, xlOutputSheet
+Dim row, lastRow, outputRow
+Dim cellCount, col1, val1, col2, val2, currentHeader
+Dim fso, filePath
+
+' === CONFIGURATION ===
+filePath = "C:\Path\To\Your\File.xlsb"  ' <-- Change this
+sheetName = "Sheet1"                    ' <-- Change this
+
+' === LAUNCH EXCEL ===
+Set xlApp = CreateObject("Excel.Application")
+xlApp.Visible = False
+Set xlBook = xlApp.Workbooks.Open(filePath)
+Set xlSheet = xlBook.Sheets(sheetName)
+
+' Delete old ExtractedData sheet if exists
+On Error Resume Next
+xlBook.Sheets("ExtractedData").Delete
+On Error GoTo 0
+
+Set xlOutputSheet = xlBook.Sheets.Add
+xlOutputSheet.Name = "ExtractedData"
+
+' Output headers
+xlOutputSheet.Cells(1, 1).Value = "Sheet Name"
+xlOutputSheet.Cells(1, 2).Value = "Section Header"
+xlOutputSheet.Cells(1, 3).Value = "Column Name"
+xlOutputSheet.Cells(1, 4).Value = "Value"
+
+outputRow = 2
+lastRow = xlSheet.Cells(xlSheet.Rows.Count, 1).End(-4162).Row ' xlUp = -4162
+
+For row = 1 To lastRow
+    cellCount = xlApp.WorksheetFunction.CountA(xlSheet.Rows(row))
+
+    ' Header line: only one non-empty cell, and contains "-H1"
+    If cellCount = 1 Then
+        If InStr(xlSheet.Cells(row, 1).Value, "-H1") > 0 Then
+            currentHeader = xlSheet.Cells(row, 1).Value
+        End If
+
+    ' Data row
+    ElseIf cellCount >= 2 Then
+        col1 = xlSheet.Cells(row, 1).Value
+        val1 = GetFormulaOrValue(xlSheet.Cells(row, 2))
+
+        xlOutputSheet.Cells(outputRow, 1).Value = sheetName
+        xlOutputSheet.Cells(outputRow, 2).Value = currentHeader
+        xlOutputSheet.Cells(outputRow, 3).Value = col1
+        xlOutputSheet.Cells(outputRow, 4).Value = val1
+        outputRow = outputRow + 1
+
+        If cellCount >= 4 Then
+            col2 = xlSheet.Cells(row, 3).Value
+            val2 = GetFormulaOrValue(xlSheet.Cells(row, 4))
+
+            xlOutputSheet.Cells(outputRow, 1).Value = sheetName
+            xlOutputSheet.Cells(outputRow, 2).Value = currentHeader
+            xlOutputSheet.Cells(outputRow, 3).Value = col2
+            xlOutputSheet.Cells(outputRow, 4).Value = val2
+            outputRow = outputRow + 1
+        End If
+    End If
+Next
+
+' Save and clean up
+xlBook.Save
+xlBook.Close False
+xlApp.Quit
+Set xlSheet = Nothing
+Set xlBook = Nothing
+Set xlApp = Nothing
+
+MsgBox "✅ Data extracted to 'ExtractedData' sheet in " & filePath
+
+' === Function to get formula or value ===
+Function GetFormulaOrValue(cell)
+    If cell.HasFormula Then
+        GetFormulaOrValue = "'" & cell.Formula
+    Else
+        GetFormulaOrValue = cell.Value
+    End If
+End Function
