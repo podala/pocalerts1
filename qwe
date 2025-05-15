@@ -1,0 +1,96 @@
+' === CONFIGURATION ===
+Dim filePath, sheetName, jsonOutputPath
+filePath = "C:\Path\To\Your\File.xlsb"          ' <-- Change this to your input file
+sheetName = "Sheet1"                             ' <-- Change this to your input sheet
+jsonOutputPath = "C:\Path\To\output.json"        ' <-- Change this to your output file path
+
+' === START ===
+Dim xlApp, xlBook, xlSheet
+Set xlApp = CreateObject("Excel.Application")
+xlApp.Visible = False
+Set xlBook = xlApp.Workbooks.Open(filePath)
+Set xlSheet = xlBook.Sheets(sheetName)
+
+Dim row, lastRow, cellCount, currentHeader, json, firstJson
+json = "["
+firstJson = True
+lastRow = xlSheet.Cells(xlSheet.Rows.Count, 1).End(-4162).Row  ' xlUp = -4162
+
+For row = 1 To lastRow
+    cellCount = xlApp.WorksheetFunction.CountA(xlSheet.Rows(row))
+
+    ' Header row: only 1 non-empty cell and contains "-H1"
+    If cellCount = 1 Then
+        If InStr(xlSheet.Cells(row, 1).Value, "-H1") > 0 Then
+            currentHeader = xlSheet.Cells(row, 1).Value
+        End If
+
+    ' Data row
+    ElseIf cellCount >= 2 Then
+        Dim col1, val1, col2, val2
+
+        col1 = xlSheet.Cells(row, 1).Value
+        val1 = GetFormulaOrValue(xlSheet.Cells(row, 2))
+        If firstJson Then
+            firstJson = False
+        Else
+            json = json & ","
+        End If
+        json = json & vbCrLf & "  {" & _
+               """sheetName"": """ & sheetName & """," & _
+               """sectionHeader"": """ & EscapeJson(currentHeader) & """," & _
+               """columnName"": """ & EscapeJson(col1) & """," & _
+               """value"": """ & EscapeJson(val1) & """" & _
+               "}"
+
+        If cellCount >= 4 Then
+            col2 = xlSheet.Cells(row, 3).Value
+            val2 = GetFormulaOrValue(xlSheet.Cells(row, 4))
+
+            json = json & "," & vbCrLf & "  {" & _
+                   """sheetName"": """ & sheetName & """," & _
+                   """sectionHeader"": """ & EscapeJson(currentHeader) & """," & _
+                   """columnName"": """ & EscapeJson(col2) & """," & _
+                   """value"": """ & EscapeJson(val2) & """" & _
+                   "}"
+        End If
+    End If
+Next
+
+json = json & vbCrLf & "]"
+
+' === Write to JSON file ===
+Dim fso, jsonFile
+Set fso = CreateObject("Scripting.FileSystemObject")
+Set jsonFile = fso.CreateTextFile(jsonOutputPath, True, True) ' overwrite, Unicode
+jsonFile.Write json
+jsonFile.Close
+
+' === Clean up Excel ===
+xlBook.Close False
+xlApp.Quit
+Set xlSheet = Nothing
+Set xlBook = Nothing
+Set xlApp = Nothing
+
+WScript.Echo "✅ JSON written to: " & jsonOutputPath
+
+' === Helpers ===
+
+Function GetFormulaOrValue(cell)
+    If cell.HasFormula Then
+        GetFormulaOrValue = "'" & cell.Formula
+    Else
+        GetFormulaOrValue = cell.Value
+    End If
+End Function
+
+Function EscapeJson(str)
+    If IsNull(str) Then str = ""
+    str = Replace(str, "\", "\\")
+    str = Replace(str, """", "\""")
+    str = Replace(str, vbCrLf, "\n")
+    str = Replace(str, vbCr, "\n")
+    str = Replace(str, vbLf, "\n")
+    EscapeJson = str
+End Function
