@@ -1,0 +1,143 @@
+import json
+import re
+from openpyxl import load_workbook
+from openpyxl.utils.cell import coordinate_from_string, column_index_from_string
+
+MAX_ROWS = 10000
+MAX_COLS = 10000
+
+cell_ref_pattern = re.compile(r'(?:([A-Za-z0-9_]+)!)*\$?([A-Z]{1,3})\$?[0-9]+')
+
+def column_letter_to_index(col):
+    return column_index_from_string(col)
+
+def extract_formula_references(formula, current_sheet, headers_by_sheet):
+    refs = []
+    for match in cell_ref_pattern.findall(formula):
+        sheet = match[0] if match[0] else current_sheet
+        col_letter = match[1].replace("$", "")
+        col_index = column_letter_to_index(col_letter)
+        col_name = headers_by_sheet.get(sheet, {}).get(col_index, f"Col{col_index}")
+        refs.append({
+            "ref": f"{sheet}!{col_letter}",
+            "sheet": sheet,
+            "column_letter": col_letter,
+            "column_index": col_index,
+            "column_name": col_name
+        })
+    return refs
+
+def detect_zone(sheet_name):
+    if "Forecast" in sheet_name or "Rates" in sheet_name:
+        return "matrix"
+    elif "Input" in sheet_name:
+        return "form"
+    else:
+        return "tabular"
+
+def parse_tabular(sheet):
+    results = []
+    headers = {col: sheet.cell(row=2, column=col).value for col in range(1, min(sheet.max_column + 1, MAX_COLS + 1))}
+    header_groups = {col: sheet.cell(row=1, column=col).value for col in range(1, min(sheet.max_column + 1, MAX_COLS + 1))}
+
+    for row in range(3, min(sheet.max_row + 1, MAX_ROWS + 1)):
+        row_data = {
+            headers[col]: sheet.cell(row=row, column=col).value
+            for col in headers if headers[col]
+        }
+        for col in headers:
+            cell = sheet.cell(row=row, column=col)
+            if cell.data_type == 'f':
+                results.append({
+                    "sheet_name": sheet.title,
+                    "row": row,
+                    "column_index": col,
+                    "zone": "tabular",
+                    "header_name": header_groups.get(col, ""),
+                    "column_name": headers.get(col, ""),
+                    "is_formula": True,
+                    "formula": cell.value,
+                    "value": cell.internal_value,
+                    "column_references": extract_formula_references(cell.value, sheet.title, {sheet.title: headers}),
+                    "full_row": row_data
+                })
+    return results
+
+def parse_form(sheet):
+    results = []
+    for row in range(1, min(sheet.max_row + 1, MAX_ROWS + 1)):
+        for col in range(2, min(sheet.max_column + 1, MAX_COLS + 1)):
+            cell = sheet.cell(row=row, column=col)
+            if cell.data_type == 'f':
+                label = sheet.cell(row=row, column=col - 1).value
+                context = {
+                    sheet.cell(row=row, column=c).value: sheet.cell(row=row, column=c + 1).value
+                    for c in range(1, min(sheet.max_column, MAX_COLS), 2)
+                    if sheet.cell(row=row, column=c).value
+                }
+                results.append({
+                    "sheet_name": sheet.title,
+                    "row": row,
+                    "column_index": col,
+                    "zone": "form",
+                    "field_label": label,
+                    "is_formula": True,
+                    "formula": cell.value,
+                    "value": cell.internal_value,
+                    "column_references": extract_formula_references(cell.value, sheet.title, {}),
+                    "context_row": context
+                })
+    return results
+
+def parse_matrix(sheet):
+    results = []
+    headers = {col: sheet.cell(row=2, column=col).value for col in range(1, min(sheet.max_column + 1, MAX_COLS + 1))}
+    for row in range(3, min(sheet.max_row + 1, MAX_ROWS + 1)):
+        row_label = sheet.cell(row=row, column=1).value
+        for col in headers:
+            cell = sheet.cell(row=row, column=col)
+            if cell.data_type == 'f':
+                results.append({
+                    "sheet_name": sheet.title,
+                    "row": row,
+                    "column_index": col,
+                    "zone": "matrix",
+                    "row_label": row_label,
+                    "column_name": headers.get(col, ""),
+                    "is_formula": True,
+                    "formula": cell.value,
+                    "value": cell.internal_value,
+                    "column_references": extract_formula_references(cell.value, sheet.title, {sheet.title: headers}),
+                    "row_context": {
+                        sheet.cell(row=row, column=c).value: sheet.cell(row=row, column=c + 1).value
+                        for c in range(1, min(sheet.max_column, MAX_COLS), 2)
+                        if sheet.cell(row=row, column=c).value
+                    }
+                })
+    return results
+
+def parse_workbook(file_path, sheet_names):
+    wb = load_workbook(file_path, data_only=False, read_only=True)
+    all_results = []
+    for sheet_name in sheet_names:
+        if sheet_name in wb.sheetnames:
+            sheet = wb[sheet_name]
+            zone = detect_zone(sheet_name)
+            print(f"Parsing sheet: {sheet_name} as zone: {zone}")
+            if zone == "tabular":
+                all_results.extend(parse_tabular(sheet))
+            elif zone == "form":
+                all_results.extend(parse_form(sheet))
+            elif zone == "matrix":
+                all_results.extend(parse_matrix(sheet))
+        else:
+            print(f"Sheet not found: {sheet_name}")
+    return all_results
+
+if __name__ == "__main__":
+    input_file = "your_model.xlsx"
+    sheets_to_parse = ["Input", "RatesPerQnty", "RPT Forecast"]
+    results = parse_workbook(input_file, sheets_to_parse)
+    with open("parsed_excel_output.json", "w") as f:
+        json.dump(results, f, indent=2)
+    print(f"✅ Extracted {len(results)} formulas into parsed_excel_output.json")
