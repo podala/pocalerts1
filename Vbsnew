@@ -1,0 +1,111 @@
+' VBScript: extract_excel_to_json.vbs
+' Usage: cscript extract_excel_to_json.vbs "YourFilePath.xlsb" "SheetName"
+
+Option Explicit
+
+Dim fso, excelApp, workbook, sheet, cell
+Dim output, row, col, cellCount
+Dim filePath, sheetName, jsonOutputPath
+Dim jsonText, cellInfo, formula, refMatch
+Dim re, matches, match
+Dim refPattern
+
+Set fso = CreateObject("Scripting.FileSystemObject")
+
+' === Read arguments ===
+If WScript.Arguments.Count < 2 Then
+    WScript.Echo "Usage: cscript extract_excel_to_json.vbs <ExcelFilePath> <SheetName>"
+    WScript.Quit 1
+End If
+
+filePath = WScript.Arguments.Item(0)
+sheetName = WScript.Arguments.Item(1)
+jsonOutputPath = fso.GetParentFolderName(filePath) & "\output.json"
+
+' === Setup Excel ===
+Set excelApp = CreateObject("Excel.Application")
+excelApp.Visible = False
+excelApp.DisplayAlerts = False
+
+Set workbook = excelApp.Workbooks.Open(filePath, 0, True)
+On Error Resume Next
+Set sheet = workbook.Sheets(sheetName)
+On Error GoTo 0
+
+If sheet Is Nothing Then
+    WScript.Echo "Sheet not found: " & sheetName
+    workbook.Close False
+    excelApp.Quit
+    WScript.Quit 1
+End If
+
+' === Prepare RegExp for external sheet references ===
+Set re = New RegExp
+re.Pattern = "([A-Za-z0-9_]+)!\$?([A-Z]+)\$?([0-9]+)"
+re.Global = True
+
+' === Extract cells ===
+jsonText = "["
+cellCount = 0
+
+For row = 1 To 10000
+    For col = 1 To 1000
+        Set cell = sheet.Cells(row, col)
+        If Not IsEmpty(cell.Value) Or cell.HasFormula Then
+            cellInfo = "  {""sheet"": """ & sheetName & """, " & _
+                        """cell"": """ & cell.Address(False, False) & """, " & _
+                        """value"": """ & EscapeJson(cell.Text) & """, "
+
+            If cell.HasFormula Then
+                formula = cell.Formula
+                cellInfo = cellInfo & """formula"": """ & EscapeJson(formula) & """, "
+
+                Set matches = re.Execute(formula)
+                If matches.Count > 0 Then
+                    cellInfo = cellInfo & """formulaReferences"": ["
+                    For Each match In matches
+                        cellInfo = cellInfo & "{""refSheet"": """ & match.SubMatches(0) & """, " & _
+                                               """refCell"": """ & match.SubMatches(1) & match.SubMatches(2) & """},"
+                    Next
+                    cellInfo = Left(cellInfo, Len(cellInfo) - 1) & "], "
+                Else
+                    cellInfo = cellInfo & """formulaReferences"": [], "
+                End If
+            Else
+                cellInfo = cellInfo & """formula"": null, ""formulaReferences"": [], "
+            End If
+
+            cellInfo = Left(cellInfo, Len(cellInfo) - 2) & "}"
+            jsonText = jsonText & vbCrLf & cellInfo & ","
+            cellCount = cellCount + 1
+        End If
+    Next
+Next
+
+If cellCount > 0 Then
+    jsonText = Left(jsonText, Len(jsonText) - 1) ' Remove trailing comma
+End If
+jsonText = jsonText & vbCrLf & "]"
+
+' === Save JSON to file ===
+Dim jsonFile
+Set jsonFile = fso.CreateTextFile(jsonOutputPath, True, True)
+jsonFile.Write jsonText
+jsonFile.Close
+
+' === Cleanup ===
+workbook.Close False
+excelApp.Quit
+
+WScript.Echo "Done. Extracted " & cellCount & " cells to: " & jsonOutputPath
+
+
+' === Escape text for JSON compatibility ===
+Function EscapeJson(str)
+    str = Replace(str, "\", "\\")
+    str = Replace(str, """", "\""")
+    str = Replace(str, vbCrLf, "\n")
+    str = Replace(str, vbLf, "\n")
+    str = Replace(str, vbCr, "\n")
+    EscapeJson = str
+End Function
