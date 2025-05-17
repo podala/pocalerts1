@@ -1,0 +1,71 @@
+import json
+from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter
+
+# === CONFIGURATION ===
+INPUT_FILE = "converted_file.xlsx"  # Replace with your .xlsx file
+SHEET_NAME = "Input"                # Replace with actual sheet name
+OUTPUT_FILE = "output.json"
+MAX_ROWS = 50
+MAX_COLS = 183  # Excel column "GE"
+
+def extract_data_with_formulas(file_path, sheet_name):
+    # Load with data_only=False to access formulas
+    wb = load_workbook(filename=file_path, data_only=False)
+    ws = wb[sheet_name]
+
+    extracted = []
+
+    headers = [ws.cell(row=1, column=col).value for col in range(1, MAX_COLS + 1)]
+    sub_headers = [ws.cell(row=2, column=col).value for col in range(1, MAX_COLS + 1)]
+    years = [ws.cell(row=3, column=col).value for col in range(1, MAX_COLS + 1)]
+
+    for row in range(4, min(ws.max_row + 1, MAX_ROWS + 1)):
+        for col in range(1, MAX_COLS + 1):
+            header_name = headers[col - 1] or ""
+            sub_header = sub_headers[col - 1] or ""
+            year = years[col - 1]
+
+            if not all([header_name, sub_header, year]):
+                continue
+
+            cell = ws.cell(row=row, column=col)
+            value = cell.value
+            formula = getattr(cell, 'formula', None)  # If it exists
+
+            excel_col = get_column_letter(col)
+
+            match = next(
+                (item for item in extracted if item["headerName"] == header_name and item["subHeader"] == sub_header),
+                None
+            )
+
+            if not match:
+                match = {
+                    "headerName": header_name,
+                    "subHeader": sub_header,
+                    "columns": {}
+                }
+                extracted.append(match)
+
+            match["columns"][str(year)] = {
+                "extractedValue": value,
+                "extractedFormula": formula,
+                "rowNumber": row,
+                "colNumber": col,
+                "excelColumn": excel_col
+            }
+
+    return extracted
+
+def main():
+    print(f"🔍 Reading '{SHEET_NAME}' from '{INPUT_FILE}'...")
+    data = extract_data_with_formulas(INPUT_FILE, SHEET_NAME)
+
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+    print(f"✅ Extraction complete. Output saved to '{OUTPUT_FILE}'")
+
+if __name__ == "__main__":
+    main()
