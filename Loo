@@ -1,0 +1,4 @@
+from openpyxl import load_workbook
+
+wb = load_workbook("RPT_1.xlsx", data_only=False)
+print("Available Sheets:", wb.sheetnames)
