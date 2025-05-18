@@ -1,0 +1,152 @@
+import re
+import json
+from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter, column_index_from_string
+
+# === CONFIGURATION ===
+INPUT_FILE = "/mnt/data/converted.xlsx"  # Update path if needed
+SHEET_NAME = "Input"
+FORM_OUTPUT_FILE = "/mnt/data/form_output.json"
+MAX_ROWS = 250
+MAX_COLS = 50
+
+# === ADVANCED LOOKUP PARSER (SAFE) ===
+def extract_lookups(formula):
+    lookups = []
+
+    if not isinstance(formula, str):
+        return lookups
+
+    # Cross-sheet cell references: Sheet1!$A$1
+    sheet_ref_pattern = re.compile(r"([A-Za-z0-9_]+)!\$?([A-Z]+)\$?([0-9]+)")
+    for match in sheet_ref_pattern.finditer(formula):
+        sheet, col, row = match.groups()
+        lookups.append({
+            "type": "crossSheet",
+            "sheetName": sheet,
+            "excelColumn": col,
+            "colNumber": column_index_from_string(col),
+            "rowNumber": int(row)
+        })
+
+    # INDEX references like INDEX(Sheet1!A1:B10,...)
+    index_range_pattern = re.compile(r"INDEX\(([^,]+)")
+    for match in index_range_pattern.finditer(formula):
+        index_expr = match.group(1).strip()
+        if "!" in index_expr:
+            try:
+                sheet_part, range_part = index_expr.split("!")
+                sheet = sheet_part.strip()
+                range_part = range_part.replace("$", "").strip()
+
+                if ":" in range_part:
+                    start_cell, end_cell = range_part.split(":")
+
+                    if re.match(r"[A-Z]+[0-9]+", start_cell) and re.match(r"[A-Z]+[0-9]+", end_cell):
+                        start_col_match = re.match(r"[A-Z]+", start_cell)
+                        start_row_match = re.search(r"[0-9]+", start_cell)
+
+                        if start_col_match and start_row_match:
+                            start_col = start_col_match.group()
+                            start_row = start_row_match.group()
+                            lookups.append({
+                                "type": "indexRange",
+                                "sheetName": sheet,
+                                "startCell": start_cell,
+                                "endCell": end_cell,
+                                "startColumn": column_index_from_string(start_col),
+                                "startRow": int(start_row)
+                            })
+            except Exception:
+                continue  # Skip invalid INDEX expressions
+
+    return lookups
+
+# === SECTION HEADER DETECTION ===
+def is_section_header(value):
+    if not isinstance(value, str):
+        return False
+    val = value.strip()
+    return val.lower().startswith("step") or val.endswith(":") or val.isupper()
+
+# === SMART FIELD EXTRACTION ===
+def extract_fields(file_path, sheet_name):
+    wb_data = load_workbook(file_path, data_only=True)
+    ws_data = wb_data[sheet_name]
+
+    wb_formula = load_workbook(file_path, data_only=False)
+    ws_formula = wb_formula[sheet_name]
+
+    sections = []
+    current_section = "General"
+    current_fields = []
+
+    for row in range(1, MAX_ROWS + 1):
+        for col in range(1, MAX_COLS + 1):
+            cell = ws_data.cell(row=row, column=col)
+            value = cell.value
+
+            # Detect section headers
+            if is_section_header(value):
+                if current_fields:
+                    sections.append({
+                        "section": current_section,
+                        "fields": current_fields
+                    })
+                    current_fields = []
+                current_section = value.strip()
+                continue
+
+            # Treat any non-section string as a potential label
+            if isinstance(value, str) and value.strip():
+                label = value.strip()
+
+                # Check nearby cells for actual value/formula
+                for drow, dcol in [(0, 1), (1, 0), (-1, 0)]:
+                    r2, c2 = row + drow, col + dcol
+                    if r2 < 1 or r2 > MAX_ROWS or c2 < 1 or c2 > MAX_COLS:
+                        continue
+
+                    val_cell = ws_data.cell(row=r2, column=c2)
+                    val_formula_cell = ws_formula.cell(row=r2, column=c2)
+
+                    val = val_cell.value
+                    formula = val_formula_cell.value if val_formula_cell.data_type == "f" else None
+
+                    if val is not None or formula:
+                        field = {
+                            "label": label,
+                            "extractedValue": val,
+                            "extractedFormula": formula,
+                            "rowNumber": r2,
+                            "colNumber": c2,
+                            "excelColumn": get_column_letter(c2)
+                        }
+                        lookups = extract_lookups(formula)
+                        if lookups:
+                            field["lookups"] = lookups
+                        current_fields.append(field)
+                        break
+
+    # Append last section
+    if current_fields:
+        sections.append({
+            "section": current_section,
+            "fields": current_fields
+        })
+
+    return sections
+
+# === MAIN FUNCTION ===
+def main():
+    try:
+        data = extract_fields(INPUT_FILE, SHEET_NAME)
+        with open(FORM_OUTPUT_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        print(f"✅ Extraction complete. Output saved to {FORM_OUTPUT_FILE}")
+    except Exception as e:
+        print(f"❌ Error: {e}")
+
+# === RUN SCRIPT ===
+if __name__ == "__main__":
+    main()
