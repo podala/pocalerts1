@@ -1,0 +1,89 @@
+import re
+import json
+from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter, column_index_from_string
+
+# === CONFIGURATION ===
+INPUT_FILE = "/mnt/data/converted.xlsx"
+SHEET_NAME = "Input"
+FORM_OUTPUT_FILE = "/mnt/data/form_output.json"
+MAX_ROWS = 150
+MAX_COLS = 30  # Focused on side-by-side form layout zone
+
+# === FUNCTION TO PARSE LOOKUPS FROM FORMULAS ===
+def extract_lookups(formula):
+    pattern = re.compile(r"([A-Za-z0-9_]+)!\$?([A-Z]+)\$?([0-9]+)")
+    lookups = []
+    for match in pattern.finditer(formula or ""):
+        sheet, col, row = match.groups()
+        lookups.append({
+            "sheetName": sheet,
+            "excelColumn": col,
+            "colNumber": column_index_from_string(col),
+            "rowNumber": int(row)
+        })
+    return lookups
+
+# === FUNCTION TO EXTRACT FORM-STYLE FIELDS ===
+def extract_form_fields(file_path, sheet_name):
+    wb_headers = load_workbook(file_path, data_only=True)
+    ws_headers = wb_headers[sheet_name]
+
+    wb = load_workbook(file_path, data_only=False)
+    ws = wb[sheet_name]
+
+    form_sections = []
+    current_section = None
+    current_fields = []
+
+    for row in range(1, MAX_ROWS + 1):
+        label_cell = ws_headers.cell(row=row, column=3)
+        value_cell = ws_headers.cell(row=row, column=6)
+        formula_cell = ws.cell(row=row, column=6)
+
+        label = label_cell.value
+        value = value_cell.value
+        formula = formula_cell.value if formula_cell.data_type == "f" else None
+
+        if isinstance(label, str) and label.strip().startswith("Step"):
+            if current_section and current_fields:
+                form_sections.append({
+                    "section": current_section,
+                    "fields": current_fields
+                })
+            current_section = label.strip()
+            current_fields = []
+            continue
+
+        if label and value is not None:
+            field_data = {
+                "label": label.strip(),
+                "extractedValue": value,
+                "extractedFormula": formula,
+                "rowNumber": row,
+                "colNumber": 6,
+                "excelColumn": get_column_letter(6)
+            }
+
+            lookups = extract_lookups(formula)
+            if lookups:
+                field_data["lookups"] = lookups
+
+            current_fields.append(field_data)
+
+    if current_section and current_fields:
+        form_sections.append({
+            "section": current_section,
+            "fields": current_fields
+        })
+
+    return form_sections
+
+# === MAIN EXECUTION ===
+def main():
+    form_data = extract_form_fields(INPUT_FILE, SHEET_NAME)
+    with open(FORM_OUTPUT_FILE, "w", encoding="utf-8") as f:
+        json.dump(form_data, f, indent=2, ensure_ascii=False)
+    return FORM_OUTPUT_FILE
+
+main()
