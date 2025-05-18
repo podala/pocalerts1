@@ -1,0 +1,104 @@
+import re
+import json
+from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter, column_index_from_string
+
+# === CONFIGURATION ===
+INPUT_FILE = "/mnt/data/converted.xlsx"
+SHEET_NAME = "Pattern4"
+OUTPUT_FILE = "/mnt/data/pattern4_output.json"
+
+# === FUNCTION TO PARSE LOOKUPS FROM FORMULAS ===
+def extract_lookups(formula):
+    if not formula:
+        return []
+    pattern = re.compile(r"([A-Za-z0-9_]+)!\$?([A-Z]+)\$?([0-9]+)")
+    return [
+        {
+            "sheetName": m[0],
+            "excelColumn": m[1],
+            "colNumber": column_index_from_string(m[1]),
+            "rowNumber": int(m[2])
+        }
+        for m in re.findall(pattern, formula)
+    ]
+
+# === MAIN PATTERN 4 EXTRACTOR ===
+def extract_pattern4_dynamic(filepath, sheet_name):
+    wb = load_workbook(filepath, data_only=False)
+    ws = wb[sheet_name]
+
+    result = []
+    max_rows = ws.max_row
+    max_cols = ws.max_column
+
+    current_method = None
+    current_subheader = None
+    start_row = 5  # Assuming headers start here
+
+    for row in range(1, max_rows + 1):
+        for col in range(1, max_cols + 1):
+            val = ws.cell(row=row, column=col).value
+            if isinstance(val, str) and "pre-shift" in val.lower():
+                current_method = val.strip()
+            elif isinstance(val, str) and val.strip().lower() in ["rebate", "pre brand rx"]:
+                current_subheader = val.strip()
+
+    for block_start_col in range(4, max_cols, 5):  # Scan blocks horizontally
+        table_name_cell = ws.cell(row=start_row - 1, column=block_start_col)
+        table_name = table_name_cell.value or f"Table_{block_start_col}"
+        year_row = start_row
+        years = []
+        for col in range(block_start_col, block_start_col + 4):
+            year = ws.cell(row=year_row, column=col).value
+            if year:
+                years.append(str(year))
+
+        rows = []
+        for row_offset in range(1, 6):  # 5 channel rows
+            row_index = year_row + row_offset
+            row_label = ws.cell(row=row_index, column=2).value
+            if not row_label:
+                continue
+
+            row_data = {
+                "rowLabel": row_label,
+                "values": {}
+            }
+
+            for i, year in enumerate(years):
+                col_index = block_start_col + i
+                cell = ws.cell(row=row_index, column=col_index)
+                formula = cell.value if cell.data_type == "f" else None
+                val = cell.value
+                entry = {
+                    "value": val,
+                    "row": row_index,
+                    "col": col_index,
+                    "colRef": get_column_letter(col_index)
+                }
+                if formula:
+                    entry["formula"] = formula
+                    lookups = extract_lookups(formula)
+                    if lookups:
+                        entry["lookups"] = lookups
+
+                row_data["values"][year] = entry
+
+            rows.append(row_data)
+
+        result.append({
+            "method": current_method or "Unknown",
+            "headerName": current_method or "Unknown",
+            "subHeaderName": current_subheader or "Unknown",
+            "tableName": table_name,
+            "columns": years,
+            "data": rows
+        })
+
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2, ensure_ascii=False)
+
+    return OUTPUT_FILE
+
+extract_pattern4_dynamic(INPUT_FILE, SHEET_NAME)
