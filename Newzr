@@ -1,0 +1,143 @@
+import re
+import json
+from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter, column_index_from_string
+
+# === CONFIGURATION ===
+INPUT_FILE = "/mnt/data/converted.xlsx"
+SHEET_NAME = "Sheet1"
+OUTPUT_FILE = "/mnt/data/output.json"
+MAX_ROWS = 50
+MAX_COLS = 183  # Excel column "GE"
+
+# === FUNCTION TO PARSE LOOKUPS FROM FORMULAS ===
+def extract_lookups(formula):
+    pattern = re.compile(r"([A-Za-z0-9_]+)!\$?([A-Z]+)\$?([0-9]+)")
+    lookups = []
+    for match in pattern.finditer(formula or ""):
+        sheet, col, row = match.groups()
+        lookups.append({
+            "sheetName": sheet,
+            "excelColumn": col,
+            "colNumber": column_index_from_string(col),
+            "rowNumber": int(row)
+        })
+    return lookups
+
+# === MAIN EXTRACT FUNCTION ===
+def extract_data_with_formulas(file_path, sheet_name):
+    # Load headers first with values
+    wb_headers = load_workbook(file_path, data_only=True)
+    ws_headers = wb_headers[sheet_name]
+
+    # Load formulas
+    wb = load_workbook(file_path, data_only=False)
+    ws = wb[sheet_name]
+
+    headers = [ws_headers.cell(row=1, column=col).value for col in range(1, MAX_COLS + 1)]
+    sub_headers = [ws_headers.cell(row=2, column=col).value for col in range(1, MAX_COLS + 1)]
+    third_row = [ws_headers.cell(row=3, column=col).value for col in range(1, MAX_COLS + 1)]
+    fourth_row = [ws_headers.cell(row=4, column=col).value for col in range(1, MAX_COLS + 1)]
+
+    extracted = []
+
+    for row in range(5, min(ws.max_row + 1, MAX_ROWS + 1)):
+        for col in range(1, MAX_COLS + 1):
+            header = headers[col - 1] or ""
+            sub = sub_headers[col - 1] or ""
+            level3 = third_row[col - 1]
+            level4 = fourth_row[col - 1]
+
+            cell = ws.cell(row=row, column=col)
+            value = cell.value
+            formula = cell.value if cell.data_type == "f" else None
+            excel_col = get_column_letter(col)
+            lookups = extract_lookups(formula) if formula else []
+
+            # Vertical block: no header or subHeader
+            if not header and not sub:
+                columnName = level3
+                if not columnName:
+                    continue
+                extracted.append({
+                    "headerName": "",
+                    "subHeader": "",
+                    "columnName": columnName,
+                    "columns": {
+                        "value": {
+                            "extractedValue": value,
+                            "extractedFormula": formula,
+                            "rowNumber": row,
+                            "colNumber": col,
+                            "excelColumn": excel_col,
+                            "lookups": lookups if lookups else None
+                        }
+                    }
+                })
+                continue
+
+            # Base Y / Base Y% style
+            if level4 == "Value":
+                match = next(
+                    (item for item in extracted if item["headerName"] == header and item["subHeader"] == sub and item.get("columnName") == level3),
+                    None
+                )
+                if not match:
+                    match = {
+                        "headerName": header,
+                        "subHeader": sub,
+                        "columnName": level3,
+                        "columns": {}
+                    }
+                    extracted.append(match)
+
+                match["columns"]["value"] = {
+                    "extractedValue": value,
+                    "extractedFormula": formula,
+                    "rowNumber": row,
+                    "colNumber": col,
+                    "excelColumn": excel_col,
+                    "lookups": lookups if lookups else None
+                }
+            else:
+                # Script, AWP, QTY year-based blocks
+                year = level3
+                if not year:
+                    continue
+                match = next(
+                    (item for item in extracted if item["headerName"] == header and item["subHeader"] == sub and "columnName" not in item),
+                    None
+                )
+                if not match:
+                    match = {
+                        "headerName": header,
+                        "subHeader": sub,
+                        "columns": {}
+                    }
+                    extracted.append(match)
+
+                match["columns"][str(year)] = {
+                    "extractedValue": value,
+                    "extractedFormula": formula,
+                    "rowNumber": row,
+                    "colNumber": col,
+                    "excelColumn": excel_col,
+                    "lookups": lookups if lookups else None
+                }
+
+    # Clean up None lookups
+    for block in extracted:
+        for k, v in block.get("columns", {}).items():
+            if v.get("lookups") is None:
+                del v["lookups"]
+
+    return extracted
+
+# === MAIN EXECUTION ===
+def main():
+    data = extract_data_with_formulas(INPUT_FILE, SHEET_NAME)
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    return OUTPUT_FILE
+
+main()
