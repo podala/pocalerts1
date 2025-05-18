@@ -1,0 +1,186 @@
+import re
+import json
+from decimal import Decimal
+from datetime import datetime, date
+from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter, column_index_from_string
+
+# === CONFIGURATION ===
+INPUT_FILE = "/mnt/data/converted.xlsx"
+SHEET_NAME = "Input"
+FORM_OUTPUT_FILE = "/mnt/data/form_output.json"
+MAX_ROWS = 250
+MAX_COLS = 50
+
+def extract_formula_components(formula):
+    result = {
+        "lookups": [],
+        "functions": {}
+    }
+
+    if not isinstance(formula, str):
+        return result
+
+    try:
+        # Cross-sheet references like Sheet1!A1
+        sheet_ref_pattern = re.compile(r"([A-Za-z0-9_]+)!\$?([A-Z]+)\$?([0-9]+)")
+        for match in sheet_ref_pattern.finditer(formula):
+            sheet, col, row = match.groups()
+            result["lookups"].append({
+                "type": "crossSheet",
+                "sheetName": sheet,
+                "excelColumn": col,
+                "colNumber": column_index_from_string(col),
+                "rowNumber": int(row)
+            })
+
+        # INDEX(...)
+        index_pattern = re.compile(r"INDEX\(([^,]+)")
+        for match in index_pattern.finditer(formula):
+            index_expr = match.group(1).strip()
+            if "!" in index_expr and ":" in index_expr:
+                sheet_part, range_part = index_expr.split("!")
+                sheet = sheet_part.strip()
+                range_part = range_part.replace("$", "").strip()
+                start_cell, end_cell = range_part.split(":")
+                result["lookups"].append({
+                    "type": "indexRange",
+                    "sheetName": sheet,
+                    "startCell": start_cell,
+                    "endCell": end_cell
+                })
+                result["functions"]["INDEX"] = {
+                    "range": f"{sheet}!{start_cell}:{end_cell}"
+                }
+
+        # VLOOKUP(...)
+        vlookup_pattern = re.compile(r"VLOOKUP\(([^)]+)\)", re.IGNORECASE)
+        for match in vlookup_pattern.finditer(formula):
+            args = [arg.strip() for arg in match.group(1).split(",")]
+            if len(args) >= 3:
+                result["functions"]["VLOOKUP"] = {
+                    "lookupValue": args[0],
+                    "range": args[1],
+                    "columnIndex": args[2],
+                    "isApproximate": args[3].lower() in ["true", "1"] if len(args) > 3 else None
+                }
+
+        # MATCH(...)
+        match_pattern = re.compile(r"MATCH\(([^)]+)\)", re.IGNORECASE)
+        for match in match_pattern.finditer(formula):
+            args = [arg.strip() for arg in match.group(1).split(",")]
+            if len(args) >= 2:
+                result["functions"]["MATCH"] = {
+                    "lookupValue": args[0],
+                    "lookupArray": args[1],
+                    "matchType": args[2] if len(args) > 2 else None
+                }
+
+        # IFERROR(...)
+        iferror_pattern = re.compile(r"IFERROR\(([^,]+),([^)]+)\)", re.IGNORECASE)
+        for match in iferror_pattern.finditer(formula):
+            result["functions"]["IFERROR"] = {
+                "expression": match.group(1).strip(),
+                "fallback": match.group(2).strip()
+            }
+
+        # IF(...)
+        if_pattern = re.compile(r"IF\(([^,]+),([^,]+),([^)]+)\)", re.IGNORECASE)
+        for match in if_pattern.finditer(formula):
+            result["functions"]["IF"] = {
+                "condition": match.group(1).strip(),
+                "trueResult": match.group(2).strip(),
+                "falseResult": match.group(3).strip()
+            }
+
+    except Exception:
+        pass
+
+    return result
+
+def is_section_header(value):
+    return isinstance(value, str) and (
+        value.strip().lower().startswith("step") or
+        value.strip().endswith(":") or
+        value.strip().isupper()
+    )
+
+def extract_fields(file_path, sheet_name):
+    wb_data = load_workbook(file_path, data_only=True)
+    ws_data = wb_data[sheet_name]
+    wb_formula = load_workbook(file_path, data_only=False)
+    ws_formula = wb_formula[sheet_name]
+
+    sections = []
+    current_section = "General"
+    current_fields = []
+
+    for row in range(1, MAX_ROWS + 1):
+        for col in range(1, MAX_COLS + 1):
+            cell = ws_data.cell(row=row, column=col)
+            value = cell.value
+
+            if is_section_header(value):
+                if current_fields:
+                    sections.append({
+                        "section": current_section,
+                        "fields": current_fields
+                    })
+                    current_fields = []
+                current_section = value.strip()
+                continue
+
+            if isinstance(value, str) and value.strip():
+                label = value.strip()
+
+                for drow, dcol in [(0, 1), (1, 0), (-1, 0)]:
+                    r2, c2 = row + drow, col + dcol
+                    if not (1 <= r2 <= MAX_ROWS and 1 <= c2 <= MAX_COLS):
+                        continue
+
+                    val_cell = ws_data.cell(row=r2, column=c2)
+                    val_formula_cell = ws_formula.cell(row=r2, column=c2)
+                    val = val_cell.value
+                    formula = val_formula_cell.value if val_formula_cell.data_type == "f" else None
+
+                    if val is not None or formula:
+                        parsed = extract_formula_components(formula)
+                        field = {
+                            "label": label,
+                            "extractedValue": val,
+                            "extractedFormula": formula,
+                            "parsedFunctions": parsed["functions"] or None,
+                            "lookups": parsed["lookups"] or None,
+                            "rowNumber": r2,
+                            "colNumber": c2,
+                            "excelColumn": get_column_letter(c2)
+                        }
+                        current_fields.append(field)
+                        break
+
+    if current_fields:
+        sections.append({
+            "section": current_section,
+            "fields": current_fields
+        })
+
+    return sections
+
+def serialize_obj(obj):
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    elif isinstance(obj, Decimal):
+        return float(obj)
+    raise TypeError(f"Type {type(obj)} not serializable")
+
+def main():
+    try:
+        data = extract_fields(INPUT_FILE, SHEET_NAME)
+        with open(FORM_OUTPUT_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False, default=serialize_obj)
+        print(f"✅ Extraction complete. Output saved to {FORM_OUTPUT_FILE}")
+    except Exception as e:
+        print(f"❌ Error: {e}")
+
+if __name__ == "__main__":
+    main()
