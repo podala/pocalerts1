@@ -1,0 +1,79 @@
+import openpyxl
+from openpyxl.utils import get_column_letter
+import json
+
+def extract_pattern4_layout(file_path: str, sheet_name: str, start_row: int = 2, max_rows: int = 50, max_cols: int = 200):
+    wb = openpyxl.load_workbook(file_path, data_only=False)
+    ws = wb[sheet_name]
+
+    output = []
+    current_method = ""
+    block_width = 7  # 5 years + method + label columns
+
+    for col_block_start in range(5, max_cols, block_width):
+        col_block_end = col_block_start + 4  # 5 year columns
+        sub_header_cell = ws.cell(row=start_row + 1, column=col_block_start)
+        sub_header = sub_header_cell.value if sub_header_cell.value else "Unknown"
+        method_cell = ws.cell(row=start_row, column=col_block_start)
+        method = method_cell.value if method_cell.value else "Unknown"
+
+        # Year row (3rd row in screenshot logic)
+        year_row = start_row + 2
+        years = []
+        for col in range(col_block_start, col_block_end + 1):
+            year = ws.cell(row=year_row, column=col).value
+            if year:
+                years.append(str(year))
+            else:
+                break
+
+        # Table rows
+        table_start_row = year_row + 1
+        for row in range(table_start_row, max_rows):
+            row_label = ws.cell(row=row, column=col_block_start - 1).value
+            if row_label is None:
+                break
+
+            record = {
+                "method": method,
+                "headerName": method,
+                "subHeaderName": sub_header,
+                "tableName": row_label,
+                "columns": years,
+                "data": []
+            }
+
+            year_values = {}
+            for i, year in enumerate(years):
+                col = col_block_start + i
+                cell = ws.cell(row=row, column=col)
+                value = cell.value
+                formula = cell.value if cell.data_type == "f" else None
+                year_values[year] = {
+                    "extractedValue": value,
+                    "extractedFormula": formula,
+                    "rowNumber": row,
+                    "colNumber": col,
+                    "excelColumn": get_column_letter(col)
+                }
+
+            record["data"].append({
+                "rowLabel": row_label,
+                "values": year_values
+            })
+
+            output.append(record)
+
+    return output
+
+# Run the function and write JSON
+file_path = "/mnt/data/pattern4_proper_mock.xlsx"
+sheet_name = "Pattern4"
+extracted_data = extract_pattern4_layout(file_path, sheet_name)
+
+# Save to JSON
+json_path = "/mnt/data/pattern4_output_from_mock.json"
+with open(json_path, "w") as f:
+    json.dump(extracted_data, f, indent=2)
+
+json_path
