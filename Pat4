@@ -1,0 +1,112 @@
+import re
+import json
+from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter, column_index_from_string
+
+# === CONFIGURATION ===
+INPUT_FILE = "/mnt/data/converted.xlsx"
+SHEET_NAME = "Pattern4"
+OUTPUT_FILE = "/mnt/data/pattern4_corrected_output.json"
+
+# === HELPER TO EXTRACT LOOKUP DETAILS FROM FORMULAS ===
+def extract_lookups(formula):
+    if not formula:
+        return []
+    pattern = re.compile(r"([A-Za-z0-9_]+)!\$?([A-Z]+)\$?([0-9]+)")
+    return [
+        {
+            "sheetName": m[0],
+            "excelColumn": m[1],
+            "colNumber": column_index_from_string(m[1]),
+            "rowNumber": int(m[2])
+        }
+        for m in re.findall(pattern, formula)
+    ]
+
+# === SMART PATTERN 4 PARSER ===
+def extract_pattern4_corrected(filepath, sheet_name):
+    wb = load_workbook(filepath, data_only=False)
+    ws = wb[sheet_name]
+
+    result = []
+    max_rows = ws.max_row
+    max_cols = ws.max_column
+
+    for start_row in range(1, max_rows):
+        for start_col in range(1, max_cols):
+            cell_val = ws.cell(row=start_row, column=start_col).value
+            if isinstance(cell_val, str) and "2025" in cell_val:
+                method = None
+                sub_header = None
+
+                for r in range(start_row - 3, start_row):
+                    for c in range(start_col, start_col + 5):
+                        text = ws.cell(row=r, column=c).value
+                        if text:
+                            if not sub_header and any(k in text.lower() for k in ["rebate", "brand", "total"]):
+                                sub_header = text.strip()
+                            elif not method:
+                                method = text.strip()
+
+                method = method or "Unknown"
+                sub_header = sub_header or "Unknown"
+
+                header_labels = []
+                for c in range(start_col, max_cols):
+                    val = ws.cell(row=start_row, column=c).value
+                    if isinstance(val, int) or (isinstance(val, str) and val.isdigit()):
+                        header_labels.append(str(val))
+                    else:
+                        break
+                header_width = len(header_labels)
+
+                row_labels = []
+                data_start_row = start_row + 1
+                for r in range(data_start_row, max_rows):
+                    label = ws.cell(row=r, column=start_col - 2).value
+                    if not label:
+                        break
+                    row_labels.append((r, label))
+
+                table_name = ws.cell(row=start_row - 1, column=start_col).value or f"Table_{start_col}"
+
+                table_data = []
+                for r_idx, row_label in row_labels:
+                    values = {}
+                    for i, col_year in enumerate(header_labels):
+                        c = start_col + i
+                        cell = ws.cell(row=r_idx, column=c)
+                        formula = cell.value if cell.data_type == "f" else None
+                        val = cell.value
+                        entry = {
+                            "value": val,
+                            "row": r_idx,
+                            "col": c,
+                            "colRef": get_column_letter(c)
+                        }
+                        if formula:
+                            entry["formula"] = formula
+                            lookups = extract_lookups(formula)
+                            if lookups:
+                                entry["lookups"] = lookups
+                        values[col_year] = entry
+                    table_data.append({
+                        "rowLabel": row_label,
+                        "values": values
+                    })
+
+                result.append({
+                    "method": method,
+                    "headerName": method,
+                    "subHeaderName": sub_header,
+                    "tableName": table_name,
+                    "columns": header_labels,
+                    "data": table_data
+                })
+
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2, ensure_ascii=False)
+
+    return OUTPUT_FILE
+
+extract_pattern4_corrected(INPUT_FILE, SHEET_NAME)
