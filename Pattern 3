@@ -1,0 +1,105 @@
+import re
+import json
+from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter, column_index_from_string
+
+# === CONFIGURATION ===
+INPUT_FILE = "your_excel_file.xlsx"
+SHEET_NAME = "Sheet1"
+OUTPUT_FILE = "pattern3_output.json"
+
+START_ROW = 5          # where year headers begin
+ROW_LABEL_COLUMN = 2   # column holding row labels like R30, R90, etc.
+MAX_ROWS = 50
+MAX_COLS = 183         # up to column GE
+
+# === UTILITY ===
+def extract_lookups(formula):
+    pattern = re.compile(r"([A-Za-z0-9_]+)!\$?([A-Z]+)\$?([0-9]+)")
+    return [
+        {
+            "sheetName": m[0],
+            "excelColumn": m[1],
+            "colNumber": column_index_from_string(m[1]),
+            "rowNumber": int(m[2])
+        }
+        for m in re.findall(pattern, formula or "")
+    ]
+
+# === MAIN FUNCTION ===
+def extract_pattern3_dynamic(filepath, sheet_name):
+    wb = load_workbook(filepath, data_only=False)
+    ws = wb[sheet_name]
+
+    # Step 1: Detect Method and HeaderName from top merged rows
+    method = ws.cell(row=1, column=4).value or "Unknown"
+    header_name = ws.cell(row=2, column=4).value or "Unknown"
+
+    # Step 2: Identify table starts (column indexes where year headers appear)
+    table_starts = []
+    for col in range(4, MAX_COLS):
+        val = ws.cell(row=START_ROW, column=col).value
+        if isinstance(val, int) or (isinstance(val, str) and val.isdigit()):
+            if not table_starts or col - table_starts[-1]["last_col"] > 1:
+                table_starts.append({"start_col": col, "columns": [val], "last_col": col})
+            else:
+                table_starts[-1]["columns"].append(val)
+                table_starts[-1]["last_col"] = col
+
+    # Step 3: Detect row labels (like R30, R90, etc.)
+    row_labels = []
+    for row in range(START_ROW + 1, START_ROW + 20):  # look ahead 20 rows
+        label = ws.cell(row=row, column=ROW_LABEL_COLUMN).value
+        if label:
+            row_labels.append((row, label))
+
+    # Step 4: For each table block, extract data matrix
+    tables = []
+    for idx, block in enumerate(table_starts):
+        table = {
+            "tableName": ws.cell(row=4, column=block["start_col"]).value or f"Table {idx+1}",
+            "columns": [str(y) for y in block["columns"]],
+            "data": []
+        }
+
+        for row_num, row_label in row_labels:
+            row_entry = {
+                "rowLabel": row_label,
+                "values": {}
+            }
+            for i, year in enumerate(block["columns"]):
+                col = block["start_col"] + i
+                cell = ws.cell(row=row_num, column=col)
+                val = cell.value
+                formula = cell.value if cell.data_type == "f" else None
+
+                row_entry["values"][str(year)] = {
+                    "extractedValue": val,
+                    "extractedFormula": formula,
+                    "rowNumber": row_num,
+                    "colNumber": col,
+                    "excelColumn": get_column_letter(col),
+                    "lookups": extract_lookups(formula) or None
+                }
+
+                # Clean up empty lookups
+                if not row_entry["values"][str(year)]["lookups"]:
+                    del row_entry["values"][str(year)]["lookups"]
+
+            table["data"].append(row_entry)
+
+        tables.append(table)
+
+    # Final structure
+    result = {
+        "method": method,
+        "headerName": header_name,
+        "tables": tables
+    }
+
+    # Save
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2, ensure_ascii=False)
+
+    print(f"✅ Extracted pattern3 to {OUTPUT_FILE}")
+    return result
