@@ -1,0 +1,63 @@
+from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter
+
+# === CONFIGURATION ===
+INPUT_FILE = "/mnt/data/input.xlsx"
+SHEET_NAME = "RA Output"
+OUTPUT_FILE = "/mnt/data/patterns_text_output.txt"
+MAX_ROWS = 1000
+COL_PATTERN_2_START = 1    # A = 1
+COL_PATTERN_2_END = 18     # R = 18
+COL_PATTERN_3_START = 19   # S = 19
+MAX_COLS = 50              # Extend if needed
+
+def extract_pattern_2_top_down(ws):
+    lines = []
+    headers = [ws.cell(row=1, column=col).value for col in range(COL_PATTERN_2_START, COL_PATTERN_2_END + 1)]
+    for row_idx in range(2, MAX_ROWS + 1):
+        row_content = []
+        for col_idx in range(COL_PATTERN_2_START, COL_PATTERN_2_END + 1):
+            header = headers[col_idx - COL_PATTERN_2_START]
+            value = ws.cell(row=row_idx, column=col_idx).value
+            if header and value is not None:
+                row_content.append(f"- {header}: {value}")
+        if row_content:
+            lines.append(f"[Pattern2] Row {row_idx}")
+            lines.extend(row_content)
+            lines.append("")  # blank line for spacing
+    return lines
+
+def extract_pattern_3_nested_grid(ws):
+    lines = []
+    section_name = ws.cell(row=1, column=COL_PATTERN_3_START).value
+    subheader1 = ws.cell(row=2, column=COL_PATTERN_3_START).value
+    subheaders = [ws.cell(row=2, column=col).value for col in range(COL_PATTERN_3_START + 1, MAX_COLS + 1)]
+    subsub_headers = [ws.cell(row=3, column=col).value for col in range(COL_PATTERN_3_START + 1, MAX_COLS + 1)]
+
+    for row_idx in range(4, MAX_ROWS + 1):
+        for col_idx in range(COL_PATTERN_3_START + 1, MAX_COLS + 1):
+            value = ws.cell(row=row_idx, column=col_idx).value
+            if value is not None:
+                lines.append(f"[Pattern3] Row {row_idx}")
+                lines.append(f"- Section: {section_name}")
+                lines.append(f"- SubHeader1: {subheader1}")
+                lines.append(f"- SubHeader2: {subheaders[col_idx - (COL_PATTERN_3_START + 1)]}")
+                lines.append(f"- Year: {subsub_headers[col_idx - (COL_PATTERN_3_START + 1)]}")
+                lines.append(f"- Value: {value}")
+                lines.append("")  # blank line
+    return lines
+
+def extract_patterns_to_text(file_path, sheet_name):
+    wb = load_workbook(file_path, data_only=True)
+    ws = wb[sheet_name]
+    text_lines = []
+    text_lines.extend(extract_pattern_2_top_down(ws))
+    text_lines.extend(extract_pattern_3_nested_grid(ws))
+    return text_lines
+
+text_output = extract_patterns_to_text(INPUT_FILE, SHEET_NAME)
+
+with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+    f.write("\n".join(text_output))
+
+OUTPUT_FILE
