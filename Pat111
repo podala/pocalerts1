@@ -1,0 +1,125 @@
+import zipfile
+import json
+import re
+from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter, column_index_from_string
+from lxml import etree
+import pandas as pd
+
+# === CONFIGURATION ===
+INPUT_FILE = "input.xlsx"        # Your input file
+SHEET_NAME = "RA Output"         # Your sheet name
+OUTPUT_FILE = "output_final.json"
+MAX_ROWS = 10000
+MAX_COLS = 100
+
+HEADER_KEYWORDS = ["Formulary", "NDC11", "Drug Name", "Drug Type"]
+
+# === EXTRACT FORMULA MAP FROM XLSX (RAW XML) ===
+def extract_formula_map_from_xlsx(file_path):
+    formula_map = {}
+    with zipfile.ZipFile(file_path, 'r') as z:
+        for fname in z.namelist():
+            if fname.startswith("xl/worksheets/sheet"):
+                content = z.read(fname)
+                tree = etree.XML(content)
+                for cell in tree.xpath("//ns:c", namespaces={"ns": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}):
+                    coord = cell.attrib.get("r")
+                    f_tag = cell.find("{http://schemas.openxmlformats.org/spreadsheetml/2006/main}f")
+                    if coord and f_tag is not None:
+                        formula_map[coord] = f_tag.text
+    return formula_map
+
+# === LOOKUP EXTRACTOR ===
+def extract_lookups(formula_string):
+    if not formula_string or not isinstance(formula_string, str):
+        return []
+    pattern = re.compile(r"([A-Za-z0-9_]+)!\$?([A-Z]+)\$?(\d+)")
+    matches = pattern.findall(formula_string)
+    return [
+        {
+            "sheetName": m[0],
+            "excelColumn": m[1],
+            "colNumber": column_index_from_string(m[1]),
+            "rowNumber": int(m[2])
+        } for m in matches
+    ]
+
+# === DYNAMIC HEADER DETECTION ===
+def detect_header_row(ws):
+    for row in ws.iter_rows(min_row=1, max_row=50, max_col=MAX_COLS):
+        values = [str(cell.value).strip() if cell.value else "" for cell in row]
+        match_count = sum(1 for v in values if v in HEADER_KEYWORDS)
+        if match_count >= 2:
+            return row[0].row
+    return None
+
+# === MAIN EXTRACTOR ===
+def extract_excel_data(file_path, sheet_name):
+    wb = load_workbook(file_path, data_only=False)
+    if sheet_name not in wb.sheetnames:
+        raise ValueError(f"❌ Sheet '{sheet_name}' not found in workbook")
+
+    ws = wb[sheet_name]
+    formula_map = extract_formula_map_from_xlsx(file_path)
+    extracted_data = []
+
+    header_row_idx = detect_header_row(ws)
+    if header_row_idx is None:
+        raise ValueError("❌ Could not detect header row")
+
+    header_row = [
+        str(ws.cell(row=header_row_idx, column=col).value).strip() if ws.cell(row=header_row_idx, column=col).value else ""
+        for col in range(1, MAX_COLS + 1)
+    ]
+
+    data_start_row = header_row_idx + 1
+
+    for row in ws.iter_rows(min_row=data_start_row, max_row=MAX_ROWS, max_col=MAX_COLS):
+        row_number = row[0].row
+        row_is_empty = True
+        for cell in row:
+            col_idx = cell.column
+            val = cell.value
+            coord = f"{get_column_letter(col_idx)}{row_number}"
+            formula = formula_map.get(coord)
+
+            if val is None and not formula:
+                continue
+
+            row_is_empty = False
+
+            record = {
+                "sheetName": sheet_name,
+                "rowNumber": row_number,
+                "colNumber": col_idx,
+                "excelColumn": get_column_letter(col_idx),
+                "headerName": header_row[col_idx - 1] if col_idx - 1 < len(header_row) else "",
+                "extractedValue": str(val) if formula is None else None,
+                "extractedFormula": formula,
+                "cellType": "formula" if formula else "value",
+                "lookups": extract_lookups(formula)
+            }
+
+            extracted_data.append(record)
+
+        if row_is_empty:
+            break
+
+    return extracted_data
+
+# === EXECUTION ===
+if __name__ == "__main__":
+    try:
+        records = extract_excel_data(INPUT_FILE, SHEET_NAME)
+
+        with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+            json.dump(records, f, indent=2, ensure_ascii=False)
+
+        df = pd.DataFrame(records)
+        print("✅ Preview of first 10 rows:")
+        print(df.head(10))
+        print(f"\n✅ Extracted {len(records)} records to {OUTPUT_FILE}")
+
+    except Exception as e:
+        print(f"❌ ERROR: {e}")
