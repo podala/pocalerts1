@@ -1,0 +1,127 @@
+import zipfile
+import json
+import re
+from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter, column_index_from_string
+from lxml import etree
+
+# === CONFIGURATION ===
+INPUT_FILE = "/mnt/data/input.xlsx"  # Placeholder path for real Excel file
+OUTPUT_FILE = "/mnt/data/output_verbose.json"
+MAX_ROWS = 10000
+MAX_COLS = 200
+
+# === PATTERN CONFIGS ===
+PATTERN_CONFIGS = [
+    {"patternName": "Pattern 1", "header_row_idx": 8, "subheader_row_idx": 9, "data_start_row": 10},
+    {"patternName": "Pattern 2", "header_row_idx": 9, "subheader_row_idx": 10, "data_start_row": 11},
+    {"patternName": "Pattern 3", "header_row_idx": 7, "subheader_row_idx": 8, "data_start_row": 9}
+]
+
+# === EXTRACT FORMULAS FROM XLSX (INCLUDING ARRAYFORMULA) ===
+def extract_formula_map_from_xlsx(file_path):
+    formula_map = {}
+    with zipfile.ZipFile(file_path, 'r') as z:
+        sheet_files = [f for f in z.namelist() if f.startswith("xl/worksheets/sheet")]
+        for sheet_file in sheet_files:
+            xml = z.read(sheet_file)
+            tree = etree.XML(xml)
+            for cell in tree.xpath("//ns:c", namespaces={"ns": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}):
+                coord = cell.attrib.get("r")
+                f_tag = cell.find("{http://schemas.openxmlformats.org/spreadsheetml/2006/main}f")
+                if f_tag is not None and coord:
+                    formula_map[coord] = f_tag.text
+    return formula_map
+
+# === EXTRACT LOOKUPS INSIDE FORMULAS ===
+def extract_lookups(formula_string):
+    if not formula_string or not isinstance(formula_string, str):
+        return []
+    lookup_pattern = re.compile(r"([A-Za-z0-9_]+)!\$?([A-Z]+)\$?(\d+)")
+    matches = lookup_pattern.findall(formula_string)
+    lookups = []
+    for match in matches:
+        sheet_name, col, row = match
+        lookup_obj = {
+            "sheetName": sheet_name,
+            "excelColumn": col,
+            "colNumber": column_index_from_string(col),
+            "rowNumber": int(row)
+        }
+        lookups.append(lookup_obj)
+    return lookups
+
+# === MAIN LOGIC FOR STRUCTURED EXTRACTION ===
+def extract_excel_data_with_patterns(file_path):
+    wb = load_workbook(file_path, data_only=False)
+    formula_map = extract_formula_map_from_xlsx(file_path)
+    all_extracted_records = []
+
+    for sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+
+        for config in PATTERN_CONFIGS:
+            header_row_idx = config["header_row_idx"]
+            subheader_row_idx = config["subheader_row_idx"]
+            data_start_row = config["data_start_row"]
+            pattern_used = config["patternName"]
+
+            # === Read headers explicitly ===
+            header_row = []
+            subheader_row = []
+
+            for col_index in range(1, MAX_COLS + 1):
+                header_cell = ws.cell(row=header_row_idx, column=col_index)
+                subheader_cell = ws.cell(row=subheader_row_idx, column=col_index)
+
+                header_val = header_cell.value if header_cell.value is not None else ""
+                subheader_val = subheader_cell.value if subheader_cell.value is not None else ""
+
+                header_row.append(str(header_val).strip())
+                subheader_row.append(str(subheader_val).strip())
+
+            # === Read data rows ===
+            for row_index in range(data_start_row, MAX_ROWS + 1):
+                row_is_empty = True
+                for col_index in range(1, MAX_COLS + 1):
+                    cell = ws.cell(row=row_index, column=col_index)
+                    cell_coord = f"{get_column_letter(col_index)}{row_index}"
+                    cell_formula = formula_map.get(cell_coord)
+                    cell_value = cell.value
+
+                    if cell_value is None and not cell_formula:
+                        continue
+
+                    row_is_empty = False
+
+                    record = {
+                        "sheetName": sheet_name,
+                        "patternUsed": pattern_used,
+                        "rowNumber": row_index,
+                        "colNumber": col_index,
+                        "excelColumn": get_column_letter(col_index),
+                        "headerName": header_row[col_index - 1] if col_index - 1 < len(header_row) else "",
+                        "subHeader": subheader_row[col_index - 1] if col_index - 1 < len(subheader_row) else "",
+                        "extractedValue": str(cell_value) if not cell_formula else None,
+                        "extractedFormula": cell_formula,
+                        "cellType": "formula" if cell_formula else "value",
+                        "lookups": extract_lookups(cell_formula)
+                    }
+
+                    all_extracted_records.append(record)
+
+                if row_is_empty:
+                    break  # Stop if data section ends
+
+    return all_extracted_records
+
+# === RUN EXTRACTION ===
+try:
+    records = extract_excel_data_with_patterns(INPUT_FILE)
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+        json.dump(records, f, indent=2, ensure_ascii=False)
+    import pandas as pd
+    df = pd.DataFrame(records[:200])  # Limit preview
+    import ace_tools as tools; tools.display_dataframe_to_user(name="Structured Excel Extractor", dataframe=df)
+except Exception as e:
+    print(f"❌ Extraction failed: {e}")
