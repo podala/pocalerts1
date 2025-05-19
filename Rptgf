@@ -1,0 +1,25 @@
+from openpyxl import load_workbook
+
+# === CONFIGURATION ===
+INPUT_FILE = "/mnt/data/input.xlsx"
+SHEET_NAME = "RA Output"
+OUTPUT_FILE = "/mnt/data/ra_output_text_dump.txt"
+
+# === Dump specific sheet to plain text ===
+def dump_single_sheet_to_text(file_path, sheet_name):
+    wb = load_workbook(file_path, data_only=True)
+    ws = wb[sheet_name]
+    dump_lines = [f"[Sheet: {sheet_name}]"]
+    for row in ws.iter_rows():
+        row_text = "\t".join([str(cell.value).strip() if cell.value is not None else "" for cell in row])
+        dump_lines.append(row_text)
+    return dump_lines
+
+# Run the dump
+text_dump = dump_single_sheet_to_text(INPUT_FILE, SHEET_NAME)
+
+# Save to .txt file
+with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+    f.write("\n".join(text_dump))
+
+OUTPUT_FILE
