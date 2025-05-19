@@ -1,0 +1,97 @@
+import json
+import re
+from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter, column_index_from_string
+
+# === CONFIGURATION ===
+INPUT_FILE = "input.xlsx"        # Replace with your actual file
+SHEET_NAME = "Sheet1"            # Replace with your actual sheet
+OUTPUT_FILE = "output.json"
+MAX_ROWS = 10000
+MAX_COLS = 1000
+
+def is_probable_header(row):
+    """Detect if a row is a header: many non-empty string cells."""
+    values = [cell.value for cell in row if cell.value]
+    return sum(1 for val in values if isinstance(val, str)) >= 2
+
+def extract_lookups(formula):
+    """Extract referenced sheet, column, and row from formula."""
+    if not formula or not isinstance(formula, str):
+        return []
+    pattern = re.compile(r"([A-Za-z0-9_]+)!\$?([A-Z]+)\$?(\d+)")
+    lookups = []
+    for match in pattern.finditer(formula):
+        sheet, col, row = match.groups()
+        lookups.append({
+            "sheetName": sheet,
+            "excelColumn": col,
+            "colNumber": column_index_from_string(col),
+            "rowNumber": int(row)
+        })
+    return lookups
+
+def extract_excel_data(file_path, sheet_name):
+    wb = load_workbook(file_path, data_only=False)
+    ws = wb[sheet_name]
+    extracted_data = []
+
+    header_row = None
+    subheader_row = None
+    header_row_idx = None
+
+    # Step 1: Identify headers (row 1 and optionally row 2)
+    for row_idx in range(1, MAX_ROWS + 1):
+        row = [ws.cell(row=row_idx, column=col + 1) for col in range(MAX_COLS)]
+        if not header_row and is_probable_header(row):
+            header_row = [str(c.value).strip() if c.value else "" for c in row]
+            header_row_idx = row_idx
+            continue
+        elif header_row and not subheader_row and is_probable_header(row):
+            subheader_row = [str(c.value).strip() if c.value else "" for c in row]
+            break
+
+    data_start_row = header_row_idx + (2 if subheader_row else 1)
+
+    # Step 2: Extract data below header
+    for row_idx in range(data_start_row, MAX_ROWS + 1):
+        empty_row = True
+        for col_idx in range(1, MAX_COLS + 1):
+            cell = ws.cell(row=row_idx, column=col_idx)
+            if cell.value is None and cell.data_type != 'f':
+                continue  # skip truly empty cells
+
+            empty_row = False
+            cell_val = cell.value
+            formula_str = str(cell.value) if cell.data_type == 'f' else None
+
+            extracted_data.append({
+                "sheetName": sheet_name,
+                "rowNumber": row_idx,
+                "colNumber": col_idx,
+                "excelColumn": get_column_letter(col_idx),
+                "headerName": header_row[col_idx - 1] if header_row and col_idx <= len(header_row) else "",
+                "subHeader": subheader_row[col_idx - 1] if subheader_row and col_idx <= len(subheader_row) else "",
+                "extractedValue": str(cell_val) if cell.data_type != 'f' else None,
+                "extractedFormula": formula_str,
+                "cellType": "formula" if formula_str else "value",
+                "lookups": extract_lookups(formula_str)
+            })
+        if empty_row:
+            break
+
+    return extracted_data
+
+# === MAIN EXECUTION ===
+if __name__ == "__main__":
+    def safe_default(obj):
+        try:
+            return str(obj)
+        except:
+            return "UNSERIALIZABLE"
+
+    records = extract_excel_data(INPUT_FILE, SHEET_NAME)
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+        json.dump(records, f, indent=2, ensure_ascii=False, default=safe_default)
+
+    print(f"✅ Extracted {len(records)} records from '{SHEET_NAME}'. Output written to '{OUTPUT_FILE}'")
