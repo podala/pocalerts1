@@ -1,0 +1,60 @@
+import json
+from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter
+
+# === CONFIGURATION ===
+INPUT_FILE = "input.xlsx"          # Path to your Excel file
+SHEET_NAME = "Sheet1"              # Specify the target sheet name
+OUTPUT_FILE = "table_output.json"
+HEADER_ROW_INDEX = 1               # Row where headers are present
+
+def extract_table_data(file_path, sheet_name):
+    wb = load_workbook(filename=file_path, data_only=False)
+
+    if sheet_name not in wb.sheetnames:
+        raise ValueError(f"❌ Sheet '{sheet_name}' not found in the workbook.")
+
+    ws = wb[sheet_name]
+    max_row = ws.max_row
+    max_col = ws.max_column
+
+    # Extract headers
+    headers = {}
+    for col_idx in range(1, max_col + 1):
+        col_letter = get_column_letter(col_idx)
+        headers[col_idx] = str(ws.cell(row=HEADER_ROW_INDEX, column=col_idx).value).strip()
+
+    final_output = []
+
+    # Extract row data
+    for row_idx in range(HEADER_ROW_INDEX + 1, max_row + 1):
+        row_data = {
+            "sheet": sheet_name,
+            "row": row_idx,
+            "data": []
+        }
+        for col_idx in range(1, max_col + 1):
+            cell = ws.cell(row=row_idx, column=col_idx)
+            column_name = headers.get(col_idx, f"Column_{col_idx}")
+
+            cell_info = {
+                "keyColumn": column_name,
+                "value": cell.value,
+                "isFormula": cell.data_type == 'f',
+                "formula": cell.value if cell.data_type == 'f' else None
+            }
+
+            row_data["data"].append(cell_info)
+
+        final_output.append(row_data)
+
+    return final_output
+
+# === MAIN EXECUTION ===
+data = extract_table_data(INPUT_FILE, SHEET_NAME)
+
+# Save to JSON
+with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=2, ensure_ascii=False)
+
+print(f"✅ Extraction complete from sheet '{SHEET_NAME}'. Output saved to {OUTPUT_FILE}")
