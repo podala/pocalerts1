@@ -1,0 +1,91 @@
+import json
+import datetime
+from openpyxl import load_workbook
+
+# === CONFIGURATION ===
+INPUT_FILE = "/mnt/data/input.xlsx"
+SHEET_NAME = "Sheet1"
+HEADER_ROW_THRESHOLD = 3
+MAX_ROWS = 10000
+
+def safe_serialize(value):
+    if isinstance(value, (datetime.datetime, datetime.date)):
+        return str(value)
+    try:
+        json.dumps(value)
+        return value
+    except (TypeError, OverflowError):
+        return str(value)
+
+def classify_zones(ws):
+    form_fields = []
+    tables = []
+    current_table = []
+    headers = None
+
+    for row_idx, row in enumerate(ws.iter_rows(min_row=1, max_row=MAX_ROWS), start=1):
+        non_empty_cells = [(cell.column, cell.value) for cell in row if cell.value not in (None, "")]
+        if len(non_empty_cells) <= 2:
+            if len(non_empty_cells) == 2:
+                label = str(non_empty_cells[0][1]).strip()
+                cell = row[non_empty_cells[1][0] - 1]
+                value = safe_serialize(cell.value)
+                formula = safe_serialize(cell._value) if cell.data_type == 'f' else None
+                form_fields.append({
+                    "label": label,
+                    "value": value,
+                    "isFormula": cell.data_type == 'f',
+                    "formula": formula
+                })
+        elif len(non_empty_cells) >= HEADER_ROW_THRESHOLD:
+            values = [safe_serialize(cell.value) for cell in row]
+            if not headers:
+                headers = [str(v).strip() if v else f"Column_{i}" for i, v in enumerate(values, start=1)]
+            else:
+                row_data = {}
+                for i, cell in enumerate(row):
+                    col_name = headers[i] if i < len(headers) else f"Column_{i+1}"
+                    row_data[col_name] = {
+                        "value": safe_serialize(cell.value),
+                        "isFormula": cell.data_type == 'f',
+                        "formula": safe_serialize(cell._value) if cell.data_type == 'f' else None
+                    }
+                current_table.append(row_data)
+        elif headers and current_table:
+            tables.append({
+                "tableName": f"Table_{len(tables)+1}",
+                "columns": headers,
+                "rows": current_table
+            })
+            headers = None
+            current_table = []
+
+    if headers and current_table:
+        tables.append({
+            "tableName": f"Table_{len(tables)+1}",
+            "columns": headers,
+            "rows": current_table
+        })
+
+    return form_fields, tables
+
+# MAIN EXECUTION
+wb = load_workbook(INPUT_FILE, data_only=False)
+if SHEET_NAME not in wb.sheetnames:
+    raise ValueError(f"Sheet '{SHEET_NAME}' not found.")
+ws = wb[SHEET_NAME]
+
+form_fields, tables = classify_zones(ws)
+
+output = {
+    "sheet": SHEET_NAME,
+    "formFields": form_fields,
+    "tables": tables
+}
+
+# Save output to file
+output_file = "/mnt/data/extracted_data.json"
+with open(output_file, "w", encoding="utf-8") as f:
+    json.dump(output, f, indent=2, ensure_ascii=False)
+
+output_file
