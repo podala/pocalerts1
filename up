@@ -1,0 +1,118 @@
+// VectorUploader.jsx - Full E2E UI Component
+import React, { useState } from 'react';
+import {
+  Box,
+  Button,
+  Typography,
+  Paper,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
+} from '@mui/material';
+import { useDropzone } from 'react-dropzone';
+
+const dummyVectors = [
+  { ioi: '2', ptr: '8', client: 'Apple', assignment: 'x', date: '2025-05-20' },
+  { ioi: '3', ptr: '9', client: 'Amazon', assignment: 'y', date: '2025-05-20' },
+  { ioi: '4', ptr: '10', client: 'Google', assignment: 'z', date: '2025-05-20' },
+  { ioi: '5', ptr: '11', client: 'Meta', assignment: 'w', date: '2025-05-20' }
+];
+
+export default function VectorUploader() {
+  const [fileMeta, setFileMeta] = useState(null);
+  const [selectedVectors, setSelectedVectors] = useState([]);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const onDrop = (acceptedFiles) => {
+    const file = acceptedFiles[0];
+    setFileMeta({ name: file.name, size: `${(file.size / 1024).toFixed(2)} KB` });
+  };
+
+  const { getRootProps, getInputProps } = useDropzone({ onDrop });
+
+  const toggleVector = (index) => {
+    setSelectedVectors((prev) =>
+      prev.includes(index) ? prev.filter(i => i !== index) : [...prev, index]
+    );
+  };
+
+  const handleSubmit = () => {
+    setConfirmOpen(true);
+  };
+
+  const handleConfirm = () => {
+    console.log('Send to Azure Blob:', selectedVectors);
+    setConfirmOpen(false);
+    alert(`Data for Vector(s) ${selectedVectors.map(i => i + 1).join(', ')} sent to Azure Blob!`);
+  };
+
+  return (
+    <Box p={4}>
+      <Typography variant="h5">Upload Vector Excel</Typography>
+
+      {/* Upload Area */}
+      <Box {...getRootProps()} border="2px dashed gray" p={3} mt={2}>
+        <input {...getInputProps()} />
+        <Typography>Drag & Drop Excel file here or click to upload</Typography>
+      </Box>
+
+      {fileMeta && (
+        <Paper sx={{ p: 2, mt: 2 }}>
+          <Typography><strong>Filename:</strong> {fileMeta.name}</Typography>
+          <Typography><strong>File size:</strong> {fileMeta.size}</Typography>
+        </Paper>
+      )}
+
+      {/* Vectors Section */}
+      {fileMeta && (
+        <Box display="flex" mt={3} gap={2}>
+          {dummyVectors.map((vector, idx) => (
+            <Paper
+              key={idx}
+              onClick={() => toggleVector(idx)}
+              sx={{
+                p: 2,
+                border: selectedVectors.includes(idx) ? '2px solid blue' : '1px solid gray',
+                cursor: 'pointer',
+                minWidth: 150
+              }}
+            >
+              <Typography variant="subtitle1">Vector {idx + 1}</Typography>
+              {Object.entries(vector).map(([k, v]) => (
+                <Typography key={k}>{`${k} = ${v}`}</Typography>
+              ))}
+            </Paper>
+          ))}
+        </Box>
+      )}
+
+      {/* Submit Button */}
+      {fileMeta && (
+        <Box mt={3}>
+          <Button
+            variant="contained"
+            onClick={handleSubmit}
+            disabled={selectedVectors.length === 0}
+          >
+            Submit
+          </Button>
+        </Box>
+      )}
+
+      {/* Confirmation Dialog */}
+      <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
+        <DialogTitle>Confirm Submission</DialogTitle>
+        <DialogContent>
+          <Typography>
+            You have selected Vector(s): {selectedVectors.map(i => i + 1).join(', ')} for injection.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleConfirm}>Yes</Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
+  );
+}
