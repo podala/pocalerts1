@@ -1,0 +1,83 @@
+import json
+import datetime
+from openpyxl import load_workbook
+
+# === CONFIGURATION ===
+INPUT_FILE = "/mnt/data/input.xlsx"
+SHEET_NAME = "Sheet1"
+HEADER_ROW_THRESHOLD = 3  # min columns for a row to be considered a table header
+ROW_DENSITY_THRESHOLD = 5  # min table-like rows to treat as a table
+MAX_ROWS = 10000
+MAX_COLS = 1000
+
+def classify_zones(ws):
+    form_fields = []
+    tables = []
+    current_table = []
+    headers = None
+    for row_idx, row in enumerate(ws.iter_rows(min_row=1, max_row=MAX_ROWS), start=1):
+        non_empty_cells = [(cell.column, cell.value) for cell in row if cell.value not in (None, "")]
+        if len(non_empty_cells) <= 2:
+            # Possible form field
+            if len(non_empty_cells) == 2:
+                label = str(non_empty_cells[0][1]).strip()
+                value = non_empty_cells[1][1]
+                if isinstance(value, (datetime.datetime, datetime.date)):
+                    value = str(value)
+                form_fields.append({
+                    "label": label,
+                    "value": value
+                })
+        elif len(non_empty_cells) >= HEADER_ROW_THRESHOLD:
+            # Table zone begins or continues
+            values = [cell.value for cell in row]
+            if not headers:
+                headers = [str(v).strip() if v else f"Column_{i}" for i, v in enumerate(values, start=1)]
+            else:
+                row_data = {}
+                for i, v in enumerate(values):
+                    col_name = headers[i] if i < len(headers) else f"Column_{i+1}"
+                    if isinstance(v, (datetime.datetime, datetime.date)):
+                        v = str(v)
+                    row_data[col_name] = v
+                current_table.append(row_data)
+        elif headers and current_table:
+            # Table ended, commit it
+            tables.append({
+                "tableName": f"Table_{len(tables)+1}",
+                "columns": headers,
+                "rows": current_table
+            })
+            headers = None
+            current_table = []
+
+    # Commit last detected table if any
+    if headers and current_table:
+        tables.append({
+            "tableName": f"Table_{len(tables)+1}",
+            "columns": headers,
+            "rows": current_table
+        })
+
+    return form_fields, tables
+
+# MAIN EXECUTION
+wb = load_workbook(INPUT_FILE, data_only=False)
+if SHEET_NAME not in wb.sheetnames:
+    raise ValueError(f"Sheet '{SHEET_NAME}' not found.")
+ws = wb[SHEET_NAME]
+
+form_fields, tables = classify_zones(ws)
+
+output = {
+    "sheet": SHEET_NAME,
+    "formFields": form_fields,
+    "tables": tables
+}
+
+# Save output to file
+output_file = "/mnt/data/extracted_data.json"
+with open(output_file, "w", encoding="utf-8") as f:
+    json.dump(output, f, indent=2, ensure_ascii=False)
+
+output_file
