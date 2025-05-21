@@ -1,0 +1,117 @@
+import json
+import datetime
+from openpyxl import load_workbook
+from openpyxl.utils import get_column_letter
+
+# === CONFIGURATION ===
+INPUT_FILE = "/mnt/data/input.xlsx"
+SHEET_NAME = "Sheet1"
+MAX_ROWS = 10000
+HEADER_ROW_THRESHOLD = 3
+
+def safe_str(value):
+    if isinstance(value, (datetime.datetime, datetime.date)):
+        return str(value)
+    try:
+        json.dumps(value)
+        return value
+    except Exception:
+        return str(value)
+
+def get_formula(cell):
+    try:
+        if cell.data_type == 'f':
+            val = getattr(cell, '_value', None)
+            if isinstance(val, str):
+                return val
+            if hasattr(val, '__class__') and 'ArrayFormula' in val.__class__.__name__:
+                return getattr(val, 'text', None)
+    except Exception:
+        return None
+    return None
+
+def get_value(cell):
+    val = cell.value
+    if hasattr(val, '__class__') and 'ArrayFormula' in val.__class__.__name__:
+        return None
+    return safe_str(val)
+
+def extract_sheet(ws):
+    form_fields = []
+    tables = []
+    headers = None
+    current_table = []
+
+    for row in ws.iter_rows(min_row=1, max_row=MAX_ROWS):
+        non_empty = [cell for cell in row if cell.value not in (None, "")]
+        
+        if len(non_empty) == 2:
+            label_cell, value_cell = non_empty
+            formula = get_formula(value_cell)
+            value = None if formula else get_value(value_cell)
+            if formula or value:
+                form_fields.append({
+                    "label": str(label_cell.value).strip(),
+                    "value": value,
+                    "isFormula": bool(formula),
+                    "formula": formula,
+                    "excelColumn": get_column_letter(value_cell.column)
+                })
+
+        elif len(non_empty) >= HEADER_ROW_THRESHOLD:
+            if not headers:
+                headers = [str(cell.value).strip() if cell.value else f"Column_{i+1}" for i, cell in enumerate(row)]
+            else:
+                row_data = {}
+                for i, cell in enumerate(row):
+                    if i >= len(headers):
+                        continue
+                    formula = get_formula(cell)
+                    value = None if formula else get_value(cell)
+                    if formula or value:
+                        row_data[headers[i]] = {
+                            "excelColumn": get_column_letter(cell.column),
+                            "value": value,
+                            "isFormula": bool(formula),
+                            "formula": formula
+                        }
+                if row_data:
+                    current_table.append(row_data)
+
+        elif headers and current_table:
+            tables.append({
+                "tableName": f"Table_{len(tables)+1}",
+                "columns": headers,
+                "rows": current_table
+            })
+            headers = None
+            current_table = []
+
+    if headers and current_table:
+        tables.append({
+            "tableName": f"Table_{len(tables)+1}",
+            "columns": headers,
+            "rows": current_table
+        })
+
+    return {
+        "formFields": form_fields,
+        "tables": tables
+    }
+
+def extract_excel(file_path, sheet_name):
+    wb = load_workbook(file_path, data_only=False)
+    if sheet_name not in wb.sheetnames:
+        raise ValueError(f"Sheet '{sheet_name}' not found")
+    ws = wb[sheet_name]
+    return extract_sheet(ws)
+
+# === MAIN EXECUTION ===
+output = extract_excel(INPUT_FILE, SHEET_NAME)
+
+# Save to JSON
+output_file = "/mnt/data/extracted_data.json"
+with open(output_file, "w", encoding="utf-8") as f:
+    json.dump(output, f, indent=2, ensure_ascii=False)
+
+output_file
