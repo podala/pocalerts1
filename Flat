@@ -1,0 +1,57 @@
+import json
+import re
+from pathlib import Path
+
+# === CONFIGURATION ===
+INPUT_JSON = "/mnt/data/extracted_data.json"
+OUTPUT_JSON = "/mnt/data/derived_upper_lower_mappings.json"
+
+# === Helper Functions ===
+def is_upper_formula(formula: str) -> bool:
+    return bool(re.match(r"^=Tables!", formula.strip(), re.IGNORECASE))
+
+def is_lower_formula(formula: str) -> bool:
+    return "IF" in formula.upper() or "INDEX" in formula.upper()
+
+# === Load Extracted JSON ===
+if not Path(INPUT_JSON).exists():
+    raise FileNotFoundError(f"{INPUT_JSON} not found. Please upload extracted_data.json first.")
+
+with open(INPUT_JSON, "r", encoding="utf-8") as f:
+    extracted_data = json.load(f)
+
+# === Process for Upper/Lower Derivation ===
+column_map = {}
+
+for table in extracted_data.get("tables", []):
+    for row_idx, row in enumerate(table["rows"], start=1):
+        for col_name, cell in row.items():
+            if cell.get("isFormula") and cell.get("formula"):
+                formula = cell["formula"]
+                excel_col = cell.get("excelColumn", "")
+                entry = column_map.setdefault(col_name, {
+                    "column": col_name,
+                    "excelColumn": excel_col,
+                    "upperFormula": None,
+                    "lowerFormula": None,
+                    "rowUpper": None,
+                    "rowLower": None
+                })
+                if is_upper_formula(formula):
+                    entry["upperFormula"] = formula
+                    entry["rowUpper"] = row_idx
+                elif is_lower_formula(formula):
+                    entry["lowerFormula"] = formula
+                    entry["rowLower"] = row_idx
+
+# Remove incomplete mappings
+final_output = [
+    v for v in column_map.values()
+    if v["upperFormula"] and v["lowerFormula"]
+]
+
+# === Save Output ===
+with open(OUTPUT_JSON, "w", encoding="utf-8") as f:
+    json.dump(final_output, f, indent=2, ensure_ascii=False)
+
+OUTPUT_JSON
