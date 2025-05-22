@@ -1,0 +1,93 @@
+import json
+import re
+from pathlib import Path
+from openpyxl.utils import column_index_from_string
+
+# === CONFIGURATION ===
+INPUT_JSON = "/mnt/data/derived_upper_lower_mappings.json"
+OUTPUT_JSON = "/mnt/data/formula_comprehensive_analysis.json"
+
+# === Patterns ===
+FUNC_PATTERN = re.compile(r'([A-Z]+)\(', re.IGNORECASE)
+CELL_PATTERN = re.compile(r'([A-Za-z0-9_]+!)?\$?([A-Z]+)\$?([0-9]+)')
+RANGE_PATTERN = re.compile(r'([A-Za-z0-9_]+!)?\$?([A-Z]+)\$?([0-9]+):\$?([A-Z]+)\$?([0-9]+)')
+CONSTANT_PATTERN = re.compile(r'(?<![A-Z0-9_])"([^"]+)"|(?<![A-Z0-9_])([0-9]+(?:\.[0-9]+)?)')
+
+def analyze_formula(formula):
+    used_functions = list(set(func.upper() for func in FUNC_PATTERN.findall(formula)))
+    sheet_refs = set()
+    cell_refs = set()
+    range_refs = set()
+    constants = set()
+
+    for match in CELL_PATTERN.findall(formula):
+        sheet, col, row = match
+        sheet = sheet[:-1] if sheet else None
+        ref = f"${col}${row}"
+        cell_refs.add(ref)
+        if sheet:
+            sheet_refs.add(sheet)
+
+    for match in RANGE_PATTERN.findall(formula):
+        sheet, col1, row1, col2, row2 = match
+        sheet = sheet[:-1] if sheet else None
+        ref = f"${col1}${row1}:${col2}${row2}"
+        range_refs.add(ref)
+        if sheet:
+            sheet_refs.add(sheet)
+
+    for text_val, num_val in CONSTANT_PATTERN.findall(formula):
+        if text_val:
+            constants.add(text_val)
+        elif num_val:
+            constants.add(num_val)
+
+    tags = []
+    if any(fn in used_functions for fn in ["INDEX", "MATCH", "VLOOKUP", "HLOOKUP"]):
+        tags.append("usesLookup")
+    if any(fn in used_functions for fn in ["IF", "AND", "OR"]):
+        tags.append("hasCondition")
+    if constants:
+        tags.append("usesHardcode")
+    if len(used_functions) > 3:
+        tags.append("deepNested")
+    if len(sheet_refs) > 1:
+        tags.append("multiSheet")
+
+    return {
+        "usedFunctions": sorted(used_functions),
+        "sheetReferences": sorted(sheet_refs),
+        "cellReferences": sorted(cell_refs),
+        "rangeReferences": sorted(range_refs),
+        "constants": sorted(constants),
+        "tags": sorted(tags)
+    }
+
+# === Load Input JSON ===
+if not Path(INPUT_JSON).exists():
+    raise FileNotFoundError(f"{INPUT_JSON} not found.")
+
+with open(INPUT_JSON, "r", encoding="utf-8") as f:
+    upper_lower_data = json.load(f)
+
+# === Analyze Both Upper and Lower Formulas ===
+results = []
+
+for item in upper_lower_data:
+    for key in ["upperFormula", "lowerFormula"]:
+        formula = item.get(key)
+        if formula:
+            meta = analyze_formula(formula)
+            results.append({
+                "column": item.get("column"),
+                "excelColumn": item.get("excelColumn"),
+                "formulaType": key,
+                "formula": formula,
+                **meta
+            })
+
+# === Save Output ===
+with open(OUTPUT_JSON, "w", encoding="utf-8") as f:
+    json.dump(results, f, indent=2, ensure_ascii=False)
+
+OUTPUT_JSON
