@@ -1,0 +1,94 @@
+{
+  "id": "MI-00092_LIPITOR_30_Retail",                  // Unique ID for document
+  "partitionKey": "MI-00092",                          // Partition key for bulk loading and isolation
+  "modelInstanceId": "MI-00092",                       // Underwriter submission reference
+  "clientName": "Acme Health",
+  "opportunityId": "OPP123456",
+  "drugName": "LIPITOR",
+  "ndc": "12345-6789-01",
+  "daysSupply": "30",
+  "dsRange": "30",
+  "channel": "Retail",
+  "mailIndicator": "M",
+  "createdAt": "2025-05-30T10:30:00Z",
+  "ttl": 7776000,
+
+  "scriptsAndQty": [
+    { "year": "2025", "scripts": 1000, "qty": 12000 },
+    { "year": "2026", "scripts": 1020, "qty": 12300 },
+    { "year": "2027", "scripts": 1040, "qty": 12600 }
+  ],
+
+  "AWP": [
+    { "year": "2025", "phase": "preShift", "value": 200.5 },
+    { "year": "2025", "phase": "postShiftHepC", "value": 210.0 },
+    { "year": "2026", "phase": "preShift", "value": 215.0 },
+    { "year": "2026", "phase": "postShiftHepC", "value": 220.0 }
+  ],
+
+  "Base": [
+    { "year": "2025", "phase": "preShift", "value": 190 },
+    { "year": "2025", "phase": "postShiftHepC", "value": 200 }
+  ],
+
+  "MAF": [
+    { "year": "2025", "phase": "preShift", "value": 180 },
+    { "year": "2025", "phase": "postShiftHepC", "value": 190 }
+  ],
+
+  "PPL": [
+    { "year": "2025", "phase": "preShift", "value": 175 },
+    { "year": "2025", "phase": "postShiftHepC", "value": 185 }
+  ],
+
+  "PPA": [
+    { "year": "2025", "phase": "preShift", "value": 170 },
+    { "year": "2025", "phase": "postShiftHepC", "value": 180 }
+  ],
+
+  "WAC": [
+    { "year": "2025", "value": 180 },
+    { "year": "2026", "value": 185 }
+  ],
+
+  "rebateableIndicator": [
+    { "year": "2025", "value": true },
+    { "year": "2026", "value": true },
+    { "year": "2027", "value": false }
+  ],
+
+  "Base_MAF_Adjustments": [
+    { "year": "2025", "phase": "preShift", "value": 180 },
+    { "year": "2025", "phase": "postShiftHepC", "value": 190 }
+  ],
+
+  "preShift_MAF_Adjustment": [
+    { "year": "2025", "value": 175 },
+    { "year": "2026", "value": 180 }
+  ],
+
+  "postShift_HepC_MAF_Adjustment": [
+    { "year": "2025", "value": 185 },
+    { "year": "2026", "value": 190 }
+  ],
+
+  "base_Adjustment": [
+    { "year": "2025", "value": 190 },
+    { "year": "2026", "value": 195 }
+  ],
+
+  "preShift_Base_MAF_Adjustment": [
+    { "year": "2025", "value": 180 },
+    { "year": "2026", "value": 185 }
+  ],
+
+  "postShift_HepC_Base_MAF_Adjustment": [
+    { "year": "2025", "value": 190 },
+    { "year": "2026", "value": 195 }
+  ],
+
+  "Total": [
+    { "year": "2025", "phase": "recontracting", "value": 965 },
+    { "year": "2026", "phase": "recontracting", "value": 990 }
+  ]
+}
