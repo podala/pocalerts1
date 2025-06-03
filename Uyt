@@ -1,0 +1,130 @@
+1'# === base_pipeline.py ===
+import logging
+from abc import ABC, abstractmethod
+
+logger = logging.getLogger("BasePipeline")
+logging.basicConfig(level=logging.INFO)
+
+class BasePipeline(ABC):
+    def __init__(self, spark, config):
+        self.spark = spark
+        self.config = config
+        self.years = config["years"]
+        self.ttl = config.get("ttl", 7776000)
+
+    def extract(self):
+        df = self.spark.read \
+            .format("com.crealytics.spark.excel") \
+            .option("header", "true") \
+            .option("inferSchema", "true") \
+            .load(self.config["input_path"])
+        df = df.cache()
+        df.count()
+        logger.info(f"✅ Cached Excel input with {df.rdd.getNumPartitions()} partitions")
+        return df
+
+    @abstractmethod
+    def transform(self, df):
+        pass
+
+    def serialize_to_json(self, df):
+        years = self.years
+        metrics_config = self.config["metrics_per_section"]
+
+        def row_to_json(row):
+            base_fields = {
+                "id": row.get("Key"),
+                "drugKey": row.get("Key"),
+                "drugName": row.get("DrugName"),
+                "clientName": row.get("clientName"),
+                "opportunityId": row.get("opportunityId"),
+                "therapeuticClass": row.get("TherapeuticClass"),
+                "partitionKey": row.get("modelId"),
+                "ttl": self.ttl,
+            }
+
+            section_data = {}
+            for section, metrics in metrics_config.items():
+                section_data[section] = {}
+                for metric in metrics:
+                    section_data[section][metric] = {
+                        str(y): row.get(f"{section}_{metric}_{y}", 0.0) for y in years
+                    }
+
+            return {**base_fields, **section_data}
+
+        return df.rdd.map(row_to_json)
+
+    def write(self, json_rdd):
+        df = self.spark.read.json(json_rdd)
+        df = df.repartition("partitionKey")
+        df.write.format("cosmos.oltp") \
+            .options(**self.config["cosmos_config"]) \
+            .mode("APPEND") \
+            .save()
+        logger.info(f"✅ Data written to Cosmos DB")
+
+    def run(self):
+        logger.info("🚀 Running section pipeline")
+        df = self.extract()
+        transformed = self.transform(df)
+        json_rdd = self.serialize_to_json(transformed)
+        self.write(json_rdd)
+        logger.info(f"🏁 Pipeline complete.")
+
+# === section_calculators/post_shift.py ===
+from pyspark.sql.functions import col
+
+class PostShiftCalculator:
+    def apply(self, df, config):
+        years = config["years"]
+        for y in years:
+            df = df.withColumn(f"PostShift_Scripts_{y}", col(str(y)))
+            df = df.withColumn(f"PostShift_QTY_{y}", col(f"QTY_{y}"))
+        return df
+
+# === drug_variant_pipeline.py ===
+from base_pipeline import BasePipeline
+from section_calculators.post_shift import PostShiftCalculator
+
+class DrugVariantPipeline(BasePipeline):
+    def __init__(self, spark, config):
+        super().__init__(spark, config)
+        self.section_calculators = [
+            PostShiftCalculator(),
+            # Add more: BaseCalculator(), MAFCalculator(), etc.
+        ]
+
+    def transform(self, df):
+        for calc in self.section_calculators:
+            df = calc.apply(df, self.config)
+        return df
+
+# === main.py ===
+from pyspark.sql import SparkSession
+from drug_variant_pipeline import DrugVariantPipeline
+
+config = {
+    "input_path": "/mnt/data/drug_data.xlsx",
+    "years": [2025, 2026, 2027],
+    "ttl": 7776000,
+    "metrics_per_section": {
+        "PostShift": ["Scripts", "QTY"],
+        "Base": ["Total", "QTY"],
+        "MAF": ["Total", "QTY"],
+        "PPL": ["Total", "QTY"],
+        "WAC": ["Total", "QTY"],
+        "PPA": ["Total", "QTY"]
+    },
+    "cosmos_config": {
+        "spark.cosmos.accountEndpoint": "https://<your-account>.documents.azure.com:443/",
+        "spark.cosmos.accountKey": "<your-key>",
+        "spark.cosmos.database": "UnderwriterDB",
+        "spark.cosmos.container": "DrugVariant",
+        "spark.cosmos.write.strategy": "ItemOverwrite"
+    }
+}
+
+spark = SparkSession.builder.appName("DrugVariantPipeline").getOrCreate()
+pipeline = DrugVariantPipeline(spark, config)
+pipeline.run()
