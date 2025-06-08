@@ -1,0 +1,88 @@
+import json
+import re
+from pathlib import Path
+from collections import defaultdict
+
+# === CONFIGURATION ===
+INPUT_JSON = "/mnt/data/derived_upper_lower_mappings.json"
+OUTPUT_JSON = "/mnt/data/formula_grouped_by_sheet.json"
+
+# === Patterns ===
+FUNC_PATTERN = re.compile(r'([A-Z]+)\(', re.IGNORECASE)
+FULL_REF_PATTERN = re.compile(r'([A-Za-z0-9_]+)!((\$?[A-Z]+\$?[0-9]+)(:\$?[A-Z]+\$?[0-9]+)?)')
+
+def analyze_formula_grouped_by_sheet(formula):
+    used_functions = list(set(func.upper() for func in FUNC_PATTERN.findall(formula)))
+    sheet_groups = defaultdict(lambda: {"cellReferences": set(), "rangeReferences": set()})
+    constants = set()
+
+    # Group all references by sheet
+    for match in FULL_REF_PATTERN.findall(formula):
+        sheet_name, full_ref, single_cell, range_part = match
+        if ":" in full_ref:
+            sheet_groups[sheet_name]["rangeReferences"].add(full_ref)
+        else:
+            sheet_groups[sheet_name]["cellReferences"].add(full_ref)
+
+    # Extract constants
+    for match in re.findall(r'"([^"]+)"|\b(\d+(?:\.\d+)?)\b', formula):
+        text, num = match
+        if text:
+            constants.add(text)
+        elif num:
+            constants.add(num)
+
+    # Tag logic
+    tags = []
+    if any(fn in used_functions for fn in ["INDEX", "MATCH", "VLOOKUP", "HLOOKUP"]):
+        tags.append("usesLookup")
+    if any(fn in used_functions for fn in ["IF", "AND", "OR"]):
+        tags.append("hasCondition")
+    if constants:
+        tags.append("usesHardcode")
+    if len(used_functions) > 3:
+        tags.append("deepNested")
+    if len(sheet_groups.keys()) > 1:
+        tags.append("multiSheet")
+
+    return {
+        "usedFunctions": sorted(used_functions),
+        "sheetLookups": {
+            sheet: {
+                "cellReferences": sorted(list(refs["cellReferences"])),
+                "rangeReferences": sorted(list(refs["rangeReferences"]))
+            }
+            for sheet, refs in sheet_groups.items()
+        },
+        "constants": sorted(constants),
+        "tags": sorted(tags)
+    }
+
+# === Load Input JSON ===
+if not Path(INPUT_JSON).exists():
+    raise FileNotFoundError(f"{INPUT_JSON} not found.")
+
+with open(INPUT_JSON, "r", encoding="utf-8") as f:
+    upper_lower_data = json.load(f)
+
+# === Analyze Formulas with Grouping by Sheet ===
+results = []
+
+for item in upper_lower_data:
+    for key in ["upperFormula", "lowerFormula"]:
+        formula = item.get(key)
+        if formula:
+            meta = analyze_formula_grouped_by_sheet(formula)
+            results.append({
+                "column": item.get("column"),
+                "excelColumn": item.get("excelColumn"),
+                "formulaType": key,
+                "formula": formula,
+                **meta
+            })
+
+# === Save Output JSON ===
+with open(OUTPUT_JSON, "w", encoding="utf-8") as f:
+    json.dump(results, f, indent=2, ensure_ascii=False)
+
+OUTPUT_JSON
