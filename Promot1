@@ -1,0 +1,82 @@
+You are a senior-level Spark architect building a **production-grade PySpark data pipeline** for the following use case:
+
+### 🔁 Use Case:
+- Read data from **Azure SQL Database** using **JDBC**
+- Perform Spark-based transformations with **minimal shuffle and high performance**
+- Write the output into **Azure Cosmos DB** using the **bulk executor**
+- SLA: Pipeline must run in **under 10 seconds**
+- Data volume: ~100k–500k records per job
+
+---
+
+### ✅ HARD REQUIREMENTS
+
+I want you to build this pipeline using a **modular and extensible architecture**, not just flat code.
+
+**The solution must follow:**
+
+#### 📦 Modular Design Structure:
+- `reader.py`: contains Azure SQL reader class using Spark JDBC with partitioned read config
+- `transformer.py`: contains optimized filter/transform logic with broadcast joins
+- `writer.py`: contains Cosmos DB write logic using bulk executor mode
+- `config.py`: holds all JDBC/Cosmos configs, Spark configs, partition info
+- `main.py`: orchestrates the job, handles exceptions, logs status
+
+#### ⚙️ Technical Best Practices:
+- Push down filters and projections to SQL Server query
+- Use `partitionColumn`, `lowerBound`, `upperBound`, `numPartitions`, and `fetchSize` for **parallel JDBC read**
+- Use **broadcast joins** for small lookups
+- Minimize **wide transformations** (joins, groupBy, sort)
+- Enable **Adaptive Query Execution (AQE)** and tune `spark.sql.shuffle.partitions`
+- Use `.coalesce()` for output if data shrinks
+- Tune **Cosmos DB connector** for bulk ingestion with retries and partition-aware writes
+- Choose ideal **Cosmos partition key** to avoid hot partitions
+
+#### 🧰 Design Patterns:
+- Use the **Factory or Builder pattern** for creating SparkSession and Cosmos config
+- Use the **Strategy pattern** if multiple transformation flows are expected
+- Apply **Separation of Concerns** to isolate I/O, logic, and orchestration layers
+
+#### 🛡️ Robustness:
+- Use proper **exception handling** in each module (e.g., try-except-finally blocks)
+- Add **structured logging** using `logging` module (not just print)
+- Fail-fast behavior if configs are missing
+- Add retry logic with backoff for Cosmos DB writes
+
+---
+
+### ✅ Deliverables:
+
+1. Full **modular Python code** in the above structure:
+   - `main.py`, `reader.py`, `transformer.py`, `writer.py`, `config.py`
+2. Spark job must be tuned for Azure Databricks or Synapse Spark
+3. All important Spark configs should be explicitly set (AQE, broadcast threshold, shuffle partitions)
+4. Logging and exception handling must be clean, consistent, and production-safe
+5. Use comments to explain every optimization used (e.g., why broadcast, why this partition key, etc.)
+6. Provide a **Spark UI checklist** of what metrics to observe to validate performance
+
+---
+
+### 💬 BONUS CONTEXT
+
+Assume the job is triggered hourly or in response to an event. The Cosmos DB container uses `/regionId` as the partition key. Azure SQL has indexes on `SaleDate`, `CustomerId`, and `RegionId`. Data transformations include filtering for active records, joining with a small region lookup, and computing totals by region.
+
+---
+
+### 🔒 Rules
+
+- No hardcoded secrets — use config file or placeholders
+- Don’t use UDFs unless absolutely required
+- Don’t flatten all logic into `main.py`
+- All classes and functions must be **testable and reusable**
+
+---
+
+### 🎯 Goal
+
+Return a **clean, modular, production-safe PySpark pipeline** that:
+- Starts fast
+- Minimizes Spark shuffle
+- Writes to Cosmos DB in parallel
+- Has logging, error handling, and clear separation of concerns
+
