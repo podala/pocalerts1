@@ -1,0 +1,79 @@
+"""
+🔧 Build a production-grade **Azure Event Hub Consumer Agent** in Python that triggers ADF pipelines.
+
+🎯 Goal:
+Consume real-time messages from Azure Event Hub and **trigger an Azure Data Factory (ADF) pipeline for each event** using Python (`azure-eventhub` SDK). Each event = one pipeline run. Design should be modular, scalable, observable, and production-ready.
+
+🧱 Architecture Overview:
+- Use `azure-eventhub` SDK for consuming events
+- Use `azure-identity` and `requests` (or `azure-mgmt-datafactory`) to trigger ADF pipelines
+- One event triggers one ADF pipeline execution with event payload
+- Clean separation: config, logging, ADF client, event processor
+- Async/await for all I/O, daemon-safe, and CI/CD deployable
+
+🧩 Components to Implement:
+
+1. ✅ Config Loader (`Config` class):
+   - Load from environment:
+     - `EVENT_HUB_CONNECTION_STRING`
+     - `EVENT_HUB_NAME`
+     - `CONSUMER_GROUP` (optional, default: "$Default")
+     - `ADF_SUBSCRIPTION_ID`, `ADF_RESOURCE_GROUP`, `ADF_FACTORY_NAME`, `ADF_PIPELINE_NAME`
+     - `ADF_CLIENT_ID`, `ADF_CLIENT_SECRET`, `ADF_TENANT_ID`
+     - Optional:
+       - `CHECKPOINT_STORAGE_CONN_STRING`
+       - `BLOB_CONTAINER_NAME`
+       - `LOG_LEVEL` (default: INFO)
+   - Validate required values and raise errors if missing
+
+2. ✅ Logging Setup:
+   - ISO-timestamped logging with module and level
+   - Configurable level via environment
+   - Optional: support JSON logging for container-based observability
+
+3. ✅ ADFTriggerClient:
+   - Authenticate using `azure-identity` or `msal`
+   - Trigger Azure Data Factory pipeline with event payload as parameter
+   - Return pipeline run ID and status
+   - Retry transient failures, handle 429s
+
+4. ✅ EventHubConsumerAgent:
+   - Use `EventHubConsumerClient`
+   - Implement:
+     - `on_event`: deserialize message, call ADFTriggerClient, log result
+     - `on_error`: log per-partition and client-level errors
+     - `on_partition_initialize` / `on_partition_close`: log partition lifecycle
+   - Use `asyncio.Semaphore` or rate limit triggers if needed
+   - Track metrics: received events, trigger success/failure, processing time
+
+5. ✅ Async Event Loop & Entrypoint:
+   - Use `asyncio.run()` to launch the agent
+   - Handle `KeyboardInterrupt`, `SIGTERM` for clean shutdown
+   - Ensure agent runs as long-lived daemon process (pod, VM, container)
+   - Optionally allow startup log banner and shutdown reason
+
+6. ✅ Optional Enhancements (future flags):
+   - 📦 Retry/backoff via `tenacity`
+   - 📈 Prometheus/App Insights metrics hooks
+   - 🧪 Unit tests using `pytest`, `unittest.mock`
+   - 🚦 FastAPI health endpoint (`/healthz`) for container probes
+   - ⛓️ Use `asyncio.Queue` for async fan-out to Kafka, files, etc.
+   - 🔐 Add Azure Key Vault integration for secrets (future)
+
+📦 Required Dependencies:
+- `azure-eventhub>=5.11.1`
+- `azure-identity` OR `msal` + `requests` (REST option)
+- `azure-storage-blob` (optional, for checkpointing)
+- `tenacity` (optional, for retry logic)
+- `python-dotenv` (for local dev/testing)
+- `fastapi` and `uvicorn` (optional for health check)
+
+💡 Runtime Standards:
+- No hardcoded secrets; use `os.environ.get()` or secret store
+- All I/O must be async (non-blocking)
+- Use structured logging for production
+- Support testability via mocks
+- Should run both locally and in containers (e.g., Docker/Kubernetes)
+
+🚀 START: Begin by generating the `Config` class and `ADFTriggerClient`, followed by the `EventHubConsumerAgent`.
+"""
