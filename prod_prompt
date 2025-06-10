@@ -1,0 +1,98 @@
+You are a senior Spark engineer building a production-grade PySpark data pipeline.
+
+### 🛠 Use Case:
+Build a modular Spark pipeline with:
+- Source: Azure SQL via JDBC
+- Destination: Azure Cosmos DB using bulk executor
+- Transformations: Filtering, joins, aggregations (lightweight)
+- SLA: Total runtime under 10 seconds
+- Data volume: ~100K–500K rows per batch
+
+---
+
+### 📦 Architectural Requirements:
+
+Create the project using a clean, modular structure with a shared base class and strict separation of concerns:
+
+1. `base.py`: A base class `BasePipelineComponent` that:
+   - Initializes SparkSession with tuned config (AQE, Kryo, shuffle settings)
+   - Initializes Python logging
+   - Provides shared utilities to subclasses (logging,restart, Spark access)
+
+2. `config.py`: Central config file with:
+   - Spark config dictionary
+   - JDBC config dictionary (partitioned read settings)
+   - Cosmos DB config dictionary (including partition key, retry settings)
+
+3. `reader.py`: A class `AzureSQLReader(BasePipelineComponent)` that:
+   - Reads from Azure SQL using JDBC
+   - Uses partitionColumn, fetchSize, numPartitions
+   - Pushes filters and projections into the query
+   - Logs partition read status
+
+4. `transformer.py`: A class `SalesDataTransformer(BasePipelineComponent)` that:
+   - Applies transformations with minimal shuffle
+   - Uses broadcast join for small lookup table
+   - Avoids UDFs, uses DataFrame API
+   - each class as its own dataclass
+   - Handles skew if detected (optional salting or adaptive strategies)
+
+5. `writer.py`: A class `CosmosDBWriter(BasePipelineComponent)` that:
+   - Writes to Cosmos DB using `ItemOverwrite` strategy
+   - Enables bulk writes
+   - Uses partition key (`/regionId`)
+   - Handles retries and logs status
+
+6. `main.py`: Main orchestration script that:
+   - Instantiates each module class
+   - Orchestrates reader → transformer → writer
+   - Wraps entire flow in try/except with structured logging
+   - Measures execution time and logs success/failure
+
+---
+
+### ✅ Technical Best Practices (Must Be Followed in Code):
+
+- ✅ Push down filtering and projections to SQL query
+- ✅ Use JDBC parallelism with partitionColumn
+- ✅ Avoid collect(), toPandas(), groupByKey
+- ✅ Minimize UDF usage
+- ✅ Enable AQE and configure `spark.sql.shuffle.partitions`
+- ✅ Use broadcast joins for small tables
+- ✅ Use coalesce() instead of repartition() for small outputs
+- ✅ Use efficient serialization (Kryo)
+- ✅ Use structured logging via `logging` module
+- ✅ Tune Cosmos DB write config (bulk, retry, partition key)
+- ✅ Include clear comments on all optimizations
+- ✅ Avoid hardcoded secrets — use placeholders or config
+- ✅ Apply factory or builder patterns where appropriate
+- ✅ Ensure every class is reusable and testable
+
+---
+
+### 📊 Spark UI & Runtime Validation Checklist (Output Required):
+
+At the end, provide a checklist of:
+- Spark UI metrics to monitor (shuffle read/write, stage skew, GC time)
+- What to look for in SQL/Jobs/Stages tabs
+- How to verify broadcast join, AQE benefits, and partitioning effectiveness
+
+---
+
+### 📁 Expected Output Format:
+
+1. `base.py` — base class
+2. `config.py` — config holder
+3. `reader.py` — JDBC reader class
+4. `transformer.py` — transformation class with broadcast join
+5. `writer.py` — Cosmos DB writer class
+6. `main.py` — orchestrator with logging, timing, error handling
+
+The final pipeline should be:
+- Modular
+- Reusable
+- Low-latency
+- Cloud-optimized
+- Easily testable and maintainable
+
+Generate full working code. Assume this runs on Azure Databricks or Synapse Spark.
