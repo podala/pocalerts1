@@ -1,0 +1,86 @@
+Prompt: Repository Generation for Full-Stack Application
+
+"I need a comprehensive repository setup for a full-stack application. The architecture should be as follows:
+
+1. Frontend (React/Next.js):
+
+Framework: Next.js (preferred for SSR/SSG capabilities, but a pure React SPA with CRA is also acceptable if Next.js adds unnecessary complexity for initial setup).
+Language: TypeScript.
+Styling: Tailwind CSS (configured and ready for use).
+State Management: React Context API or Zustand (or similar lightweight global state management, not Redux for this initial setup).
+Data Fetching: Apollo Client for GraphQL queries/mutations.
+Directory Structure:
+pages/ (for Next.js)
+components/ (reusable UI components)
+hooks/ (custom React hooks)
+lib/ (utility functions, Apollo client setup)
+graphql/ (Apollo hooks, queries, mutations, subscriptions definitions)
+styles/ (global styles)
+Key Features:
+Basic routing.
+Example page consuming data from the GraphQL API.
+Loading/error states for data fetching.
+Environment variable configuration for API endpoint.
+2. Backend (Service Layer - Spring Boot or Go):
+
+Primary Choice: Spring Boot (Java)
+Alternative: Go (with Gin or Echo framework for REST/GraphQL). Please provide both options if feasible, or indicate which one is more straightforward for a quick setup with GraphQL.
+Reasoning for choice (if applicable): If you choose Go, explain the rationale behind that choice over Spring Boot for this particular setup.
+API: GraphQL (Apollo Server or Spring for GraphQL).
+Database: Azure Cosmos DB (NoSQL API - MongoDB or SQL API preferred for initial setup).
+Schema: Define a simple GraphQL schema (e.g., for User or Product with basic fields like id, name, description).
+Data Access:
+For Spring Boot: Spring Data Cosmos DB (or Spring Data MongoDB if using Cosmos DB's MongoDB API).
+For Go: Appropriate Cosmos DB SDK/driver.
+Core Functionality:
+CRUD operations for the defined GraphQL type (e.g., createUser, getUser, updateUser, deleteUser).
+Basic error handling for API responses.
+Environment variable configuration for Cosmos DB connection string and other secrets.
+Directory Structure:
+Spring Boot:
+src/main/java/com/example/appname/
+controllers/ (or resolvers/ for GraphQL)
+services/ (business logic)
+repositories/ (data access)
+models/ (data models/entities)
+config/ (GraphQL, security, database config)
+Go:
+cmd/api/ (main application entry point)
+internal/ (internal packages like models, handlers, services, repository, graphql)
+pkg/ (reusable packages, e.g., for error handling)
+Build/Run:
+For Spring Boot: Maven or Gradle build.
+For Go: Standard go build and go run.
+3. Repository Structure (Monorepo vs. Polyrepo):
+
+Preferred: Monorepo with a clear separation of frontend/ and backend/ directories at the root. This simplifies development and deployment for this project size.
+Alternative: Polyrepo (separate repositories for frontend and backend) if the monorepo approach proves overly complex for initial setup. If so, provide instructions for connecting them.
+4. Development & Deployment Considerations:
+
+Local Development: Clear instructions on how to set up and run both the frontend and backend locally (e.g., npm install && npm run dev for frontend, mvn spring-boot:run or go run . for backend).
+Containerization (Optional but preferred): Dockerfiles for both frontend and backend, with a docker-compose.yml for easy local development and orchestration.
+CI/CD (High-level suggestions): Briefly mention potential CI/CD pipelines (e.g., GitHub Actions, Azure DevOps) and how they would deploy the frontend to a static site host (e.g., Azure Static Web Apps, Vercel) and the backend to a cloud platform (e.g., Azure App Service, Azure Kubernetes Service).
+5. Documentation:
+
+A comprehensive README.md at the root of the repository, including:
+Project overview.
+Architectural diagram (simple ASCII or text-based is fine).
+Prerequisites.
+Setup and run instructions for both frontend and backend.
+API endpoints.
+Key technologies used.
+Future enhancements/roadmap.
+Deliverables:
+
+A well-structured Git repository (or instructions on how to create it) with the specified frontend and backend codebases.
+All necessary configuration files.
+A README.md file as described above.
+Sample code for basic GraphQL operations and data fetching.
+Clear instructions for setting up Cosmos DB locally (if applicable, e.g., using Azure Cosmos DB Emulator) or connecting to a remote instance.
+Important Notes:
+
+Prioritize a clean, maintainable, and easily understandable codebase.
+Focus on getting a working end-to-end flow rather than exhaustive feature sets.
+Use best practices for project structure and coding conventions.
+Assume the user has basic knowledge of Git, Node.js, Java/Go, and cloud concepts.
+If any specific choices are made (e.g., Spring Boot over Go for backend), please provide a brief justification."
