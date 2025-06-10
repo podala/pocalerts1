@@ -1,0 +1,117 @@
+You are building a production-grade data pipeline to process Excel-based drug pricing models using PySpark. Your goals are: performance, reliability, modularity, and maintainability.
+
+Design and implement the following:
+
+1. ✅ Core Spark Pipeline Requirements
+Read a large .xlsx file using com.crealytics.spark.excel
+
+Use a singleton-based SparkSessionManager to avoid reinitialization
+
+Each row represents a drug entity with Key, DrugName, modelId, and other columns
+
+Columns like PostShift_Scripts_2025, Base_QTY_2026 represent metrics per year and per section
+
+2. ✅ Parallel Section Calculators
+Define the following section calculators:
+
+PostShiftCalculator
+
+BaseCalculator
+
+MAFCalculator
+
+PPLCalculator
+
+WACCalculator
+
+PPACalculator
+
+Each implements:
+
+python
+Copy
+Edit
+def apply(self, df: DataFrame, config: dict) -> DataFrame
+Run them in parallel using ThreadPoolExecutor (or any safe concurrency option with cached DataFrame)
+
+Each returns a DataFrame with Key and prefixed columns (e.g., PostShift_Scripts_2025)
+
+3. ✅ Merge and Serialization
+Merge all section outputs on Key (using outer join)
+
+Define a DrugVariantRecord using @dataclass to standardize JSON output
+
+Convert Spark rows to Python dicts using rdd.map + DrugVariantRecord.to_dict()
+
+4. ✅ Cosmos DB Writer
+Use a CosmosDBWriter singleton:
+
+Accepts cosmos_config (account, key, database, container)
+
+Handles retry logic using tenacity
+
+Method: write(json_rdd)
+
+Configurable TTL and partitionKey support
+
+5. ✅ Validation with Great Expectations
+Before writing to Cosmos DB, validate the merged DataFrame:
+
+Check required columns exist (e.g., Key, modelId, DrugName)
+
+Ensure no nulls in critical fields
+
+Ensure metrics per section fall within reasonable numeric range
+
+Expectation suite should be defined inline or loaded from YAML
+
+Abort write if validation fails
+
+6. ✅ Pipeline Orchestration
+Load config from pipeline_config.yaml:
+
+years, ttl, metrics_per_section, cosmos_config, input_path
+
+Initialize and cache the Excel DataFrame
+
+Run section calculators in parallel
+
+Merge all section results
+
+Validate merged DataFrame via Great Expectations
+
+Serialize and write to Cosmos DB
+
+Log each stage’s duration and outcome
+
+7. ✅ Logging, Retries, and Observability
+Use Python’s logging module throughout
+
+Retry all critical phases (extract, write) using tenacity
+
+Count rows at each stage
+
+Log partition count, Spark job duration
+
+🎯 Final Deliverables
+You should produce:
+
+base_pipeline.py → reusable abstract pipeline class
+
+drug_variant_pipeline.py → orchestrator
+
+section_calculators/*.py → modular logic per section
+
+models/drug_variant_record.py → dataclass with .to_dict()
+
+writer/cosmos_writer.py → singleton Cosmos DB writer with retry
+
+utils/spark_manager.py → singleton SparkSession
+
+validations/expectation_suite.json or inline GE rules
+
+main.py → glue script with config loader (YAML or dict)
+
+pipeline_config.yaml → contains all inputs, Cosmos settings, section metadata
+
+Would you like me to now give a w
