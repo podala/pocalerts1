@@ -1,0 +1,161 @@
+You are creating a robust Python-based agent application to:
+
+Consume events from Azure Event Hub.
+
+Trigger Azure Data Factory (ADF) pipelines for each event received (one pipeline run per event).
+
+Implement comprehensive logging for observability and debugging.
+
+Use a dead-letter queue mechanism for events that fail processing.
+
+Include restart and retry logic for resilience.
+
+Track and log each triggered pipeline run's status and completion.
+
+Application Requirements
+
+Event Hub Consumption:
+
+Connect to Azure Event Hub using Azure SDK.
+
+Read each message/event individually.
+
+ADF Pipeline Triggering:
+
+Trigger an ADF pipeline run per event using Azure Data Factory SDK.
+
+Pass event data to the ADF pipeline as parameters.
+
+Logging:
+
+Implement detailed logging using Python’s built-in logging or the loguru library.
+
+Log informational messages, errors, and pipeline statuses.
+
+Dead-letter Queue Handling:
+
+On failures, publish events to a dedicated dead-letter queue (Azure Service Bus Queue).
+
+Clearly log the reason for the failure.
+
+Restart and Retry Logic:
+
+Automatically retry pipeline triggers on transient errors using exponential backoff.
+
+Provide mechanisms for manual restart capability.
+
+Pipeline Tracking:
+
+Track each triggered pipeline’s run status using Azure Data Factory SDK.
+
+Periodically poll and log the pipeline run status (success, failure, or in-progress).
+
+Modular Coding Structure
+
+Your application codebase should be modular and maintainable, structured as follows:
+
+src/
+├── main.py
+├── eventhub_consumer.py
+├── adf_pipeline_trigger.py
+├── dead_letter_queue.py
+├── tracking.py
+├── logging_setup.py
+└── utils.py
+
+Module Responsibilities
+
+eventhub_consumer.py:
+
+Set up and handle connections to Azure Event Hub.
+
+Consume events continuously.
+
+adf_pipeline_trigger.py:
+
+Interface with Azure Data Factory.
+
+Trigger pipeline runs, handle errors, and implement retry logic.
+
+dead_letter_queue.py:
+
+Manage the connection to Azure Service Bus.
+
+Publish messages to the dead-letter queue.
+
+tracking.py:
+
+Periodically check and log the status of pipeline runs.
+
+logging_setup.py:
+
+Configure logging settings globally.
+
+utils.py:
+
+Include utility functions such as exponential backoff retries, parameter validation, and environment variable loading.
+
+Key Implementation Details
+
+Use environment variables for configuration (Event Hub connection strings, ADF names, etc.).
+
+Employ robust error handling with try-except blocks.
+
+Ensure idempotency where possible to handle potential duplicates.
+
+Clearly log unique identifiers for tracing events and pipeline runs.
+
+Example Usage
+
+Your main entry point (main.py) should initialize components and start the event loop:
+
+from eventhub_consumer import EventHubConsumer
+from logging_setup import setup_logging
+
+def main():
+    setup_logging()
+    consumer = EventHubConsumer()
+    consumer.start_consuming()
+
+if __name__ == "__main__":
+    main()
+
+Logging Example
+
+Use structured logging clearly indicating:
+
+Timestamp
+
+Event ID
+
+Pipeline run ID
+
+Pipeline status
+
+Error details if any
+
+Dead-letter Queue Message Example
+
+Include the original event payload and error details.
+
+{
+  "event_id": "12345",
+  "payload": { "key": "value" },
+  "error": "Pipeline trigger timeout"
+}
+
+Tracking Pipeline Status
+
+Poll ADF pipeline statuses periodically.
+
+Log statuses as:
+
+SUCCESS
+
+IN_PROGRESS
+
+FAILED
+
+Retry Logic
+
+Implement retries with exponential backoff using the tenacity library
