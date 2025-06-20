@@ -1,0 +1,85 @@
+'use client';
+
+import * as XLSX from 'xlsx';
+import { useState } from 'react';
+
+export default function XlsbToXlsxViewer() {
+  const [data, setData] = useState([]);
+  const [columns, setColumns] = useState([]);
+  const [sheetName, setSheetName] = useState('');
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !file.name.endsWith('.xlsb')) {
+      alert('Please upload a valid .xlsb file');
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = (evt) => {
+      const binaryData = evt.target.result;
+
+      try {
+        // Step 1: Read .xlsb file
+        const workbook = XLSX.read(binaryData, { type: 'binary' });
+
+        // Step 2: Convert workbook to .xlsx binary (in memory)
+        const xlsxBinary = XLSX.write(workbook, {
+          type: 'binary',
+          bookType: 'xlsx',
+        });
+
+        // Step 3: Re-parse .xlsx (more stable)
+        const xlsxWorkbook = XLSX.read(xlsxBinary, { type: 'binary' });
+        const firstSheet = xlsxWorkbook.SheetNames[0];
+        const sheet = xlsxWorkbook.Sheets[firstSheet];
+        const sheetData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+        if (sheetData.length > 0) {
+          setSheetName(firstSheet);
+          setColumns(sheetData[0]);
+          setData(sheetData.slice(1));
+        } else {
+          alert('Sheet is empty or unreadable.');
+        }
+      } catch (err) {
+        console.error('Error parsing file:', err);
+        alert('Failed to read .xlsb file. It may be corrupted or unsupported.');
+      }
+    };
+
+    reader.readAsBinaryString(file);
+  };
+
+  return (
+    <div style={{ padding: '2rem' }}>
+      <h2>Upload `.xlsb` File → Convert → View as `.xlsx`</h2>
+      <input type="file" accept=".xlsb" onChange={handleFileUpload} />
+
+      {data.length > 0 && (
+        <div style={{ marginTop: '2rem' }}>
+          <h4>Preview: {sheetName}</h4>
+          <table border="1" cellPadding="6" style={{ borderCollapse: 'collapse', width: '100%' }}>
+            <thead>
+              <tr>
+                {columns.map((col, i) => (
+                  <th key={i}>{col || `Column ${i + 1}`}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {data.map((row, rIdx) => (
+                <tr key={rIdx}>
+                  {row.map((cell, cIdx) => (
+                    <td key={cIdx}>{cell?.toString() || ''}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
