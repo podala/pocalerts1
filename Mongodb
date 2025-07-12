@@ -1,0 +1,21 @@
+.qupuery Time and Access Pattern in MongoDB Atlas Layers
+MongoDB Atlas Layer	Query Type	Is Data Online?	Typical Latency	When to Use	Notes
+1. Cluster Storage (Hot Layer)	Full CRUD, Aggregation, Realtime API	✅ Yes	50 ms – 5 sec	All active data, dashboards, apps	Fastest access, supports indexes, in-memory cache
+2. Online Archive (Cold Layer)	Read-only via Atlas SQL / Federated Queries	✅ Yes	1 – 10 sec	For cold data (older than 30/60 days), infrequent access	Data is stored in S3/Blob internally, format is Parquet
+3. Data Federation on External S3/Blob	Read-only	✅ Yes	5 – 20 sec	Query external lakes, CSV/Parquet in object stores	You register your own bucket; no Mongo ingest needed
+4. Queryable Backup Snapshot	Read-only (no indexes)	✅ On-demand (cold start)	30 sec – 2 min	Forensics, point-in-time investigation	Not meant for production querying; snapshot mounted temporarily
+5. Cloud Backup (Coldest)	No queries — restore only	❌ Offline	Minutes to Hours (restore time)	DR/Recovery only	Can't query directly; requires full restore to cluster
+
+🕒 Example Query Latency (for 150M records ~50 GB)
+Query Type	Hot Layer (Cluster)	Online Archive	Federation (S3)	Queryable Backup
+find({clientId}) (index hit)	< 100 ms	1–2 sec	2–3 sec	~30 sec (cold spin)
+$match + $group (10-day range)	1–2 sec	3–6 sec	8–15 sec	1–2 min
+Full scan (1-year)	15–30 sec	30–60 sec	60–120 sec	3–5 min
+
+When to Use Each Layer
+Need	Use This Layer
+Real-time apps, dashboards	Hot Layer (Cluster)
+Archived data, rarely accessed but still queryable	Online Archive
+Query CSV/Parquet/JSON from cloud buckets	Federation Layer
+Point-in-time restore or rare snapshot browsing	Queryable Backup
+Backup-only, no query support	Cloud Backup
