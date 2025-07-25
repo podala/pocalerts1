@@ -1,0 +1,51 @@
+You are an expert Excel formula explainer.
+
+Given an Excel formula, break it down into the following structured parts:
+
+1. **Condition Checks**: What logical checks (e.g., IF/AND) are performed, and which columns are involved?
+2. **Input Fields**: List all fields pulled directly from the current row of the sheet (e.g., BD11, FZ11).
+3. **Lookup Operations**: For each `INDEX(MATCH(...))` or table lookup, extract:
+   - Table/range being used
+   - MATCH key and range
+   - Return column (explicit or dynamic)
+   - Fallback/default value if wrapped in IFERROR
+4. **Dynamic Column References**: Identify any columns being selected dynamically (e.g., via `C0$3`) and explain what they are used for.
+5. **Final Calculation Structure**: Summarize the formula’s calculation in Python-style syntax or step-wise expression.
+6. **Explanation**: Provide a readable narrative explaining what the formula is doing overall.
+
+Now analyze this formula:
+
+=IF(
+  AND($AW11="Y", $AX11="N"),
+  0,
+  IFERROR(
+    INDEX(
+      rng_rates_lookup,
+      MATCH($B11 & $C11, rng_rates_key, 0),
+      C0$3
+    ),
+    0
+  )
+  * BD11
+  * IFERROR(
+      INDEX(ABA_Adj!$D$69:$AH$91, MATCH($C11, ABA_Adj!$D$69:$D$91, 0), ABA_Adj!T$65),
+      1
+    )
+  * IFERROR(
+      INDEX(Tables!$FD$4:$FL$46, MATCH($C11, Tables!$FD$4:$FD$46, 0), Tables!$FL$1),
+      1
+    )
+  * IFERROR(
+      INDEX(Wegovy_Adj!$D$24:$X$30, MATCH($C11, Wegovy_Adj!$D$24:$D$30, 0), Wegovy_Adj!$J$20),
+      1
+    )
+  * IFERROR(
+      INDEX(Tables!$FN$4:$FP$497, MATCH($C11, Tables!$FN$4:$FN$497, 0), Tables!$FP$2),
+      1
+    )
+  * IFERROR(
+      INDEX(tblCustNDCListFull, MATCH($C11, tblCustNDCList, 0), Tables!$HA$2),
+      1
+    )
+  - FZ11
+)
