@@ -1,0 +1,34 @@
+You are a JSON rule converter. Based on the logic of an Excel formula, generate a JSON ruleset using the following structure:
+
+- Each rule has:
+  - `name`: Unique identifier
+  - `conditions`: Any `if`, `and`, `or` logic
+  - `calculations`: Step-by-step lookup or math operations
+  - `stop_on_match`: true if the rule ends execution when matched
+
+Use the following JSON pattern:
+
+{
+  "name": "rule_name",
+  "conditions": {
+    "all": [ { "path": "$.COLUMN", "operator": "equal", "value": "..." } ]
+  },
+  "calculations": [
+    {
+      "name": "calculation_step_name",
+      "calculation": {
+        "type": "lookup" | "expression" | "literal",
+        "table": "...",
+        "key": [...],
+        "key_column": "...",
+        "column_ref": "...",
+        "default": ...
+      }
+    }
+  ],
+  "stop_on_match": true
+}
+
+Now generate JSON from this logic:
+
+(Then paste in the LLM output from Prompt 1)
