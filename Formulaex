@@ -1,0 +1,143 @@
+import pandas as pd
+import numpy as np
+import re
+
+# --- Sample Rules ---
+rule_for_2025 = {
+    "name": "rule_2025",
+    "conditions": {
+        "all": [
+            { "path": "$.input_Shift", "operator": "equal", "value": "No" }
+        ]
+    },
+    "calculation": {
+        "type": "value_path",
+        "value_path": "$.V11"
+    },
+    "else": {
+        "type": "expression",
+        "value": "($.AH11 * $.table_wogf[$.AW11] + $.AG11 * $.table_wgf[$.AW11]) * " +
+                 "($.N11[:$.PrefixLength] == $.ExpectedPrefix ? $.UtilizationTable[$.AY2][$.ReturnColumnIdx1] : 1) * " +
+                 "($.MSB == 1 and $.Category == \"B\" ? $.BN4 : 1) * $.table_{year}"
+    }
+}
+
+rule_for_2026_to_2029 = {
+    "name": "rule_2026_onward",
+    "conditions": {},
+    "calculation": {
+        "type": "expression",
+        "value": "($.AH11 + $.AG11) * $.table_{year}"
+    },
+    "else": {
+        "type": "value_path",
+        "value_path": "$.V11"
+    }
+}
+
+# --- Sample Data ---
+df = pd.DataFrame({
+    "input_Shift": ["Yes", "No"],
+    "V11": [120, 100],
+    "AH11": [3, 0],
+    "AG11": [4, 0],
+    "AW11": ["Y", "Y"],
+    "table_wogf": [{"Y": 1.0}, {"Y": 1.0}],
+    "table_wgf": [{"Y": 0.0}, {"Y": 0.0}],
+    "N11": ["ABC123", "ABC999"],
+    "PrefixLength": [3, 3],
+    "ExpectedPrefix": ["ABC", "ABC"],
+    "UtilizationTable": [{"Q1": {"DrugTypeIndex": 0.95}}, {"Q1": {"DrugTypeIndex": 0.95}}],
+    "AY2": ["Q1", "Q1"],
+    "ReturnColumnIdx1": ["DrugTypeIndex", "DrugTypeIndex"],
+    "MSB": [1, 0],
+    "Category": ["B", "A"],
+    "BN4": [0.9, 1.0],
+    "table_2025": [1.2, 1.1],
+    "table_2026": [1.1, 1.0],
+    "table_2027": [1.05, 0.95],
+    "table_2028": [1.0, 0.9],
+    "table_2029": [0.95, 0.85]
+})
+
+# --- Rule Map ---
+year_to_rule_map = {
+    2025: rule_for_2025,
+    2026: rule_for_2026_to_2029,
+    2027: rule_for_2026_to_2029,
+    2028: rule_for_2026_to_2029,
+    2029: rule_for_2026_to_2029
+}
+
+# --- Helpers ---
+def operator_map(op: str) -> str:
+    return {
+        "equal": "==",
+        "not_equal": "!=",
+        "greater_than": ">",
+        "less_than": "<",
+        "greater_or_equal": ">=",
+        "less_or_equal": "<="
+    }.get(op, "==")
+
+def convert_ternaries(expr: str) -> str:
+    # Recursive conversion of ternary expressions
+    pattern = re.compile(r"\(([^()]+?)\s*\?\s*([^()]+?)\s*:\s*([^()]+?)\)")
+    while re.search(pattern, expr):
+        expr = re.sub(pattern, lambda m: f"({m.group(2)} if {m.group(1)} else {m.group(3)})", expr)
+    return expr
+
+def resolve_expression(expr: str, year: str, df: pd.DataFrame) -> str:
+    expr = expr.replace("{year}", year)
+    for col in df.columns:
+        expr = expr.replace(f"$.{col}", f"df['{col}']")
+    expr = convert_ternaries(expr)
+    return expr
+
+def execute_rules_by_year(df: pd.DataFrame, year_to_rule_map: dict) -> pd.DataFrame:
+    df_result = df.copy()
+
+    for year, rule in year_to_rule_map.items():
+        year_str = str(year)
+
+        # Step 1: Condition evaluation
+        conditions = rule.get("conditions", {}).get("all", [])
+        if not conditions:
+            condition_mask = pd.Series([True] * len(df), index=df.index)
+        else:
+            condition_exprs = []
+            for cond in conditions:
+                field = cond["path"].replace("$.","").replace("{year}", year_str)
+                op = operator_map(cond["operator"])
+                val = cond["value"]
+                expr = f"(df['{field}'] {op} {repr(val)})"
+                condition_exprs.append(expr)
+            condition_str = " & ".join(condition_exprs)
+            condition_mask = eval(condition_str, {"df": df, "pd": pd})
+
+        # Step 2: True calculation
+        calc = rule.get("calculation", {})
+        if calc.get("type") == "value_path":
+            field = calc["value_path"].replace("$.","").replace("{year}", year_str)
+            true_series = df[field]
+        elif calc.get("type") == "expression":
+            expr = resolve_expression(calc["value"], year_str, df)
+            true_series = eval(expr, {"df": df, "np": np})
+
+        # Step 3: Else calculation
+        fallback = rule.get("else", {})
+        if fallback.get("type") == "value_path":
+            field = fallback["value_path"].replace("$.","").replace("{year}", year_str)
+            false_series = df[field]
+        elif fallback.get("type") == "expression":
+            expr = resolve_expression(fallback["value"], year_str, df)
+            false_series = eval(expr, {"df": df, "np": np})
+
+        # Step 4: Assign result
+        df_result[f"Script_{year_str}"] = np.where(condition_mask, true_series, false_series)
+
+    return df_result
+
+# Execute and display
+df_final = execute_rules_by_year(df, year_to_rule_map)
+import ace_tools as tools; tools.display_dataframe_to_user(name="Final Script Output", dataframe=df_final)
