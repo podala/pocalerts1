@@ -1,0 +1,46 @@
+{
+  "name": "rule_2025",
+  "conditions": {
+    "all": [
+      { "path": "$.input_Shift", "operator": "equal", "value": "No" }
+    ]
+  },
+  "calculation": {
+    "type": "value_path",
+    "value_path": "$.V11"
+  },
+  "else": {
+    "type": "calculations",
+    "calculations": [
+      {
+        "name": "matrix_part",
+        "calculation": {
+          "type": "expression",
+          "value": "($.AH11 * $.table_wogf[$.AW11]) + ($.AG11 * $.table_wgf[$.AW11])"
+        }
+      },
+      {
+        "name": "prefix_multiplier",
+        "calculation": {
+          "type": "expression",
+          "value": "($.N11[:$.PrefixLength] == $.ExpectedPrefix ? $.UtilizationValue : 1)"
+        }
+      },
+      {
+        "name": "msb_multiplier",
+        "calculation": {
+          "type": "expression",
+          "value": "($.MSB == 1 && $.Category == 'B' ? $.BN4 : 1)"
+        }
+      },
+      {
+        "name": "final_output",
+        "calculation": {
+          "type": "expression",
+          "value": "$.matrix_part * $.prefix_multiplier * $.msb_multiplier * $.table_2025"
+        }
+      }
+    ],
+    "return": "final_output"
+  }
+}
