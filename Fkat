@@ -1,0 +1,73 @@
+import json
+
+# Step 1: Input JSON (from user image)
+modular_rule_from_image = {
+    "name": "shifted_script_formula_row_10",
+    "conditions": {
+        "all": [
+            {"path": "$.input_Shift", "operator": "equal", "value": "No"}
+        ]
+    },
+    "calculation": {
+        "type": "value_path",
+        "value_path": "$.Script{year}"
+    },
+    "else": {
+        "type": "calculations",
+        "calculations": [
+            {
+                "name": "prefix_multiplier",
+                "calculation": {
+                    "type": "expression",
+                    "value": "($.Inclusion_code[$.Length] == $.Value_ut ? $.table_yearID_{year} : 1)"
+                }
+            },
+            {
+                "name": "msb_multiplier",
+                "calculation": {
+                    "type": "expression",
+                    "value": "($.MSB == 1 and $.Generic_Ind == 'B' ? $.msb_percentage : 1)"
+                }
+            },
+            {
+                "name": "table_multiplier",
+                "calculation": {
+                    "type": "expression",
+                    "value": "($.table_{year} if $.table_{year} is not None else 1)"
+                }
+            },
+            {
+                "name": "final_output",
+                "calculation": {
+                    "type": "expression",
+                    "value": "$.ShiftScriptsNoCoT{year} * prefix_multiplier * msb_multiplier * table_multiplier"
+                }
+            }
+        ],
+        "return": "final_output"
+    }
+}
+
+# Step 2: Function to flatten the rule
+def flatten_json_rule(rule: dict) -> dict:
+    calculations = rule["else"]["calculations"]
+    return_var = rule["else"]["return"]
+    step_map = {step["name"]: step["calculation"]["value"] for step in calculations}
+    final_expr = step_map[return_var]
+    for name, expr in step_map.items():
+        if name != return_var:
+            final_expr = final_expr.replace(name, f"({expr})")
+    return {
+        "name": rule["name"] + "_flattened",
+        "conditions": rule["conditions"],
+        "calculation": rule["calculation"],
+        "else": {
+            "type": "expression",
+            "value": final_expr
+        }
+    }
+
+# Step 3: Apply function
+flattened_result = flatten_json_rule(modular_rule_from_image)
+flattened_result_str = json.dumps(flattened_result, indent=2)
+flattened_result_str[:2000]  # preview output
