@@ -1,0 +1,38 @@
+# Let's update the calculation step names to business-meaningful names for better traceability.
+
+# Map from internal technical step names to business-friendly ones
+name_mapping = {
+    "matrix_part": "script_multiplier_matrix",
+    "prefix_multiplier": "prefix_match_multiplier",
+    "msb_multiplier": "msb_override_multiplier",
+    "final_output": "final_script_value"
+}
+
+# Function to rename steps and regenerate flattened rule
+def flatten_with_business_names(rule_json, name_map):
+    calc_steps = rule_json["else"]["calculations"]
+    renamed_exprs = {}
+
+    for step in calc_steps:
+        name = step["name"]
+        expr = step["calculation"]["value"]
+        renamed = name_map.get(name, name)
+        renamed_exprs[renamed] = expr
+
+    final_expr = renamed_exprs[name_map.get(rule_json["else"]["return"], rule_json["else"]["return"])]
+    for name, expr in renamed_exprs.items():
+        if name != name_map.get(rule_json["else"]["return"], rule_json["else"]["return"]):
+            final_expr = final_expr.replace(f"$.{name}", f"({expr})")
+
+    return {
+        "name": rule_json["name"] + "_flattened",
+        "conditions": rule_json["conditions"],
+        "calculation": rule_json["calculation"],
+        "else": {
+            "type": "expression",
+            "value": final_expr
+        }
+    }
+
+flattened_business_rule = flatten_with_business_names(modular_rule, name_mapping)
+flattened_business_rule
