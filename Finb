@@ -1,0 +1,155 @@
+import pandas as pd
+import numpy as np
+import re
+import json
+import logging
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("RuleEngine")
+
+# Define rule maps
+rule_for_2025 = {
+    "name": "rule_2025",
+    "conditions": {
+        "all": [
+            {"path": "$.input_Shift", "operator": "equal", "value": "No"}
+        ]
+    },
+    "calculation": {
+        "type": "value_path",
+        "value_path": "$.V11"
+    },
+    "else": {
+        "type": "expression",
+        "value": "(df['AH11'] * df.apply(lambda row: row['table_wogf'][row['AW11']], axis=1) + "
+                 "df['AG11'] * df.apply(lambda row: row['table_wgf'][row['AW11']], axis=1)) * "
+                 "df.apply(lambda row: row['UtilizationTable'][row['AY2']][row['ReturnColumnIdx1']] "
+                 "if row['N11'][:row['PrefixLength']] == row['ExpectedPrefix'] else 1, axis=1) * "
+                 "df.apply(lambda row: row['BN4'] if row['MSB'] == 1 and row['Category'] == 'B' else 1, axis=1) * df['table_2025']"
+    }
+}
+
+rule_for_2026_to_2029 = {
+    "name": "rule_2026_onward",
+    "conditions": {},
+    "calculation": {
+        "type": "expression",
+        "value": "(df['AH11'] + df['AG11']) * df['table_{year}']"
+    },
+    "else": {
+        "type": "value_path",
+        "value_path": "$.V11"
+    }
+}
+
+# Create example DataFrame
+df = pd.DataFrame({
+    "input_Shift": ["Yes"],
+    "V11": [120],
+    "AH11": [3],
+    "AG11": [4],
+    "AW11": ["Y"],
+    "table_wogf": [{"Y": 1.0}],
+    "table_wgf": [{"Y": 0.0}],
+    "N11": ["ABC123"],
+    "PrefixLength": [3],
+    "ExpectedPrefix": ["ABC"],
+    "UtilizationTable": [{"Q1": {"DrugTypeIndex": 0.95}}],
+    "AY2": ["Q1"],
+    "ReturnColumnIdx1": ["DrugTypeIndex"],
+    "MSB": [1],
+    "Category": ["B"],
+    "BN4": [0.9],
+    "table_2025": [1.2],
+    "table_2026": [1.1],
+    "table_2027": [1.05],
+    "table_2028": [1.0],
+    "table_2029": [0.95]
+})
+
+year_to_rule_map = {
+    2025: rule_for_2025,
+    2026: rule_for_2026_to_2029,
+    2027: rule_for_2026_to_2029,
+    2028: rule_for_2026_to_2029,
+    2029: rule_for_2026_to_2029
+}
+
+def operator_map(op: str):
+    return {
+        "equal": "==",
+        "not_equal": "!=",
+        "greater_than": ">",
+        "less_than": "<",
+        "greater_or_equal": ">=",
+        "less_or_equal": "<="
+    }.get(op, "==")
+
+def convert_ternaries(expr: str) -> str:
+    pattern = re.compile(r"\(([^()]+?)\s*\?\s*([^()]+?)\s*:\s*([^()]+?)\)")
+    while re.search(pattern, expr):
+        expr = re.sub(pattern, lambda m: f"({m.group(2)} if {m.group(1)} else {m.group(3)})", expr)
+    return expr
+
+def resolve_expression(expr: str, year: str) -> str:
+    return convert_ternaries(expr.replace("{year}", year))
+
+def execute_rules_by_year(df: pd.DataFrame, year_to_rule_map: dict) -> pd.DataFrame:
+    df_result = df.copy()
+    for year, rule in year_to_rule_map.items():
+        year_str = str(year)
+        logger.info(f"Executing rule for year: {year_str} using rule: {rule['name']}")
+        
+        conditions = rule.get("conditions", {}).get("all", [])
+        if not conditions:
+            condition_mask = pd.Series([True] * len(df), index=df.index)
+        else:
+            exprs = []
+            for cond in conditions:
+                field = cond["path"].replace("$.", "").replace("{year}", year_str)
+                op = operator_map(cond["operator"])
+                val = cond["value"]
+                exprs.append(f"(df['{field}'] {op} {repr(val)})")
+            logger.debug(f"Condition expressions: {exprs}")
+            condition_mask = eval(" & ".join(exprs), {"df": df, "pd": pd})
+
+        # Evaluation
+        calc = rule.get("calculation", {})
+        fallback = rule.get("else", {})
+        true_series = eval(resolve_expression(calc.get("value", ""), year_str), {"df": df, "np": np}) \
+            if calc.get("type") == "expression" else df[calc.get("value_path", "").replace("$.","")]
+
+        false_series = eval(resolve_expression(fallback.get("value", ""), year_str), {"df": df, "np": np}) \
+            if fallback.get("type") == "expression" else df[fallback.get("value_path", "").replace("$.","")]
+
+        df_result[f"Script_{year_str}"] = np.where(condition_mask, true_series, false_series)
+        logger.info(f"Completed rule for year: {year_str}")
+    return df_result
+
+def transform_to_mongodb_payload_grouped_rules(df_result: pd.DataFrame, extra_fields: dict = None) -> list:
+    payload = []
+    script_columns = [col for col in df_result.columns if col.startswith("Script_")]
+    for _, row in df_result.iterrows():
+        grouped_rules = {
+            "script": {col.replace("Script_", ""): row[col] for col in script_columns}
+        }
+        record = {
+            "ra_output": {
+                "NDC": row.get("N11"),
+                "Category": row.get("Category"),
+                "MSB": row.get("MSB")
+            },
+            "rules": grouped_rules
+        }
+        if extra_fields:
+            record.update(extra_fields)
+        payload.append(record)
+    return payload
+
+df_final = execute_rules_by_year(df, year_to_rule_map)
+mongo_payload = transform_to_mongodb_payload_grouped_rules(df_final, extra_fields={"jobId": "JOB_001"})
+
+import ace_tools as tools; tools.display_dataframe_to_user(name="Mongo Payload Preview", dataframe=df_final)
+mongo_payload_str = json.dumps(mongo_payload, indent=2)
+mongo_payload_str[:2000]  # preview trimmed output
