@@ -1,0 +1,86 @@
+import pandas as pd
+import logging
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("RuleEngine")
+
+# Sample input DataFrame
+df = pd.DataFrame({
+    "NDC": ["123456789"],
+    "input_Shift": ["Yes"],
+    "Generic_Ind": ["B"],
+    "Inclusion_code": [["01"]],
+    "Length": [0],
+    "Value_ut": ["01"],
+    "Util Adj": [1.0],
+    "ShiftScriptsNoCoTYear1": [1.1],
+    "msb_percentage": [100],
+    "MSB": [1],
+    "table_yearID_Year1": [1.0],
+    "table_Year1": [1.1],
+    "ScriptsYear1": [9.43],
+})
+
+# Rule definition with year placeholder
+rule_template = {
+    "name": "shifted_script_formula",
+    "conditions": {
+        "all": [
+            {"path": "$.input_Shift", "operator": "equal", "value": "No"}
+        ]
+    },
+    "calculation": {
+        "type": "value_path",
+        "value_path": "$.Scripts{year}"
+    },
+    "else": {
+        "type": "expression",
+        "value": (
+            "row[f'ShiftScriptsNoCoT{year}'] * "
+            "(row[f'table_yearID_{year}'] if row['Inclusion_code'][int(row['Length'])] == row['Value_ut'] else 1) * "
+            "(row['msb_percentage'] if row['MSB'] == 1 and row['Generic_Ind'] == 'B' else 1) * "
+            "(row[f'table_{year}'] if row[f'table_{year}'] is not None else 1)"
+        )
+    }
+}
+
+# Evaluate condition blocks
+def evaluate_conditions(row, rule):
+    for cond in rule["conditions"]["all"]:
+        field = cond["path"].replace("$.","")
+        if cond["operator"] == "equal":
+            if row[field] != cond["value"]:
+                return False
+    return True
+
+# Execute rule for a specific year
+def execute_rule(row, rule, year_str):
+    logger.info(f"Executing rule: {rule['name']} for {year_str}")
+    if evaluate_conditions(row, rule):
+        field = rule["calculation"]["value_path"].replace("{year}", year_str).replace("$.","")
+        result = row[field]
+        logger.info(f"Condition matched. Using direct field: {field} = {result}")
+        return result
+    else:
+        expr = rule["else"]["value"].replace("{year}", year_str)
+        try:
+            result = eval(expr)
+            logger.info(f"Condition failed. Evaluated expression = {result}")
+            return result
+        except Exception as e:
+            logger.error(f"Failed to evaluate: {expr}\nError: {e}")
+            return None
+
+# Run for Year1 only (without hardcoding logic)
+final_output = {}
+
+for _, row in df.iterrows():
+    year = "Year1"
+    output = execute_rule(row, rule_template, year)
+    final_output[f"{row['NDC']}_{year}"] = output
+
+# Print result
+print("\n✅ Final Output (Year1 only, no hardcoding):")
+for k, v in final_output.items():
+    print(f"{k}: {v}")
