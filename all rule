@@ -1,0 +1,83 @@
+{
+  "rule_priority": [
+    "shifted_script_rule1",
+    "shifted_script_rule2",
+    "shifted_qty_rule1",
+    "shifted_qty_rule2"
+  ],
+  "years": [2025, 2026, 2027, 2028, 2029],
+  "rules": {
+    "shifted_script_rule1": {
+      "name": "shifted_script_rule1",
+      "group": "shifted_script",
+      "applies_to_years": ["1"],
+      "conditions": {
+        "all": [
+          { "path": "$.input_Shift", "operator": "equal", "value": "No" }
+        ]
+      },
+      "calculation": {
+        "type": "value_path",
+        "value_path": "$.ScriptsYear{year}"
+      },
+      "else": {
+        "type": "expression",
+        "value": "($.ShiftScriptsNoCoTYear{year} * $.table_wogf + $.ShiftScriptsCoTYear{year} * $.table_wgf) * ($.Inclusion_code [$.Length] == $.Value_utl ? $.table_YearID_{year} :1 ) * (($.MSB == 1 and $.Generic_Ind == 'B') ? $.msb_percentage : 1) * ($.table_Year{year} != null ? $.table_Year{year} : 1)"
+      }
+    },
+    "shifted_script_rule2": {
+      "name": "shifted_script_rule2",
+      "group": "shifted_script",
+      "applies_to_years": ["2","3","4","5"],
+      "conditions": {
+        "all": [
+          { "path": "$.input_Shift", "operator": "equal", "value": "No" }
+        ]
+      },
+      "calculation": {
+        "type": "value_path",
+        "value_path": "$.ScriptsYear{year}"
+      },
+      "else": {
+        "type": "expression",
+        "value": "($.ShiftScriptsNoCoTYear{year}) * ($.Inclusion_code [$.Length] == $.Value_utl ? $.table_YearID_{year} :1 ) * (($.MSB == 1 and $.Generic_Ind == 'B') ? $.msb_percentage : 1) * ($.table_Year{year} != null ? $.table_Year{year} : 1)"
+      }
+    },
+    "shifted_qty_rule1": {
+      "name": "shifted_qty_rule1",
+      "group": "shifted_qty",
+      "applies_to_years": ["1"],
+      "conditions": {
+        "all": [
+          { "path": "$.input_Shift", "operator": "equal", "value": "No" }
+        ]
+      },
+      "calculation": {
+        "type": "value_path",
+        "value_path": "$.QtyYear{year}"
+      },
+      "else": {
+        "type": "expression",
+        "value": "($.ShiftQtyNoCoTYear{year} * $.table_wogf + $.ShiftQtyCoTYear{year} * $.table_wgf) * ($.Inclusion_code [$.Length] == $.Value_utl ? $.table_YearID_{year} :1 ) * (($.MSB == 1 and $.Generic_Ind == 'B') ? $.msb_percentage : 1) * ($.table_Year{year} != null ? $.table_Year{year} : 1)"
+      }
+    },
+    "shifted_qty_rule2": {
+      "name": "shifted_qty_rule2",
+      "group": "shifted_qty",
+      "applies_to_years": ["2","3","4","5"],
+      "conditions": {
+        "all": [
+          { "path": "$.input_Shift", "operator": "equal", "value": "No" }
+        ]
+      },
+      "calculation": {
+        "type": "value_path",
+        "value_path": "$.QtyYear{year}"
+      },
+      "else": {
+        "type": "expression",
+         "value": "($.ShiftQtyNoCoTYear{year}) * ($.Inclusion_code [$.Length] == $.Value_utl ? $.table_YearID_{year} :1 ) * (($.MSB == 1 and $.Generic_Ind == 'B') ? $.msb_percentage : 1) * ($.table_Year{year} != null ? $.table_Year{year} : 1)"
+      }
+    }
+  }
+}
