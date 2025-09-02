@@ -1,0 +1,128 @@
+B) Retrieval + Answering (RAG with Critic/Reflection)
+
+Request enters /chat
+
+Input: tenant, user_id, session_id, message.
+
+Build thread_id to isolate this conversation.
+
+Load conversation state (Redis)
+
+LangGraph loads prior messages for thread_id.
+
+Ensures no cross-user bleed.
+
+Prompt Preparation (automatic)
+
+Static system rules added (tone, safety, behavior).
+
+Rolling summary (dynamic system message) updated from older turns.
+
+Keep last N turns verbatim (short-term memory).
+
+Token clamp applied (drop oldest turns until under budget).
+
+Output: a curated messages list = what the LLM will actually see.
+
+Agent (tool decision)
+
+LLM reads curated history + latest user ask.
+
+Decides whether to call tools (retriever/web) or answer directly.
+
+Typically chooses Retriever for grounding.
+
+Retriever (Azure AI Search)
+
+Runs hybrid/vector search with the user query (or improved query).
+
+Returns top-k chunks (text snippets + metadata).
+
+These results are attached to the conversation as tool output.
+
+Relevance Check
+
+A small LLM call evaluates: “Are these chunks enough to answer?”
+
+If NO → go to Improve:
+
+Rewrite/clarify the query (or ask a clarifying question),
+
+Route back to Agent → Retriever again.
+
+If YES → proceed to Critic.
+
+Critic Agent (Reflection)
+
+Inputs: User Question + Retrieved Context (+ reflection instructions).
+
+Produces Agent Reflection (structured guidance), e.g.:
+
+sufficiency decision (yes/no) and why,
+
+explicit gaps/missing facts,
+
+hallucination risks/contradictions,
+
+a numbered answer plan/outline,
+
+style constraints (bullets, sections, length),
+
+confidence (low/medium/high).
+
+If the critic says “insufficient”, you may loop back to retrieval with its gap hints.
+
+Generation Agent (Final Answer)
+
+Inputs:
+
+Curated conversation context from Step 3 (rules + summary + last N turns),
+
+Agent Reflection from Step 7,
+
+Retrieved Context from Step 5.
+
+The LLM follows the plan and style from the reflection to produce a grounded, well-structured answer (minimizing hallucinations and drift)
+.
+Post-processing
+
+Optionally add:
+
+short sources section (e.g., cite snippet titles/metadata),
+
+formatting (bullets/sections),
+
+redaction/safety filters if required by policy.
+
+Persist & respond
+
+Append the final answer to the conversation state in Redis (same thread_id).
+
+Return the answer to the client.
+
+C) Cross-cutting behaviors (always on)
+
+Memory discipline:
+Static rules + rolling summary + last N turns → keeps prompts small and coherent.
+
+Isolation:
+thread_id keeps each user/session separate in Redis.
+
+Quality loops:
+Relevance check → Improve (query rewrite) → back to Retriever until good.
+
+Risk control:
+Critic flags gaps & hallucination risks; Generation follows a plan grounded in retrieved text.
+
+Observability:
+Log timings for retrieval, critic, generation; record critic confidence/risks for dashboards.
+
+Tuning knobs:
+
+k (top-k chunks),
+
+keep_turns (3–5), max_tokens (3k–6k),
+
+Azure Search mode (hybrid/semantic),
+
+Critic output length.
