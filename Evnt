@@ -1,0 +1,111 @@
+) Ingestion & buffering
+
+UI → Event Hub: publish the JSON (use a stable partition key like clientId to keep per-tenant order).
+
+Event Hub assigns sequenceNumber, partitionId, enqueuedTime and stores the event.
+
+2) Serverless consumer (Spring Boot in ACA + KEDA)
+
+KEDA sees lag → scales your Container App from 0→N.
+
+EventProcessorClient pulls a small batch (tunable):
+
+prefetchCount (e.g., 300–600) buffers ahead.
+
+maxBatchSize (e.g., 10–32) hands events to your handler.
+
+3) Per-message processing (exactly one ADF run)
+
+For each event in the batch:
+5. Parse body → eventObj; compute payloadHash.
+6. Build parameters for ADF:
+
+event (OBJECT) = eventObj
+
+rawEvent (STRING) = raw JSON
+
+ehMeta (OBJECT) = { sequenceNumber, enqueuedUtc, partitionId }
+
+correlationId (STRING) = sequenceNumber
+
+(Optional) payloadHash
+
+Idempotency check (Azure Table/Cosmos):
+
+key = messageId (prefer) or seq:sequenceNumber:payloadHash
+
+if exists → skip (prevents duplicate ADF runs).
+
+Rate-limit & retry the ADF createRun call (resilience4j):
+
+e.g., 15 runs/sec per replica, retries with backoff on 429/5xx.
+
+On success:
+
+persist {dedupeKey, runId} in idempotency store,
+
+checkpoint the Event Hub offset after all messages in this batch succeeded.
+
+On terminal failure:
+
+write {event, error} to Blob DLQ and do not checkpoint (so it can be retried/replayed later).
+
+.4) ADF pipeline receives the message
+
+ADF pipeline parameters (define once):
+
+event (Object), rawEvent (String), ehMeta (Object), correlationId (String), payloadHash (String)
+
+Use them in activities:
+
+Access values:
+
+@pipeline().parameters.event.parameters.clientId
+
+@pipeline().parameters.event.parameters.modelUri
+
+@pipeline().parameters.ehMeta.sequenceNumber
+
+@pipeline().parameters.correlationId
+
+Optional validation step:
+
+Lookup/If Condition to validate schemaVersion, modelUri exists, size limits, etc. Fail fast if invalid.
+
+5) Downstream compute & tracing
+
+Databricks/Notebook/Copy activities use those params to do the work.
+
+Audit: first/last activities log {runId, correlationId, payloadHash, clientId, oppId} to your log table for traceability.
+
+6) Concurrency & ordering
+
+Per-pipeline concurrency cap:
+
+Before heavy work, ADF (or consumer) checks “active runs” threshold; if exceeded, fail fast or delay upstream.
+
+Ordering (if required per tenant):
+
+Use partition key = clientId in Event Hub so events for the same client are consumed in order.
+
+) Big payload variant (optional)
+
+If message can be large:
+
+UI writes full JSON to Blob → message only carries payloadUrl.
+
+Consumer passes payloadUrl to ADF; pipeline’s first step Lookup reads the JSON.
+
+Tunables (safe starting points)
+
+prefetchCount: 300
+
+maxBatchSize: 10–32
+
+ADF rate limit: 10–20 createRun/sec per replica
+
+Retries: 6 attempts, 500ms base, ×2 backoff, jitter on
+
+DLQ path: deadletter/eh/{yyyy}/{MM}/{dd}/{seq}.json
+
+This gives you low latency, exact 1:1 triggering, and bulletproof retries/idempo
