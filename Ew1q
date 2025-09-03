@@ -1,0 +1,81 @@
+flowchart LR
+
+subgraph Client [User & UI]
+  U[User]
+  FE[Web UI / Chat]
+  U --> FE
+end
+
+FE -->|/chat| GW[API Gateway]
+
+subgraph Orchestrator [LangGraph Orchestrator]
+  P[Planner (SLM)]
+  EVD[Evidence Fanout]
+  PG[Policy Guard]
+  G[SQL Generator (SLM->LLM)]
+  EX[Executor (Read-Only + EXPLAIN)]
+  V[Verifier (SLM)]
+  R[Refiner (bounded loop)]
+  AC[Answer Composer]
+end
+
+GW --> P
+P --> EVD
+
+subgraph Tools [Evidence Producers]
+  SR[SchemaRetriever\n(AI Search: catalog index)]
+  CS[ColumnStats\n(precomputed / quick SQL)]
+  GL[BizGlossary\n(Purview / Glossary index)]
+  SN[ExampleQueries\n(approved SQL library)]
+end
+
+EVD --> SR
+EVD --> CS
+EVD --> GL
+EVD --> SN
+SR --> EVD
+CS --> EVD
+GL --> EVD
+SN --> EVD
+
+EVD --> PG
+PG -- allow --> G
+PG -- block --> AC
+
+subgraph DataPlane [Read-only Data Plane]
+  RO[(DB Read-Only Replica)]
+  LOGS[(Telemetry / OTEL)]
+end
+
+G --> EX
+EX --> RO
+RO --> EX
+EX --> V
+V -- ok --> AC
+V -- issues --> R
+R --> G
+
+AC --> GW
+GW --> FE
+
+subgraph Infra [Shared Services]
+  CCH[(Cache / Redis)]
+  MQ[(Events / Queue)]
+  SEC[(Policy / Secrets)]
+  AAS[(Azure AI Search)]
+  AOAI[(Azure OpenAI)]
+end
+
+P --> AOAI
+G --> AOAI
+V --> AOAI
+
+SR --> AAS
+GL --> AAS
+SN --> AAS
+
+P --> CCH
+EVD --> CCH
+G --> CCH
+EX --> LOGS
+V --> LOGS
