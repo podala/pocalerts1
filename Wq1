@@ -1,0 +1,39 @@
+OFFLINE PIPELINE (Indexing & Modeling)
+
+1) Connect data sources — Create read-only connections [NO LLM]
+
+Inputs: JDBC/SQLAlchemy URLs (Azure SQL/Synapse/Postgres), creds in Key Vault.
+
+Outputs: Connection profiles per source.
+
+2) Harvest schema & stats — Auto scan catalogs [NO LLM]
+
+Pull tables, columns, PK/FK, row counts, sample values.
+
+Store in a Metastore (Azure SQL DB / Unity Catalog).
+
+3) Business semantics & glossary — Curate names & meanings [NO LLM or SLM (optional)]
+
+Map “member”, “policy”, etc. → actual columns; add allowed joins/filters and PII tags.
+
+4) Build “table cards” — One doc per table [NO LLM or SLM (optional)]
+
+Content: table purpose, top columns, PK/FK, join paths, typical filters, 2–3 sample SELECTs.
+
+Tip: You may use [SLM] to draft natural language descriptions, then review.
+
+5) Create embeddings & index — Vectorize for retrieval [EMB]
+
+Model: text-embedding-3-large.
+
+Push to Azure AI Search (hybrid: text + vector) with fields like: content, contentVector, table, columns, pk, fk, sample_sql.
+
+6) Policies & guardrails registry — What’s allowed [NO LLM]
+
+Allow-list schemas, row/column caps, sensitive-column masks, tenant scoping.
+
+7) Smoke-test retrieval — Check top-K quality [NO LLM]
+
+For a few canned questions, ensure the correct tables appear in top-K.
+
+Outcome: Retrieval + semantics are ready for runtime.
