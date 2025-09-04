@@ -1,0 +1,45 @@
+Stage-2 “quality gate” (what to run right after storing)
+
+Shadow index + canary load
+
+Create a temp index with the same schema.
+
+Upsert only the changed docs/chunks (or 1–5% canary).
+
+Gold/Probe queries
+
+Gold set: a small file of (query → relevant doc/chunk IDs) you maintain.
+
+Self-probes (free): for each chunk, derive a probe query from title/heading/keywords (or a 1-sentence summary).
+
+Domain synonyms: include a few variants (rx/prescription/script, etc.).
+
+Run four retrieval modes (so you see where issues come from)
+
+BM25 only, Vector only, Hybrid, Hybrid + Semantic.
+
+Compute core metrics
+
+Recall@k = relevant_in_top_k / total_relevant (use k=10 or 50).
+
+Precision@k = relevant_in_top_k / k.
+
+MRR@k and nDCG@k (ranking quality).
+
+Self-retrieval rate (SRR@k): % of chunks that retrieve themselves in top-k with their probe query (great early warning).
+
+Cross-tenant leak rate: % of results from wrong tenantId when a $filter is applied (must be 0).
+
+Gate on thresholds (examples)
+
+Hybrid+Semantic Recall@50 ≥ 0.90, Precision@10 ≥ 0.60
+
+SRR@10 ≥ 0.95
+
+Leak rate = 0
+
+If quantization is on, require ΔRecall@50 ≤ 1–2% vs uncompressed.
+
+Promote/rollback
+
+If all pass → swap the shadow index into production (blue/green).
