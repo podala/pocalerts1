@@ -1,0 +1,207 @@
+{
+  "selected_sp_code": "SP12345",
+  "global_discount_rate": 0.9,
+  "utilization_cap": 100000,
+  "country": "US",
+  "msb_percentage": 1.0,
+  "UtilizationValue": 1,
+  "Inclusion_match": 0
+}
+≈=========
+import logging
+import pandas as pd
+from engine.rule_parser import parse_expression, parse_path
+from engine.utils import retry
+
+logger = logging.getLogger("RuleEngine")
+
+def _normalize(v):
+    if isinstance(v, (int, float)):
+        return v
+    if v is None:
+        return None
+    try:
+        s = str(v).strip()
+    except Exception:
+        return v
+    low = s.lower()
+    if low in ("yes", "y", "true", "1"): return True
+    if low in ("no", "n", "false", "0"): return False
+    return low
+
+class RuleExecutor:
+    def __init__(self, rule_template: dict, static_ctx: dict = None):
+        self.rule = rule_template
+        self.static_ctx = static_ctx or {}
+
+    def _row_dict(self, row) -> dict:
+        # pandas Series → dict, then merge static (static first, row overrides on collision)
+        rd = row.to_dict() if hasattr(row, "to_dict") else dict(row)
+        return {**self.static_ctx, **rd}
+
+    def evaluate_conditions(self, row) -> bool:
+        ctx = self._row_dict(row)
+        for cond in self.rule["conditions"].get("all", []):
+            field = cond["path"].replace("$.","")
+            operator = cond.get("operator", "equal")
+            expected = cond.get("value")
+            actual = ctx.get(field)
+
+            n_actual = _normalize(actual)
+            n_expected = _normalize(expected)
+
+            if operator == "equal" and n_actual != n_expected:
+                return False
+            elif operator == "not_equal" and n_actual == n_expected:
+                return False
+            elif operator == "greater_than" and not (n_actual > n_expected):
+                return False
+            elif operator == "less_than" and not (n_actual < n_expected):
+                return False
+            elif operator == "greater_or_equal" and not (n_actual >= n_expected):
+                return False
+            elif operator == "less_or_equal" and not (n_actual <= n_expected):
+                return False
+        return True
+
+    @retry(max_attempts=3)
+    def evaluate_expression(self, expr: str, ctx: dict):
+        # Evaluate with a safe local namespace (no globals)
+        return eval(expr, {}, {"row": ctx})
+
+    def execute_row(self, row, year: str):
+        logger.info(f"Executing rule: {self.rule['name']} for year {year}")
+        ctx = self._row_dict(row)
+
+        if self.evaluate_conditions(row):
+            calc = self.rule["calculation"]
+            if calc["type"] == "value_path":
+                key = parse_path(calc["value_path"], year)
+                logger.debug(f"Using value_path: row['{key}']")
+                return ctx.get(key, None)
+            elif calc["type"] == "expression":
+                expr = parse_expression(calc["value"], year)
+                logger.debug(f"Evaluating expression: {expr}")
+                return self.evaluate_expression(expr, ctx)
+            else:
+                raise ValueError(f"Unsupported calculation type: {calc['type']}")
+        else:
+            fallback = self.rule.get("else", {})
+            if fallback.get("type") == "value_path":
+                key = parse_path(fallback["value_path"], year)
+                logger.debug(f"Using fallback value_path: row['{key}']")
+                return ctx.get(key, None)
+            else:
+                expr = parse_expression(fallback["value"], year)
+                logger.debug(f"Evaluating fallback expression: {expr}")
+                return self.evaluate_expression(expr, ctx)
+==========
+import pandas as pd
+import json
+import logging
+import os
+import argparse
+from engine.rule_executor import RuleExecutor
+
+# Setup logging
+os.makedirs("logs", exist_ok=True)
+logging.basicConfig(
+    filename="logs/execution.log",
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+# CLI Arguments
+parser = argparse.ArgumentParser()
+parser.add_argument("--group", required=True, help="Group name to execute")
+parser.add_argument("--debug", action="store_true", help="Enable row-level debug logs")
+args = parser.parse_args()
+target_group = args.group
+debug = args.debug
+
+# Paths
+input_path = "data/sample_data.csv"
+rules_path = "rules/all_rules.json"
+static_path = "rules/static_values.json"  # NEW
+
+# Validate files
+missing = [p for p in [input_path, rules_path] if not os.path.exists(p)]
+if missing:
+    print(f"❌ Missing required file(s): {', '.join(missing)}")
+    raise SystemExit(1)
+
+# Load input and rules
+df = pd.read_csv(input_path)
+with open(rules_path) as f:
+    rule_data = json.load(f)
+
+# Load static JSON (optional)
+static_ctx = {}
+if os.path.exists(static_path):
+    with open(static_path) as f:
+        try:
+            static_ctx = json.load(f)
+        except Exception as e:
+            print(f"⚠️ Could not parse {static_path}: {e}. Continuing with empty static context.")
+else:
+    print("ℹ️ No static values file found (rules/static_values.json). Continuing without it.")
+
+all_rules = rule_data["rules"]
+rule_priority = rule_data["rule_priority"]
+years = rule_data["years"]
+
+# Filter rules by group
+group_rule_names = [
+    rule_name for rule_name in rule_priority
+    if all_rules[rule_name].get("group", rule_name) == target_group
+]
+
+if not group_rule_names:
+    print(f"❌ No rules found for group '{target_group}'")
+    raise SystemExit(1)
+
+print(f"\n🔍 Running group: {target_group}")
+print(f"📄 Loaded input data: {len(df)} rows")
+print(f"✅ Found rules for group: {group_rule_names}")
+
+results = []
+
+# Process rows
+for row_idx, row in df.iterrows():
+    ndc = row.get("NDC")
+    if pd.isna(ndc):
+        continue
+
+    row_result = {"NDC": ndc}
+
+    for idx, year in enumerate(years):
+        year_index = str(idx + 1)
+
+        for rule_name in group_rule_names:
+            rule_def = all_rules[rule_name]
+            if year_index in rule_def.get("applies_to_years", []):
+                try:
+                    executor = RuleExecutor(rule_def, static_ctx=static_ctx)  # <-- pass static here
+                    result = executor.execute_row(row, year_index)
+                    output_key = rule_def.get("group", rule_name)
+                    row_result[f"{output_key}_YEAR_{year}"] = result
+                    if debug:
+                        print(f"Row {row_idx}, Year {year}: {result}")
+                except Exception as e:
+                    row_result[f"{target_group}_YEAR_{year}"] = None
+                    logging.error(f"[{target_group}] Row {row_idx} year {year} failed: {e}")
+                break
+    results.append(row_result)
+
+# Save output
+os.makedirs("outputs", exist_ok=True)
+out_path = f"outputs/{target_group}_dataset.csv"
+
+if results:
+    pd.DataFrame(results).to_csv(out_path, index=False)
+    print(f"✅ Group dataset saved to: {out_path}")
+    print(f"✅ Rule execution completed for group: {target_group} ({len(results)} records)")
+else:
+    print(f"⚠️ No matching data rows produced output for group: {target_group}")
+===≈====
+
