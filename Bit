@@ -1,0 +1,123 @@
+import pandas as pd
+import json
+import logging
+import os
+import argparse
+from engine.rule_executor import RuleExecutor
+
+# Setup logging
+os.makedirs("logs", exist_ok=True)
+logging.basicConfig(
+    filename="logs/execution.log",
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--group", required=True, help="Group name to execute (e.g., shifted_script)")
+parser.add_argument("--rule", help="Optional: run only this rule (e.g., shifted_script_rule1)")
+parser.add_argument("--debug", action="store_true", help="Enable row-level debug prints")
+args = parser.parse_args()
+
+target_group = args.group
+target_rule = args.rule
+debug = args.debug
+
+# Paths
+input_path = "data/sample_data.csv"
+rules_path = "rules/all_rules.json"
+static_path = "rules/static_values.json"
+
+# Validate files
+missing = [p for p in [input_path, rules_path] if not os.path.exists(p)]
+if missing:
+    print(f"❌ Missing required file(s): {', '.join(missing)}")
+    raise SystemExit(1)
+
+# Load data/rules/static
+df = pd.read_csv(input_path)
+with open(rules_path) as f:
+    rule_data = json.load(f)
+
+static_ctx = {}
+if os.path.exists(static_path):
+    try:
+        with open(static_path) as f:
+            static_ctx = json.load(f)
+    except Exception as e:
+        print(f"⚠️ Could not parse {static_path}: {e}. Continuing without static values.")
+
+all_rules = rule_data["rules"]
+rule_priority = rule_data["rule_priority"]
+years = rule_data["years"]
+
+# Build candidate rules for this group
+group_rule_names = [
+    r for r in rule_priority
+    if all_rules.get(r, {}).get("group", r) == target_group
+]
+
+if not group_rule_names:
+    print(f"❌ No rules found for group '{target_group}'")
+    raise SystemExit(1)
+
+# If a specific rule is requested, filter to that (and validate membership)
+if target_rule:
+    if target_rule not in all_rules:
+        print(f"❌ Rule '{target_rule}' not found in all_rules.json")
+        raise SystemExit(1)
+    rule_group = all_rules[target_rule].get("group", target_rule)
+    if rule_group != target_group:
+        print(f"❌ Rule '{target_rule}' does not belong to group '{target_group}' (it belongs to '{rule_group}')")
+        raise SystemExit(1)
+    exec_rule_names = [target_rule]
+else:
+    exec_rule_names = group_rule_names
+
+print(f"\n🔍 Running group: {target_group}")
+if target_rule:
+    print(f"🎯 Specific rule: {target_rule}")
+print(f"📄 Loaded input rows: {len(df)}")
+print(f"🧩 Rules to execute: {exec_rule_names}")
+
+results = []
+
+for row_idx, row in df.iterrows():
+    ndc = row.get("NDC")
+    if pd.isna(ndc):
+        continue
+
+    row_result = {"NDC": ndc}
+
+    for idx, year in enumerate(years):
+        year_index = str(idx + 1)
+        # Find the first applicable rule for this year (from exec_rule_names)
+        # If you're executing a single rule, this just checks applies_to_years
+        for rule_name in exec_rule_names:
+            rule_def = all_rules[rule_name]
+            applies_to = rule_def.get("applies_to_years", [])
+            if year_index in applies_to:
+                try:
+                    executor = RuleExecutor(rule_def, static_ctx=static_ctx)
+                    result = executor.execute_row(row, year_index)
+                    output_key = rule_def.get("group", rule_name)
+                    row_result[f"{output_key}_YEAR_{year}"] = result
+                    if debug:
+                        print(f"Row {row_idx}, Year {year} -> {rule_name}: {result}")
+                except Exception as e:
+                    row_result[f"{target_group}_YEAR_{year}"] = None
+                    logging.error(f"[{target_group}] Row {row_idx} year {year} rule {rule_name} failed: {e}")
+                break  # only one rule per year
+    results.append(row_result)
+
+# Save output
+os.makedirs("outputs", exist_ok=True)
+suffix = f"_{target_rule}" if target_rule else ""
+out_path = f"outputs/{target_group}{suffix}_dataset.csv"
+
+if results:
+    pd.DataFrame(results).to_csv(out_path, index=False)
+    print(f"✅ Saved: {out_path}")
+    print(f"✅ Completed ({len(results)} records)")
+else:
+    print("⚠️ No rows produced output.")
