@@ -1,0 +1,127 @@
+import logging
+import traceback
+from engine.rule_parser import parse_expression, parse_path
+from engine.utils import retry
+
+logger = logging.getLogger("RuleEngine")
+
+def _normalize(v):
+    if isinstance(v, (int, float)): 
+        return v
+    if v is None:
+        return None
+    try:
+        s = str(v).strip()
+    except Exception:
+        return v
+    low = s.lower()
+    if low in ("yes", "y", "true", "1"): return True
+    if low in ("no", "n", "false", "0"): return False
+    return v  # keep original for logging/expressions
+
+class RuleExecutor:
+    """
+    Executes a single rule template against a MERGED context dict (CSV row + static JSON).
+    ctx MUST be a plain dict that already contains ALL required fields.
+    """
+
+    def __init__(self, rule_template: dict):
+        self.rule = rule_template
+
+    def _log_condition_failure(self, cond, actual, expected, reason: str):
+        logger.info(
+            f"[conditions] FAIL path={cond.get('path')} "
+            f"op={cond.get('operator')} expected={expected!r} actual={actual!r} reason={reason}"
+        )
+
+    def evaluate_conditions(self, ctx: dict) -> bool:
+        conditions = self.rule.get("conditions", {}).get("all", [])
+        if not conditions:
+            return True
+
+        for cond in conditions:
+            field = (cond.get("path") or "").replace("$.","")
+            operator = cond.get("operator", "equal")
+            expected = cond.get("value")
+
+            actual = ctx.get(field, None)
+            n_actual = _normalize(actual)
+            n_expected = _normalize(expected)
+
+            try:
+                if operator == "equal":
+                    ok = (n_actual == n_expected)
+                elif operator == "not_equal":
+                    ok = (n_actual != n_expected)
+                elif operator == "greater_than":
+                    ok = (n_actual > n_expected)
+                elif operator == "less_than":
+                    ok = (n_actual < n_expected)
+                elif operator == "greater_or_equal":
+                    ok = (n_actual >= n_expected)
+                elif operator == "less_or_equal":
+                    ok = (n_actual <= n_expected)
+                else:
+                    self._log_condition_failure(cond, actual, expected, f"unsupported operator '{operator}'")
+                    return False
+            except Exception as e:
+                self._log_condition_failure(cond, actual, expected, f"comparison error: {e}")
+                return False
+
+            if not ok:
+                self._log_condition_failure(cond, actual, expected, "predicate evaluated to False")
+                return False
+
+        return True
+
+    @retry(max_attempts=3)
+    def evaluate_expression(self, expr: str, ctx: dict):
+        """
+        Evaluate parsed Python expression with only 'row' in local scope.
+        parse_expression turns $.Field into row['Field'].
+        """
+        try:
+            return eval(expr, {}, {"row": ctx})
+        except Exception as e:
+            logger.error(
+                "[expression] evaluation failed:\n"
+                f"expr={expr}\nerror={e}\ntraceback=\n{traceback.format_exc()}"
+            )
+            raise
+
+    def _calc_value_path(self, value_path_template: str, year: str, ctx: dict):
+        key = parse_path(value_path_template, year)
+        val = ctx.get(key, None)
+        if val is None:
+            logger.info(f"[value_path] resolved key='{key}' -> None")
+        return val
+
+    def _calc_expression(self, expr_template: str, year: str, ctx: dict):
+        expr = parse_expression(expr_template, year)
+        logger.debug(f"[expression] parsed: {expr}")
+        return self.evaluate_expression(expr, ctx)
+
+    def execute_row(self, ctx: dict, year: str):
+        rule_name = self.rule.get("name", "<unnamed>")
+        logger.info(f"Executing rule='{rule_name}' year_index={year}")
+        try:
+            if self.evaluate_conditions(ctx):
+                calc = self.rule.get("calculation", {})
+                ctype = calc.get("type")
+                if ctype == "value_path":
+                    return self._calc_value_path(calc.get("value_path", ""), year, ctx)
+                elif ctype == "expression":
+                    return self._calc_expression(calc.get("value", ""), year, ctx)
+                else:
+                    logger.error(f"[calc] Unsupported calculation type: {ctype}")
+                    return None
+            else:
+                fb = self.rule.get("else", {})
+                ftype = fb.get("type", "expression")  # default to expression
+                if ftype == "value_path":
+                    return self._calc_value_path(fb.get("value_path", ""), year, ctx)
+                else:
+                    return self._calc_expression(fb.get("value", ""), year, ctx)
+        except Exception as e:
+            logger.error(f"[execute_row] rule='{rule_name}' year_index={year} failed: {e}")
+            return None
