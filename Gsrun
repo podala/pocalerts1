@@ -1,0 +1,137 @@
+import os
+import json
+import argparse
+import logging
+import pandas as pd
+from engine.rule_executor import RuleExecutor
+
+# ----- logging (ASCII only) -----
+os.makedirs("logs", exist_ok=True)
+logging.basicConfig(
+    filename="logs/execution.log",
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+def main():
+    parser = argparse.ArgumentParser(description="Run rules by group or a specific rule in that group.")
+    parser.add_argument("--group", required=True, help="Group name (e.g., shifted_script)")
+    parser.add_argument("--rule", help="Specific rule in the group (e.g., shifted_script_rule1)")
+    parser.add_argument("--input", default=None, help="Path to input CSV (default: data/sample_data.csv)")
+    parser.add_argument("--id-col", default="NDC", help="ID column name to carry to output (default: NDC)")
+    parser.add_argument("--debug", action="store_true", help="Print row-level debug values")
+    args = parser.parse_args()
+
+    here = os.path.dirname(os.path.abspath(__file__))
+    input_path = args.input or os.path.join(here, "data", "sample_data.csv")
+    rules_path = os.path.join(here, "rules", "all_rules.json")
+    static_path = os.path.join(here, "rules", "static_values.json")  # optional
+    outputs_dir = os.path.join(here, "outputs")
+
+    # --- Validate required files ---
+    need = [input_path, rules_path]
+    missing = [p for p in need if not os.path.exists(p)]
+    if missing:
+        print("Missing required file(s): " + ", ".join(missing))
+        raise SystemExit(1)
+
+    # --- Load data/rules/static ---
+    df = pd.read_csv(input_path)
+    with open(rules_path, "r", encoding="utf-8") as f:
+        rule_data = json.load(f)
+
+    static_ctx = {}
+    if os.path.exists(static_path):
+        try:
+            with open(static_path, "r", encoding="utf-8") as f:
+                static_ctx = json.load(f)
+        except Exception as e:
+            print(f"Warning: could not parse {static_path}: {e}. Continuing without static values.")
+
+    all_rules = rule_data["rules"]
+    rule_priority = rule_data["rule_priority"]
+    years = rule_data["years"]
+
+    # --- Determine ID column (fallback to ROW_ID) ---
+    id_col = args.id_col
+    if id_col not in df.columns:
+        df = df.copy()
+        df["ROW_ID"] = range(1, len(df) + 1)
+        id_col = "ROW_ID"
+        print(f"⚠️ ID column '{args.id_col}' not found. Using auto '{id_col}' instead.")
+
+    # --- Filter rules by group / optional rule ---
+    target_group = args.group
+    group_rule_names = [r for r in rule_priority if all_rules.get(r, {}).get("group", r) == target_group]
+    if not group_rule_names:
+        print(f"No rules found for group '{target_group}'.")
+        raise SystemExit(1)
+
+    if args.rule:
+        rname = args.rule
+        if rname not in all_rules:
+            print(f"Rule '{rname}' not found in all_rules.json.")
+            raise SystemExit(1)
+        rgroup = all_rules[rname].get("group", rname)
+        if rgroup != target_group:
+            print(f"Rule '{rname}' belongs to group '{rgroup}', not '{target_group}'.")
+            raise SystemExit(1)
+        exec_rule_names = [rname]
+    else:
+        exec_rule_names = group_rule_names
+
+    print(f"\nRunning group: {target_group}")
+    if args.rule:
+        print(f"Specific rule: {args.rule}")
+    print(f"Input: {input_path}")
+    print(f"Rows: {len(df)}")
+    print(f"Rules to execute: {exec_rule_names}")
+
+    os.makedirs(outputs_dir, exist_ok=True)
+    results = []
+
+    for row_idx, row in df.iterrows():
+        row_id = row.get(id_col)
+        if pd.isna(row_id):
+            continue
+
+        # ---- Build merged context: JSON + CSV ----
+        # Static first, then row to avoid accidental overwrite of row fields if both exist.
+        # You said you removed static fields from CSV, so there should be no collisions.
+        ctx = dict(static_ctx)
+        ctx.update(row.to_dict())
+
+        row_result = {id_col: row_id}
+
+        for idx, year in enumerate(years):
+            year_index = str(idx + 1)
+            # one rule per year (first in exec_rule_names whose applies_to_years contains this year_index)
+            for rule_name in exec_rule_names:
+                rule_def = all_rules[rule_name]
+                if year_index in rule_def.get("applies_to_years", []):
+                    try:
+                        executor = RuleExecutor(rule_def)
+                        result = executor.execute_row(ctx, year_index)
+                        output_key = rule_def.get("group", rule_name)
+                        row_result[f"{output_key}_YEAR_{years[idx]}"] = result
+                        if args.debug:
+                            print(f"Row {row_idx}, Year {years[idx]} -> {rule_name}: {result}")
+                    except Exception as e:
+                        row_result[f"{target_group}_YEAR_{years[idx]}"] = None
+                        logging.error(f"[{target_group}] row {row_idx} year {years[idx]} rule {rule_name} failed: {e}")
+                    break  # stop at first matching rule for this year
+
+        results.append(row_result)
+
+    # --- Save output ---
+    suffix = f"_{args.rule}" if args.rule else ""
+    out_path = os.path.join(outputs_dir, f"{target_group}{suffix}_dataset.csv")
+    if results:
+        pd.DataFrame(results).to_csv(out_path, index=False)
+        print(f"\n✅ Saved: {out_path}")
+        print(f"✅ Completed ({len(results)} records).")
+    else:
+        print("\n⚠️ No rows produced output.")
+
+if __name__ == "__main__":
+    main()
