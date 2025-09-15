@@ -1,0 +1,468 @@
+import logging
+import time
+from engine.jsonlogic_eval import eval_node, prepare_rule_for_year
+
+log = logging.getLogger("EXECUTOR")
+
+class JSONLogicRuleExecutor:
+    """
+    Executes one rule (JSONLogic style) for a given row + static ctx + year_index.
+    """
+    def __init__(self, rule_def: dict):
+        self.rule = rule_def or {}
+
+    def _evaluate_conditions(self, cond_block: dict, row: dict, static: dict, year_index: str):
+        if not cond_block:
+            log.debug("[COND] no conditions -> True")
+            return True, {"checked": 0}
+        all_conds = cond_block.get("all", [])
+        if not all_conds:
+            return True, {"checked": 0}
+        for idx, cond in enumerate(all_conds):
+            res = eval_node(cond, row, static, year_index=year_index)
+            ok = bool(res)
+            log.debug(f"[COND] {idx}: {cond} -> {res!r} -> {ok}")
+            if not ok:
+                return False, {"failed_index": idx, "cond": cond, "value": res}
+        return True, {"checked": len(all_conds)}
+
+    def execute_row(self, row: dict, static: dict, year_index: str, return_meta: bool=False):
+        name = self.rule.get("name", "<unnamed>")
+        start = time.perf_counter()
+        log.info(f"[EXEC-START] rule={name} year_index={year_index}")
+
+        rule_y = prepare_rule_for_year(self.rule, year_index)
+        meta = {
+            "rule": name,
+            "year_index": year_index,
+            "branch": None,
+            "error": None,
+            "success": False,
+            "elapsed_ms": None
+        }
+
+        try:
+            ok, _ = self._evaluate_conditions(rule_y.get("conditions"), row, static, year_index)
+            if ok:
+                meta["branch"] = "calculation"
+                res = eval_node(rule_y.get("calculation"), row, static, year_index=year_index)
+            else:
+                meta["branch"] = "else"
+                res = eval_node(rule_y.get("else"), row, static, year_index=year_index)
+            meta["success"] = True
+            return_val = res
+        except Exception as e:
+            log.exception(f"[EXEC-ERROR] rule={name} year_index={year_index}: {e}")
+            meta["error"] = str(e)
+            return_val = None
+        finally:
+            meta["elapsed_ms"] = int((time.perf_counter() - start) * 1000)
+            if meta["success"]:
+                log.info(f"[EXEC-OK] rule={name} year_index={year_index} "
+                         f"branch={meta['branch']} elapsed_ms={meta['elapsed_ms']} result={return_val!r}")
+            else:
+                log.error(f"[EXEC-FAIL] rule={name} year_index={year_index} "
+                          f"branch={meta['branch']} elapsed_ms={meta['elapsed_ms']} error={meta['error']}")
+
+        return (return_val, meta) if return_meta else return_val
+
+
+####################
+
+import os, json, argparse, logging, sys, uuid
+from datetime import datetime
+import pandas as pd
+from engine.rule_executor_jsonlogic import JSONLogicRuleExecutor
+
+# ---------- logging setup ----------
+os.makedirs("logs", exist_ok=True)
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.DEBUG)
+
+# file handler (detailed)
+fh = logging.FileHandler("logs/run.log", mode="w", encoding="utf-8")
+fh.setLevel(logging.DEBUG)
+fh.setFormatter(logging.Formatter("%(asctime)s | %(name)s | %(levelname)s | %(message)s"))
+root_logger.addHandler(fh)
+
+# console handler (info+)
+ch = logging.StreamHandler(sys.stdout)
+ch.setLevel(logging.INFO)
+ch.setFormatter(logging.Formatter("%(levelname)s | %(message)s"))
+root_logger.addHandler(ch)
+
+log = logging.getLogger("MAIN")
+
+def main():
+    ap = argparse.ArgumentParser("JSONLogic Rule Runner")
+    ap.add_argument("--group", required=True, help="Group name (e.g., shifted_script)")
+    ap.add_argument("--rule", help="Optional: specific rule name to run")
+    ap.add_argument("--input", default="data/sample_data.csv", help="CSV input path")
+    ap.add_argument("--rules", default="rules/all_rules.json", help="Rules JSON")
+    ap.add_argument("--static", default="rules/static_values.json", help="Static JSON")
+    ap.add_argument("--id-col", default="NDC", help="Identifier column in CSV")
+    ap.add_argument("--chunksize", type=int, default=0, help="CSV chunksize (0=all)")
+    args = ap.parse_args()
+
+    run_id = f"run-{datetime.now().strftime('%Y%m%d-%H%M%S')}-{uuid.uuid4().hex[:6]}"
+    log.info(f"RUN START id={run_id}")
+
+    # load rules
+    if not os.path.exists(args.rules):
+        log.error(f"Missing rules: {args.rules}")
+        raise SystemExit(1)
+    with open(args.rules, "r", encoding="utf-8") as f:
+        rules_data = json.load(f)
+
+    all_rules  = rules_data["rules"]
+    rule_order = rules_data["rule_priority"]
+    years      = rules_data["years"]
+
+    # choose rules by group
+    selected = [r for r in rule_order if all_rules.get(r, {}).get("group") == args.group]
+    if not selected:
+        log.error(f"No rules for group '{args.group}'")
+        raise SystemExit(1)
+
+    if args.rule:
+        if args.rule not in all_rules:
+            log.error(f"Rule '{args.rule}' not found in rules")
+            raise SystemExit(1)
+        if all_rules[args.rule].get("group") != args.group:
+            log.error(f"Rule '{args.rule}' does not belong to group '{args.group}'")
+            raise SystemExit(1)
+        selected = [args.rule]
+
+    # load static
+    static_ctx = {}
+    if args.static and os.path.exists(args.static):
+        try:
+            with open(args.static, "r", encoding="utf-8") as f:
+                static_ctx = json.load(f)
+        except Exception as e:
+            log.warning(f"Could not parse static JSON: {e}")
+
+    # prepare executors
+    executors = {name: JSONLogicRuleExecutor(all_rules[name] | {"name": name}) for name in selected}
+
+    # IO checks
+    if not os.path.exists(args.input):
+        log.error(f"Missing input CSV: {args.input}")
+        raise SystemExit(1)
+
+    # outputs
+    os.makedirs("outputs", exist_ok=True)
+    suffix     = f"_{args.rule}" if args.rule else ""
+    out_csv    = os.path.join("outputs", f"{args.group}{suffix}_dataset.csv")
+    out_report = os.path.join("outputs", f"{args.group}{suffix}_run_report.json")
+    out_errors = os.path.join("outputs", f"{args.group}{suffix}_errors.json")
+
+    # --- metrics/telemetry buckets ---
+    metrics = {
+        "run_id": run_id,
+        "group": args.group,
+        "rule_subset": selected,
+        "years": years,
+        "rows_processed": 0,
+        "per_rule": {r: {"calc": 0, "else": 0, "success": 0, "error": 0} for r in selected},
+        "started_at": datetime.now().isoformat(timespec="seconds"),
+        "finished_at": None,
+        "duration_ms": None
+    }
+    errors = []  # list of {row_id, year, rule, error}
+
+    def process_frame(df: pd.DataFrame):
+        out_rows = []
+        idc = args.id_col
+        if idc not in df.columns:
+            df = df.copy()
+            df["ROW_ID"] = range(1, len(df)+1)
+            idc = "ROW_ID"
+            log.warning(f"ID column '{args.id_col}' not found; using '{idc}'")
+
+        nonlocal_count = 0
+        for i, row in df.iterrows():
+            rowd = row.to_dict()
+            rid  = rowd.get(idc)
+            out  = {idc: rid}
+
+            for y_idx, year in enumerate(years):
+                year_index = str(y_idx + 1)  # "1".."5"
+                for rname in selected:
+                    executor = executors[rname]
+                    res, meta = executor.execute_row(rowd, static_ctx, year_index, return_meta=True)
+
+                    # write outputs (result + branch tracer + error if any)
+                    out[f"{rname}_YEAR_{year}"] = res
+                    out[f"{rname}_YEAR_{year}_branch"] = meta["branch"]
+                    if meta["error"]:
+                        out[f"{rname}_YEAR_{year}_error"] = meta["error"]
+
+                    # update metrics
+                    bucket = metrics["per_rule"][rname]
+                    if meta["branch"] in ("calculation", "else"):
+                        bucket[meta["branch"]] += 1
+                    if meta["success"]:
+                        bucket["success"] += 1
+                        logging.getLogger("MAIN").info(
+                            f"[SUCCESS] row={rid} year={year} rule={rname} branch={meta['branch']} ms={meta['elapsed_ms']}"
+                        )
+                    else:
+                        bucket["error"] += 1
+                        errors.append({
+                            "row_id": rid,
+                            "year": year,
+                            "rule": rname,
+                            "branch": meta["branch"],
+                            "error": meta["error"],
+                            "elapsed_ms": meta["elapsed_ms"]
+                        })
+                        logging.getLogger("MAIN").error(
+                            f"[ERROR] row={rid} year={year} rule={rname} branch={meta['branch']} "
+                            f"ms={meta['elapsed_ms']} err={meta['error']}"
+                        )
+
+                    # first matching rule per year (priority order)
+                    break
+
+            out_rows.append(out)
+            nonlocal_count += 1
+        metrics["rows_processed"] += nonlocal_count
+        return out_rows
+
+    start_ts = datetime.now()
+    rows = []
+    if args.chunksize and args.chunksize > 0:
+        for chunk in pd.read_csv(args.input, chunksize=args.chunksize):
+            rows.extend(process_frame(chunk))
+    else:
+        df = pd.read_csv(args.input)
+        rows.extend(process_frame(df))
+
+    pd.DataFrame(rows).to_csv(out_csv, index=False)
+
+    # finalize metrics
+    end_ts = datetime.now()
+    metrics["finished_at"] = end_ts.isoformat(timespec="seconds")
+    metrics["duration_ms"] = int((end_ts - start_ts).total_seconds() * 1000)
+
+    # write reports
+    with open(out_report, "w", encoding="utf-8") as f:
+        json.dump(metrics, f, indent=2)
+    with open(out_errors, "w", encoding="utf-8") as f:
+        json.dump({"run_id": run_id, "errors": errors}, f, indent=2)
+
+    log.info(f"Saved dataset -> {out_csv}")
+    log.info(f"Saved run report -> {out_report}")
+    log.info(f"Saved errors -> {out_errors}")
+    log.info(f"RUN END id={run_id} rows={metrics['rows_processed']} ms={metrics['duration_ms']}")
+
+if __name__ == "__main__":
+    main()
+
+
+
+############
+{
+  "years": ["2025","2026","2027","2028","2029"],
+  "rule_priority": ["shifted_script_rule1"],
+  "rules": {
+    "shifted_script_rule1": {
+      "group": "shifted_script",
+      "applies_to_years": ["1","2","3","4","5"],
+      "conditions": {
+        "all": [
+          { "op": "eq", "left": {"var":"$.input_Shift"}, "right": "No" }
+        ]
+      },
+      "calculation": { "op":"var", "path":"$.ScriptsYear{year}" },
+      "else": {
+        "op":"mul",
+        "args":[
+          { "op":"add", "args":[
+              { "op":"mul", "args":[ {"op":"var","path":"$.ShiftScriptsNoCoTYear{year}", "default":0}, {"op":"var","path":"$.table_wgt","default":0} ]},
+              { "op":"mul", "args":[ {"op":"var","path":"$.ShiftScriptsCoTYear{year}", "default":0}, {"op":"var","path":"$.table_waf","default":0} ]}
+          ]},
+          { "op":"coalesce", "args":[ {"op":"var","path":"$.table_Year{year}"}, 1 ]},
+          { "op":"if",
+            "cond": { "op":"and", "args":[
+              { "op":"eq", "left":{"op":"var","path":"$.MSB"}, "right":1 },
+              { "op":"eq", "left":{"op":"var","path":"$.Generic_Ind"}, "right":"B" }
+            ]},
+            "then": {"op":"var","path":"$.msb_percentage","default":1},
+            "else": 1
+          }
+        ]
+      }
+    }
+  }
+}
+
+##########
+import copy
+import logging
+
+log = logging.getLogger("JSONLOGIC")
+
+# --------- helpers ---------
+def _is_scalar(x):
+    return isinstance(x, (int, float, str, bool)) or x is None
+
+def _coerce_num(x, default=0.0):
+    try:
+        if x is None: return default
+        if isinstance(x, (int, float)): return x
+        s = str(x).strip()
+        return float(s) if "." in s else int(s)
+    except Exception:
+        return default
+
+def _normalize_bool(x):
+    if isinstance(x, bool): return x
+    if x is None: return False
+    s = str(x).strip().lower()
+    if s in ("yes","y","true","1"): return True
+    if s in ("no","n","false","0",""): return False
+    try:
+        return bool(float(s))
+    except Exception:
+        return bool(s)
+
+# --------- placeholder handling ---------
+def replace_year_placeholders(obj, year_index: str):
+    """
+    Recursively replace {year} with year_index (1..N) in string values.
+    """
+    if isinstance(obj, dict):
+        return {k: replace_year_placeholders(v, year_index) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [replace_year_placeholders(v, year_index) for v in obj]
+    if isinstance(obj, str):
+        return obj.replace("{year}", year_index)
+    return obj
+
+# --------- value resolution ---------
+def resolve_var(path: str, row: dict, static: dict, default=None):
+    """
+    path like '$.Foo' -> first try row['Foo'], then static['Foo'], else default
+    """
+    key = path.replace("$.", "")
+    if key in row:
+        val = row[key]
+        log.debug(f"[RESOLVE] row['{key}'] -> {val!r}")
+        return val
+    if key in static:
+        val = static[key]
+        log.debug(f"[RESOLVE] static['{key}'] -> {val!r}")
+        return val
+    log.debug(f"[RESOLVE] not found '{key}', default -> {default!r}")
+    return default
+
+# --------- operators ---------
+def _op_add(*xs):  return sum((_coerce_num(x, 0) for x in xs), 0)
+def _op_sub(a,b):  return _coerce_num(a,0) - _coerce_num(b,0)
+def _op_mul(*xs):
+    out = 1
+    for x in xs: out *= _coerce_num(x, 1)
+    return out
+def _op_div(a,b):
+    b = _coerce_num(b, 0)
+    return _coerce_num(a, 0) / b if b != 0 else 0
+
+def _op_min(*xs):  return min((_coerce_num(x) for x in xs), default=0)
+def _op_max(*xs):  return max((_coerce_num(x) for x in xs), default=0)
+def _op_round(a, nd=0): 
+    try: return round(_coerce_num(a,0), int(nd))
+    except Exception: return round(_coerce_num(a,0))
+
+def _op_eq(a,b):   return a == b
+def _op_ne(a,b):   return a != b
+def _op_gt(a,b):   return _coerce_num(a,0) >  _coerce_num(b,0)
+def _op_lt(a,b):   return _coerce_num(a,0) <  _coerce_num(b,0)
+def _op_ge(a,b):   return _coerce_num(a,0) >= _coerce_num(b,0)
+def _op_le(a,b):   return _coerce_num(a,0) <= _coerce_num(b,0)
+
+def _op_and(*xs):  return all(_normalize_bool(x) for x in xs)
+def _op_or(*xs):   return any(_normalize_bool(x) for x in xs)
+def _op_not(x):    return not _normalize_bool(x)
+
+def _op_coalesce(*xs):
+    for v in xs:
+        if v is not None: return v
+    return None
+
+OPS = {
+    "add": _op_add, "sub": _op_sub, "mul": _op_mul, "div": _op_div,
+    "min": _op_min, "max": _op_max, "round": _op_round,
+    "eq": _op_eq, "ne": _op_ne, "gt": _op_gt, "lt": _op_lt, "ge": _op_ge, "le": _op_le,
+    "and": _op_and, "or": _op_or, "not": _op_not,
+    "coalesce": _op_coalesce,
+}
+
+# --------- evaluator ---------
+def eval_node(node, row, static, *, year_index: str):
+    """
+    Evaluate a JSONLogic-like node with full tracing logs.
+    """
+    if _is_scalar(node):
+        log.debug(f"[VAL] {node!r}")
+        return node
+
+    if isinstance(node, dict):
+        # var/path node
+        if "var" in node or "path" in node:
+            path = node.get("path") or node.get("var")
+            default = node.get("default")
+            val = resolve_var(path, row, static, default)
+            log.debug(f"[VAR] path={path!r} -> {val!r}")
+            return val
+
+        # if node
+        if "if" in node:
+            cond = node.get("cond")
+            then = node.get("then")
+            els  = node.get("else")
+            cval = eval_node(cond, row, static, year_index=year_index)
+            branch = "then" if _normalize_bool(cval) else "else"
+            log.debug(f"[IF] cond -> {cval!r} => branch={branch}")
+            return eval_node(then if branch=="then" else els, row, static, year_index=year_index)
+
+        # generic op node
+        if "op" in node:
+            op = node["op"]
+            if op not in OPS:
+                raise ValueError(f"Unsupported op: {op}")
+            args = node.get("args", [])
+            # also allow binary style: {"op":"eq", "left":..., "right":...}
+            if "left" in node or "right" in node:
+                l = eval_node(node.get("left"),  row, static, year_index=year_index)
+                r = eval_node(node.get("right"), row, static, year_index=year_index)
+                res = OPS[op](l, r)
+                log.debug(f"[OP:{op}] left={l!r} right={r!r} -> {res!r}")
+                return res
+            # n-ary args list
+            vals = [eval_node(a, row, static, year_index=year_index) for a in args]
+            res = OPS[op](*vals)
+            log.debug(f"[OP:{op}] args={vals!r} -> {res!r}")
+            return res
+
+    # list node
+    if isinstance(node, list):
+        vals = [eval_node(a, row, static, year_index=year_index) for a in node]
+        log.debug(f"[LIST] -> {vals!r}")
+        return vals
+
+    raise ValueError(f"Unsupported node type: {type(node)}")
+
+def prepare_rule_for_year(rule_obj: dict, year_index: str) -> dict:
+    """
+    Deep-copy the rule and replace {year} placeholders in paths/strings.
+    """
+    return replace_year_placeholders(copy.deepcopy(rule_obj), year_index)
+
+########
+
+
+
+
+
