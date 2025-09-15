@@ -1,0 +1,573 @@
+# run.py — one-command entrypoint (spark-submit run.py)
+import os, argparse, json
+from pyspark.sql import SparkSession
+from rule_engine.engine.models.jobspec import JobSpec
+from rule_engine.engine.pipeline.job_runner import run_job
+
+def _load_jobspec(path: str):
+    # YAML if available; else JSON
+    try:
+        import yaml  # optional
+        with open(path, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f)
+    except Exception:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+
+def main():
+    ap = argparse.ArgumentParser("RuleEngine Runner")
+    ap.add_argument("--jobspec", default=os.environ.get("JOBSPEC", "configs/jobspec.yaml"))
+    args = ap.parse_args()
+
+    spark = SparkSession.builder.appName("RuleEngineSimple").getOrCreate()
+    jobspec = JobSpec.from_dict(_load_jobspec(args.jobspec))
+
+    result = run_job(spark, jobspec)
+
+    print("\n=== long_df ===")
+    result["long_df"].show(10, truncate=False)
+    print("\n=== rule_run_log_df ===")
+    result["rule_run_log_df"].show(truncate=False)
+    print("\n=== error_df ===")
+    result["error_df"].show(10, truncate=False)
+
+    spark.stop()
+
+if __name__ == "__main__":
+    main()
+==========
+
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
+
+@dataclass
+class JobSpec:
+    run_id: str
+    uiname: str
+    client_id: str
+    opp_id: str
+
+    # Input
+    data_path: str
+    data_format: str = "csv"
+    data_options: Dict[str, Any] = field(default_factory=lambda: {"header": True, "inferSchema": True})
+    ndc_col: str = "NDC_Code"
+
+    # Years & rules
+    years: List[str] = field(default_factory=list)
+    rules_catalog_path: str = ""
+    group: str = ""
+    rule: Optional[str] = None
+
+    # Static context
+    static_json_path: str = ""
+
+    @staticmethod
+    def from_dict(d: Dict[str, Any]) -> "JobSpec":
+        return JobSpec(
+            run_id=d["run_id"],
+            uiname=d["uiname"],
+            client_id=d["client_id"],
+            opp_id=d["opp_id"],
+            data_path=d["data"]["path"] if "data" in d else d["data_path"],
+            data_format=d.get("data", {}).get("format", d.get("data_format", "csv")),
+            data_options=d.get("data", {}).get("options", d.get("data_options", {"header": True, "inferSchema": True})),
+            ndc_col=d.get("keys", {}).get("ndc_col", d.get("ndc_col", "NDC_Code")),
+            years=d.get("years", []),
+            rules_catalog_path=d.get("rules_catalog_path", ""),
+            group=d.get("group", ""),
+            rule=d.get("rule"),
+            static_json_path=d.get("static_json_path", ""),
+        )
+
+
+########
+import json
+from typing import Any, Dict
+from pyspark.sql import SparkSession
+
+def spark_read_text_to_string(spark: SparkSession, path: str) -> str:
+    # Local file?
+    if "://" not in path:
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+    # Distributed path (abfss/s3/dbfs)
+    df = spark.read.text(path)
+    return "\n".join([r.value for r in df.collect()])
+
+def load_json_via_spark(spark: SparkSession, path: str) -> Dict[str, Any]:
+    return json.loads(spark_read_text_to_string(spark, path))
+#####
+from pyspark.sql import SparkSession, DataFrame
+
+def read_input_df(spark: SparkSession, path: str, fmt: str, options: dict, ndc_col: str) -> DataFrame:
+    fmt = (fmt or "csv").lower()
+    options = options or {}
+    if fmt == "csv":
+        df = spark.read.options(**options).csv(path)
+    elif fmt == "parquet":
+        df = spark.read.options(**options).parquet(path)
+    else:
+        raise ValueError(f"Unsupported data.format: {fmt}")
+    if ndc_col not in df.columns:
+        raise ValueError(f"Required ndc_col '{ndc_col}' not found. Columns: {df.columns}")
+    return df
+#####
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
+from pyspark.sql import SparkSession
+from ..utils.io_utils import load_json_via_spark
+
+@dataclass
+class RuleNode:
+    name: str
+    applies_to_years: List[str]
+    when: Optional[Dict[str, Any]]
+    then: Dict[str, Any]
+    else_: Optional[Dict[str, Any]]
+
+@dataclass
+class GroupNode:
+    name: str
+    rule_order: List[str]
+    rules_by_name: Dict[str, "RuleNode"]
+
+@dataclass
+class Catalog:
+    years: List[str]
+    groups: Dict[str, GroupNode]
+
+    @staticmethod
+    def load(spark: SparkSession, path: str) -> "Catalog":
+        raw = load_json_via_spark(spark, path)
+        years = raw.get("years", [])
+        groups: Dict[str, GroupNode] = {}
+        for gname, g in raw.get("groups", {}).items():
+            order = g.get("rule_order", [])
+            rules_map: Dict[str, RuleNode] = {}
+            for r in g.get("rules", []):
+                rules_map[r["name"]] = RuleNode(
+                    name=r["name"],
+                    applies_to_years=[str(x) for x in r.get("applies_to_years", [])],
+                    when=r.get("when"),
+                    then=r.get("then", {}),
+                    else_=r.get("else"),
+                )
+            groups[gname] = GroupNode(name=gname, rule_order=order, rules_by_name=rules_map)
+        return Catalog(years=years, groups=groups)
+
+    def select_rules(self, group: str, rule: Optional[str]) -> List[RuleNode]:
+        if group not in self.groups:
+            raise ValueError(f"Group '{group}' not found in catalog.")
+        g = self.groups[group]
+        if rule:
+            if rule not in g.rules_by_name:
+                raise ValueError(f"Rule '{rule}' not found in group '{group}'.")
+            return [g.rules_by_name[rule]]
+        ordered = [g.rules_by_name[r] for r in g.rule_order if r in g.rules_by_name]
+        remaining = [r for n, r in g.rules_by_name.items() if n not in g.rule_order]
+        return ordered + remaining
+#####
+from typing import Any, Dict, List
+from pyspark.sql import DataFrame, functions as F, Column
+from .catalog import RuleNode
+
+class ASTCompiler:
+    """
+    Structured AST -> Spark Columns
+    Value nodes:
+      {"const": ...}
+      {"ref": {"path": "$.Col{year}"}}
+      {"resolve": {"key": "key{year}", "default": <const>}}
+      {"op": "add|sub|mul|div|min|max|pow|coalesce", "args":[...]}
+    Conditions:
+      {"all":[clause,...]} or {"any":[...]}
+      clause: {"left":<expr>, "op":"eq|ne|lt|lte|gt|gte|in|nin|isnull|notnull|contains", "right":<expr?>}
+    """
+    def __init__(self, df: DataFrame, static_map: Dict[str, Any]):
+        self.df = df
+        self.static = static_map
+        self.df_cols = set(df.columns)
+
+    @staticmethod
+    def _yearify(template: str, year_index: str) -> str:
+        return template.replace("{year}", str(year_index))
+
+    def _col_or_lit(self, key: str, default: Any = None) -> Column:
+        if key in self.df_cols:
+            return F.col(key)
+        if key in self.static:
+            return F.lit(self.static[key])
+        return F.lit(default)
+
+    def _compile_value(self, node: Dict[str, Any], year_index: str) -> Column:
+        if "const" in node:
+            return F.lit(node["const"])
+        if "ref" in node:
+            path = node["ref"]["path"]
+            if not path.startswith("$."):
+                raise ValueError(f"ref.path must start with '$.': {path}")
+            col_name = self._yearify(path[2:], year_index)
+            return F.col(col_name) if col_name in self.df_cols else F.lit(None)
+        if "resolve" in node:
+            key = self._yearify(node["resolve"]["key"], year_index)
+            default = node["resolve"].get("default", None)
+            return self._col_or_lit(key, default)
+        if "op" in node:
+            op = node["op"]
+            args = [self._compile_value(a, year_index) for a in node.get("args", [])]
+            return self._apply_op(op, args)
+        raise ValueError(f"Unknown value node: {node}")
+
+    @staticmethod
+    def _safe_div(numer: Column, denom: Column) -> Column:
+        return F.when(denom == 0, F.lit(None)).otherwise(numer / denom)
+
+    def _apply_op(self, op: str, cols: List[Column]) -> Column:
+        if op == "add":
+            c = cols[0]
+            for k in cols[1:]: c = c + k
+            return c
+        if op == "sub":
+            if len(cols) < 2: raise ValueError("sub requires >=2 args")
+            c = cols[0]
+            for k in cols[1:]: c = c - k
+            return c
+        if op == "mul":
+            c = cols[0]
+            for k in cols[1:]: c = c * k
+            return c
+        if op == "div":
+            if len(cols) != 2: raise ValueError("div requires 2 args")
+            return self._safe_div(cols[0], cols[1])
+        if op == "min":
+            return F.least(*cols)
+        if op == "max":
+            return F.greatest(*cols)
+        if op == "pow":
+            if len(cols) != 2: raise ValueError("pow requires 2 args")
+            return F.pow(cols[0], cols[1])
+        if op == "coalesce":
+            return F.coalesce(*cols)
+        raise ValueError(f"Unsupported op: {op}")
+
+    def _compile_clause(self, clause: Dict[str, Any], year_index: str) -> Column:
+        op = clause["op"]
+        if op in ("isnull", "notnull"):
+            left = self._compile_value(clause["left"], year_index)
+            return left.isNull() if op == "isnull" else left.isNotNull()
+
+        left = self._compile_value(clause["left"], year_index)
+        right_node = clause.get("right")
+
+        if op in ("eq","ne","lt","lte","gt","gte","contains"):
+            if right_node is None:
+                raise ValueError(f"'{op}' requires right")
+            right = self._compile_value(right_node, year_index)
+
+        if op == "eq":   return left == right
+        if op == "ne":   return left != right
+        if op == "lt":   return left <  right
+        if op == "lte":  return left <= right
+        if op == "gt":   return left >  right
+        if op == "gte":  return left >= right
+        if op == "contains":
+            ls = F.lower(left.cast("string"))
+            rs = F.lower(right.cast("string"))
+            return (F.instr(ls, rs) > 0)
+
+        if op in ("in","nin"):
+            if right_node is None:
+                raise ValueError(f"'{op}' requires right")
+            if "const" in right_node and isinstance(right_node["const"], list):
+                vals = right_node["const"]
+                expr = left.isin(*vals)
+                return ~expr if op == "nin" else expr
+            arr = self._compile_value(right_node, year_index)
+            expr = F.array_contains(arr, left)
+            return ~expr if op == "nin" else expr
+
+        raise ValueError(f"Unsupported comparator: {op}")
+
+    def _compile_condition(self, cond: Dict[str, Any], year_index: str) -> Column:
+        if not cond:
+            return F.lit(True)
+        if "all" in cond:
+            parts = [self._compile_clause(c, year_index) for c in cond["all"]]
+            c = parts[0]
+            for p in parts[1:]: c = c & p
+            return c
+        if "any" in cond:
+            parts = [self._compile_clause(c, year_index) for c in cond["any"]]
+            c = parts[0]
+            for p in parts[1:]: c = c | p
+            return c
+        raise ValueError("Condition must have 'all' or 'any'")
+
+    def compile_rule_for_year(self, rule: RuleNode, year_index: str) -> Column:
+        cond = self._compile_condition(rule.when or {}, year_index)
+        then_expr = self._compile_value(rule.then.get("expr", {"const": None}), year_index)
+        else_expr = self._compile_value(rule.else_.get("expr", {"const": None}), year_index) if rule.else_ else F.lit(None)
+        return F.when(cond, then_expr).otherwise(else_expr)
+#######
+
+from typing import Any, Dict, List, Tuple
+from pyspark.sql import SparkSession, DataFrame, functions as F, types as T
+from ..models.jobspec import JobSpec
+from ..rules.catalog import Catalog, RuleNode
+from ..rules.compiler import ASTCompiler
+
+def _years_for_rule(catalog: Catalog, jobspec: JobSpec, rule: RuleNode) -> List[Tuple[str, str]]:
+    years_all = catalog.years or jobspec.years
+    if not years_all:
+        raise ValueError("No 'years' defined in catalog or jobspec.")
+    pairs = []
+    for idx_str in rule.applies_to_years:
+        i = int(idx_str) - 1
+        if i < 0 or i >= len(years_all):
+            raise ValueError(f"applies_to_years index {idx_str} out of bounds for {years_all}")
+        pairs.append((idx_str, years_all[i]))  # ("1","2025")
+    return pairs
+
+def execute_rule(
+    spark: SparkSession,
+    df: DataFrame,
+    jobspec: JobSpec,
+    catalog: Catalog,
+    rule: RuleNode,
+    static_map: Dict[str, Any],
+) -> Tuple[DataFrame, DataFrame, DataFrame]:
+    """
+    Returns (long_df, wide_df, error_df) for this rule.
+    """
+    ndc = jobspec.ndc_col
+    pairs = _years_for_rule(catalog, jobspec, rule)
+    comp = ASTCompiler(df, static_map)
+
+    long_parts: List[DataFrame] = []
+    error_parts: List[DataFrame] = []
+    wide_cols = [F.col(ndc).alias("ndc_code")]
+
+    for idx_str, ylab in pairs:
+        value_col = comp.compile_rule_for_year(rule, idx_str)
+        out = df.select(
+            F.lit(jobspec.run_id).alias("run_id"),
+            F.lit(jobspec.uiname).alias("uiname"),
+            F.lit(jobspec.client_id).alias("client_id"),
+            F.lit(jobspec.opp_id).alias("opp_id"),
+            F.lit(jobspec.group).alias("group"),
+            F.lit(rule.name).alias("rule"),
+            F.col(ndc).alias("ndc_code"),
+            F.lit(idx_str).alias("year_index"),
+            F.lit(ylab).alias("year_label"),
+            value_col.alias("value"),
+            F.current_timestamp().alias("processed_at"),
+        )
+        long_parts.append(out)
+
+        err = out.where(F.col("value").isNull()).select(
+            "run_id","client_id","opp_id","group","rule","ndc_code","year_index","year_label",
+            F.lit("NULL_RESULT").alias("error_type"),
+            F.lit("Computed NULL (missing input/div-by-zero/missing ref)").alias("error_message"),
+            F.to_json(F.struct("ndc_code","year_index","year_label")).alias("context_sample"),
+            F.current_timestamp().alias("occurred_at"),
+        )
+        error_parts.append(err)
+
+        wide_cols.append(value_col.alias(f"year{idx_str}"))
+
+    long_df = long_parts[0]
+    for p in long_parts[1:]:
+        long_df = long_df.unionByName(p)
+
+    wide_df = df.select(*wide_cols)
+
+    error_df = error_parts[0]
+    for e in error_parts[1:]:
+        error_df = error_df.unionByName(e)
+
+    return long_df, wide_df, error_df
+#####
+
+
+import time, json
+from typing import Any, Dict, List
+from pyspark.sql import SparkSession, DataFrame, functions as F, types as T, Row
+from ..models.jobspec import JobSpec
+from ..io.data_reader import read_input_df
+from ..io.static_loader import load_static_context
+from ..rules.catalog import Catalog, RuleNode
+from ..exec.evaluator import execute_rule
+from ..utils.hashing import sha256_short
+
+def run_job(spark: SparkSession, jobspec: JobSpec) -> Dict[str, Any]:
+    # 1) Read inputs
+    df = read_input_df(spark, jobspec.data_path, jobspec.data_format, jobspec.data_options, jobspec.ndc_col)
+    input_count = df.count()
+    static_map = load_static_context(spark, jobspec.static_json_path)
+
+    # 2) Load catalog & select rules
+    catalog = Catalog.load(spark, jobspec.rules_catalog_path)
+    rules: List[RuleNode] = catalog.select_rules(jobspec.group, jobspec.rule)
+
+    # 3) Execute rules
+    long_parts: List[DataFrame] = []
+    err_parts: List[DataFrame] = []
+    wide_map: Dict[str, DataFrame] = {}
+    runlog_rows: List[Row] = []
+
+    for rule in rules:
+        t0 = time.time()
+        long_df, wide_df, err_df = execute_rule(spark, df, jobspec, catalog, rule, static_map)
+        out_cnt = long_df.count()
+        err_cnt = err_df.count()
+        status = "SUCCESS" if err_cnt == 0 else ("PARTIAL" if out_cnt > 0 else "FAILED")
+
+        long_parts.append(long_df)
+        err_parts.append(err_df)
+        wide_map[rule.name] = wide_df
+
+        years_all = catalog.years or jobspec.years
+        ords = [int(x) for x in rule.applies_to_years]
+        years_run = [years_all[i-1] for i in ords]
+        rule_version = sha256_short({"name": rule.name, "when": rule.when, "then": rule.then, "else": rule.else_})
+
+        runlog_rows.append(Row(
+            run_id=jobspec.run_id, uiname=jobspec.uiname, client_id=jobspec.client_id, opp_id=jobspec.opp_id,
+            group=jobspec.group, rule=rule.name, rule_version=rule_version, years_run=years_run,
+            started_at=None, ended_at=None, status=status,
+            input_count=input_count, output_row_count=out_cnt, error_count=err_cnt,
+            notes=json.dumps({"seconds": round(time.time()-t0, 3)})
+        ))
+
+    # 4) Merge outputs
+    if long_parts:
+        long_out = long_parts[0]
+        for p in long_parts[1:]:
+            long_out = long_out.unionByName(p)
+    else:
+        long_out = spark.createDataFrame([], schema=T.StructType([
+            T.StructField("run_id", T.StringType()),
+            T.StructField("uiname", T.StringType()),
+            T.StructField("client_id", T.StringType()),
+            T.StructField("opp_id", T.StringType()),
+            T.StructField("group", T.StringType()),
+            T.StructField("rule", T.StringType()),
+            T.StructField("ndc_code", T.StringType()),
+            T.StructField("year_index", T.StringType()),
+            T.StructField("year_label", T.StringType()),
+            T.StructField("value", T.DoubleType()),
+            T.StructField("processed_at", T.TimestampType()),
+        ]))
+
+    if err_parts:
+        error_out = err_parts[0]
+        for e in err_parts[1:]:
+            error_out = error_out.unionByName(e)
+    else:
+        error_out = spark.createDataFrame([], schema=T.StructType([
+            T.StructField("run_id", T.StringType()),
+            T.StructField("client_id", T.StringType()),
+            T.StructField("opp_id", T.StringType()),
+            T.StructField("group", T.StringType()),
+            T.StructField("rule", T.StringType()),
+            T.StructField("ndc_code", T.StringType()),
+            T.StructField("year_index", T.StringType()),
+            T.StructField("year_label", T.StringType()),
+            T.StructField("error_type", T.StringType()),
+            T.StructField("error_message", T.StringType()),
+            T.StructField("context_sample", T.StringType()),
+            T.StructField("occurred_at", T.TimestampType()),
+        ]))
+
+    # 5) Build run log DataFrame (in-memory only)
+    runlog_schema = T.StructType([
+        T.StructField("run_id", T.StringType(), False),
+        T.StructField("uiname", T.StringType(), False),
+        T.StructField("client_id", T.StringType(), False),
+        T.StructField("opp_id", T.StringType(), False),
+        T.StructField("group", T.StringType(), False),
+        T.StructField("rule", T.StringType(), False),
+        T.StructField("rule_version", T.StringType(), False),
+        T.StructField("years_run", T.ArrayType(T.StringType()), False),
+        T.StructField("started_at", T.TimestampType(), False),
+        T.StructField("ended_at", T.TimestampType(), False),
+        T.StructField("status", T.StringType(), False),
+        T.StructField("input_count", T.LongType(), False),
+        T.StructField("output_row_count", T.LongType(), False),
+        T.StructField("error_count", T.LongType(), False),
+        T.StructField("notes", T.StringType(), True),
+    ])
+    run_log_df = spark.createDataFrame(runlog_rows, schema=runlog_schema) \
+        .withColumn("started_at", F.current_timestamp()) \
+        .withColumn("ended_at", F.current_timestamp())
+
+    return {
+        "long_df": long_out,
+        "wide_dfs": wide_map,
+        "rule_run_log_df": run_log_df,
+        "error_df": error_out,
+    }
+#####
+run_id: "run-2025-09-15-001"
+uiname: "Rule Run"
+client_id: "ClientA"
+opp_id: "OPP-12345"
+
+data:
+  path: "path/to/your/input.csv"     # abfss:/ s3:/ dbfs:/ or local path
+  format: "csv"
+  options: { header: true, inferSchema: true }
+
+keys:
+  ndc_col: "NDC_Code"
+
+years: ["2025","2026","2027","2028","2029"]
+
+rules_catalog_path: "rules/rules.json"  # single catalog file
+group: "shifted_script"                 # required
+rule: null                              # null = run all rules in the group
+
+static_json_path: "path/to/static.json" # optional (can be empty or remove)
+#####
+
+{
+  "version": "2.0",
+  "years": ["2025","2026","2027","2028","2029"],
+  "groups": {
+    "shifted_script": {
+      "rule_order": ["shift_rule_1", "shift_rule_2"],
+      "rules": [
+        {
+          "name": "shift_rule_1",
+          "applies_to_years": ["1","2","3","4","5"],
+          "when": { "all": [
+            { "left": { "resolve": { "key": "input_Shift" } }, "op": "eq", "right": { "const": "No" } }
+          ]},
+          "then": { "expr": { "ref": { "path": "$.ScriptsYear{year}" } } },
+          "else": { "expr": {
+            "op":"mul","args":[
+              { "op":"add","args":[
+                { "op":"mul","args":[ {"resolve":{"key":"ShiftScriptsNoCoTYear{year}","default":0}}, {"resolve":{"key":"table_wgt","default":0}} ] },
+                { "op":"mul","args":[ {"resolve":{"key":"ShiftScriptsCoTYear{year}","default":0}}, {"resolve":{"key":"table_waf","default":0}} ] }
+              ]},
+              {"resolve":{"key":"gf","default":1}}
+            ]}
+          }
+        },
+        {
+          "name": "shift_rule_2",
+          "applies_to_years": ["1"],
+          "when": { "all": [
+            { "left": { "resolve": { "key": "input_Shift" } }, "op": "eq", "right": { "const": "Yes" } }
+          ]},
+          "then": { "expr": { "ref": { "path": "$.AltScriptsY1" } } },
+          "else": { "expr": { "const": 0 } }
+        }
+      ]
+    }
+  }
+}
+#######
+
+
