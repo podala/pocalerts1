@@ -1,0 +1,8 @@
+from typing import Dict, Any
+from pyspark.sql import SparkSession
+from ..utils.io_utils import load_json_via_spark
+
+def load_static_context(spark: SparkSession, path: str) -> Dict[str, Any]:
+    if not path:
+        return {}
+    return load_json_via_spark(spark, path)
