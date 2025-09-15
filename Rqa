@@ -1,0 +1,96 @@
+# run.py — simple runner with auto run_id + easy overrides
+import os, argparse, json, uuid
+from datetime import datetime
+from pyspark.sql import SparkSession
+
+from rule_engine.engine.models.jobspec import JobSpec
+from rule_engine.engine.pipeline.job_runner import run_job
+
+def _load_jobspec(path: str):
+    try:
+        import yaml  # optional
+        with open(path, "r", encoding="utf-8") as f:
+            return yaml.safe_load(f)
+    except Exception:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+
+def _auto_run_id() -> str:
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    return f"run-{ts}-{str(uuid.uuid4())[:8]}"
+
+def _apply_overrides(raw: dict, args):
+    # make sure nested structures exist
+    raw.setdefault("data", {})
+    raw.setdefault("keys", {})
+
+    # --- per-run id ---
+    if args.run_id:
+        if args.run_id.lower() == "auto":
+            raw["run_id"] = _auto_run_id()
+        else:
+            raw["run_id"] = args.run_id
+    elif not raw.get("run_id"):
+        raw["run_id"] = _auto_run_id()  # default auto if not present
+
+    # --- optional overrides (only if provided) ---
+    if args.uiname:                 raw["uiname"] = args.uiname
+    if args.client_id:              raw["client_id"] = args.client_id
+    if args.opp_id:                 raw["opp_id"] = args.opp_id
+
+    if args.data_path:              raw["data"]["path"] = args.data_path
+    if args.data_format:            raw["data"]["format"] = args.data_format
+    if args.ndc_col:                raw["keys"]["ndc_col"] = args.ndc_col
+
+    if args.years:
+        # comma-separated list → ["2025","2026",...]
+        raw["years"] = [y.strip() for y in args.years.split(",") if y.strip()]
+
+    if args.catalog:                raw["rules_catalog_path"] = args.catalog
+    if args.group:                  raw["group"] = args.group
+    if args.rule is not None:       raw["rule"] = None if args.rule.lower()=="null" else args.rule
+
+    if args.static:                 raw["static_json_path"] = args.static
+    return raw
+
+def main():
+    ap = argparse.ArgumentParser("RuleEngine Runner")
+    ap.add_argument("--jobspec", default=os.environ.get("JOBSPEC", "configs/jobspec.yaml"))
+    # common one-liners so you don't edit YAML:
+    ap.add_argument("--run-id", help='run id or "auto" (default if missing)', default=None)
+    ap.add_argument("--uiname", help="friendly name", default=None)
+    ap.add_argument("--client-id", help="client id", default=None)
+    ap.add_argument("--opp-id", help="opportunity id", default=None)
+
+    ap.add_argument("--data-path", help="input path (csv/parquet)", default=None)
+    ap.add_argument("--data-format", help='csv or parquet', default=None)
+    ap.add_argument("--ndc-col", help="key column name", default=None)
+
+    ap.add_argument("--years", help='comma list e.g. "2025,2026,2027"', default=None)
+    ap.add_argument("--catalog", help="rules catalog path", default=None)
+    ap.add_argument("--group", help="catalog group to run", default=None)
+    ap.add_argument("--rule", help='specific rule or "null" to run all', default=None)
+
+    ap.add_argument("--static", help="static JSON path", default=None)
+    args = ap.parse_args()
+
+    spark = SparkSession.builder.appName("RuleEngineSimple").getOrCreate()
+
+    raw = _load_jobspec(args.jobspec)
+    raw = _apply_overrides(raw, args)
+    jobspec = JobSpec.from_dict(raw)
+
+    result = run_job(spark, jobspec)
+
+    print(f"\nrun_id: {jobspec.run_id}")
+    print("\n=== long_df ===")
+    result["long_df"].show(10, truncate=False)
+    print("\n=== rule_run_log_df ===")
+    result["rule_run_log_df"].show(truncate=False)
+    print("\n=== error_df ===")
+    result["error_df"].show(10, truncate=False)
+
+    spark.stop()
+
+if __name__ == "__main__":
+    main()
