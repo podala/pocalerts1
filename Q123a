@@ -1,0 +1,269 @@
+import re
+
+# Convert (cond ? a : b) -> (a if cond else b)
+TERNARY_RE = re.compile(r"\((.*?)\s*\?\s*(.*?)\s*:\s*(.*?)\)")
+
+def _ternary_to_python(expr: str) -> str:
+    prev = None
+    while prev != expr:
+        prev = expr
+        expr = TERNARY_RE.sub(lambda m: f"({m.group(2)} if {m.group(1)} else {m.group(3)})", expr)
+    return expr
+
+def parse_expression(expr_template: str, year: str) -> str:
+    """
+    Turn '$.Foo{year}' into RESOLVE('Foo1'), and ternary to python.
+    """
+    expr = expr_template.replace("{year}", year)
+    expr = _ternary_to_python(expr)
+    expr = re.sub(r"\$\.\s*([A-Za-z_]\w*)", lambda m: f"RESOLVE('{m.group(1)}')", expr)
+    return expr
+
+def parse_path(path: str, year: str) -> str:
+    """
+    '$.ScriptsYear{year}' -> 'ScriptsYear1'
+    """
+    return path.replace("{year}", year).replace("$.", "")
+#№#########
+
+import logging
+import traceback
+from engine.rule_parser import parse_expression, parse_path
+
+logger = logging.getLogger("RuleEngine")
+
+def _normalize(v):
+    if isinstance(v, (int, float)): return v
+    if v is None: return None
+    try:
+        s = str(v).strip()
+    except Exception:
+        return v
+    low = s.lower()
+    if low in ("yes","y","true","1"): return True
+    if low in ("no","n","false","0"): return False
+    return v
+
+class RuleExecutor:
+    """
+    Evaluates a single rule against a **row dict** while also consulting **static_ctx**
+    (row first, then static). No per-row merging needed.
+    """
+    def __init__(self, rule_template: dict, static_ctx: dict):
+        self.rule = rule_template
+        self.static_ctx = static_ctx or {}
+
+    # ---- value resolution (row first, then static) ----
+    def _resolve(self, key: str, row_dict: dict):
+        if key in row_dict: return row_dict[key]
+        return self.static_ctx.get(key, None)
+
+    # ---- conditions ----
+    def _cmp(self, op: str, a, b):
+        try:
+            if op == "equal":            return _normalize(a) == _normalize(b)
+            if op == "not_equal":        return _normalize(a) != _normalize(b)
+            if op == "greater_than":     return float(a) >  float(b)
+            if op == "less_than":        return float(a) <  float(b)
+            if op == "greater_or_equal": return float(a) >= float(b)
+            if op == "less_or_equal":    return float(a) <= float(b)
+        except Exception as e:
+            logger.info(f"[conditions] compare error op={op} a={a!r} b={b!r} err={e}")
+            return False
+        logger.info(f"[conditions] unsupported operator '{op}'")
+        return False
+
+    def evaluate_conditions(self, row_dict: dict, year_index: str):
+        conds = (self.rule.get("conditions") or {}).get("all", [])
+        if not conds:
+            return True, {"checked": 0}
+        for c in conds:
+            # allow {year} inside paths
+            path_key = parse_path(c.get("path",""), year_index)
+            actual   = self._resolve(path_key, row_dict)
+            op       = c.get("operator", "equal")
+            expected = c.get("value")
+            ok = self._cmp(op, actual, expected)
+            if not ok:
+                logger.info(f"[conditions] FAIL field={path_key} op={op} expected={expected!r} actual={actual!r}")
+                return False, {"failed_field": path_key, "operator": op, "expected": expected, "actual": actual}
+        return True, {"checked": len(conds)}
+
+    # ---- calculators ----
+    def _calc_value_path(self, vp: str, year: str, row_dict: dict):
+        key = parse_path(vp, year)
+        val = self._resolve(key, row_dict)
+        if val is None:
+            logger.info(f"[value_path] key='{key}' -> None (missing)")
+        return val
+
+    def _calc_expression(self, expr_tmpl: str, year: str, row_dict: dict):
+        expr = parse_expression(expr_tmpl, year)
+        # Provide a single safe function 'RESOLVE' to look up fields (row -> static)
+        try:
+            return eval(expr, {}, {"RESOLVE": lambda k: self._resolve(k, row_dict)})
+        except Exception as e:
+            logger.error("[expression] failed\n"
+                         f"expr={expr}\nerr={e}\ntraceback=\n{traceback.format_exc()}")
+            raise
+
+    def _execute_branch(self, branch: dict, year_index: str, row_dict: dict, name: str):
+        if not branch:
+            logger.info(f"[branch:{name}] missing -> None")
+            return None
+        t = branch.get("type")
+        if t == "value_path":
+            return self._calc_value_path(branch.get("value_path",""), year_index, row_dict)
+        elif t == "expression":
+            return self._calc_expression(branch.get("value",""), year_index, row_dict)
+        else:
+            logger.error(f"[branch:{name}] unsupported type: {t}")
+            return None
+
+    # ---- main entry ----
+    def execute_row(self, row_dict: dict, year_index: str, return_meta: bool=False):
+        rule_name = self.rule.get("name", "<unnamed>")
+        logger.info(f"[execute] rule='{rule_name}' year_index={year_index}")
+        meta = {"rule": rule_name, "year_index": year_index, "condition_failed": False, "error": None}
+
+        try:
+            ok, _ = self.evaluate_conditions(row_dict, year_index)
+            if ok:
+                res = self._execute_branch(self.rule.get("calculation", {}), year_index, row_dict, "calc")
+            else:
+                meta["condition_failed"] = True
+                res = self._execute_branch(self.rule.get("else", {}), year_index, row_dict, "else")
+        except Exception as e:
+            meta["error"] = str(e)
+            logger.error(f"[execute] rule='{rule_name}' year_index={year_index} failed: {e}")
+            res = None
+
+        if return_meta:
+            return res, meta
+        return res
+#########
+import os
+import json
+import argparse
+import logging
+import pandas as pd
+from engine.rule_executor import RuleExecutor
+
+# ---- logging ----
+os.makedirs("logs", exist_ok=True)
+logging.basicConfig(
+    filename="logs/execution.log",
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
+def main():
+    parser = argparse.ArgumentParser(description="Run rule groups on CSV + static JSON.")
+    parser.add_argument("--group", required=True, help="Group (e.g., shifted_script)")
+    parser.add_argument("--rule", help="Specific rule from the group")
+    parser.add_argument("--input", default="data/sample_data.csv", help="CSV input")
+    parser.add_argument("--static", default="rules/static_values.json", help="Static JSON")
+    parser.add_argument("--rules",  default="rules/all_rules.json", help="Rules JSON")
+    parser.add_argument("--id-col", default="NDC", help="ID column")
+    parser.add_argument("--chunksize", type=int, default=0, help="CSV chunksize (0 = load all)")
+    parser.add_argument("--debug", action="store_true", help="Print debug")
+    args = parser.parse_args()
+
+    # --- load rules ---
+    if not os.path.exists(args.rules):
+        print(f"❌ Missing rules: {args.rules}")
+        raise SystemExit(1)
+    with open(args.rules, "r", encoding="utf-8") as f:
+        rules_data = json.load(f)
+
+    all_rules    = rules_data["rules"]
+    rule_order   = rules_data["rule_priority"]
+    years        = rules_data["years"]
+
+    # --- load static once ---
+    static_ctx = {}
+    if args.static and os.path.exists(args.static):
+        try:
+            with open(args.static, "r", encoding="utf-8") as f:
+                static_ctx = json.load(f)
+        except Exception as e:
+            print(f"⚠️ Could not parse static JSON: {e}. Continuing with empty static.")
+
+    # --- choose rules to run ---
+    group = args.group
+    group_rules = [r for r in rule_order if all_rules.get(r, {}).get("group", r) == group]
+    if not group_rules:
+        print(f"❌ No rules found for group '{group}'")
+        raise SystemExit(1)
+
+    if args.rule:
+        if args.rule not in all_rules:
+            print(f"❌ Rule '{args.rule}' not found")
+            raise SystemExit(1)
+        if all_rules[args.rule].get("group") != group:
+            print(f"❌ Rule '{args.rule}' does not belong to '{group}'")
+            raise SystemExit(1)
+        exec_rules = [args.rule]
+    else:
+        exec_rules = group_rules
+
+    # --- executors per rule (reuse across rows) ---
+    executors = {name: RuleExecutor(all_rules[name], static_ctx) for name in exec_rules}
+
+    # --- IO ---
+    if not os.path.exists(args.input):
+        print(f"❌ Missing input CSV: {args.input}")
+        raise SystemExit(1)
+
+    os.makedirs("outputs", exist_ok=True)
+    suffix   = f"_{args.rule}" if args.rule else ""
+    out_path = os.path.join("outputs", f"{group}{suffix}_dataset.csv")
+
+    def process_frame(df: pd.DataFrame):
+        out = []
+        idc = args.id_col
+        if idc not in df.columns:
+            df = df.copy()
+            df["ROW_ID"] = range(1, len(df) + 1)
+            idc = "ROW_ID"
+            print(f"⚠️ ID column '{args.id_col}' not found; using '{idc}'")
+
+        for i, row in df.iterrows():
+            row_dict = row.to_dict()  # only CSV row; static is used by executor internally
+            row_id   = row_dict.get(idc)
+            row_out  = {idc: row_id}
+
+            for y_idx, year in enumerate(years):
+                year_index = str(y_idx + 1)
+                # pick first applicable rule
+                for rname in exec_rules:
+                    rdef = all_rules[rname]
+                    if year_index in rdef.get("applies_to_years", []):
+                        try:
+                            result = executors[rname].execute_row(row_dict, year_index)
+                            key = rdef.get("group", rname)
+                            row_out[f"{key}_YEAR_{year}"] = result
+                            if args.debug:
+                                print(f"[DEBUG] row={i} year={year} rule={rname} -> {result}")
+                        except Exception as e:
+                            key = rdef.get("group", rname)
+                            row_out[f"{key}_YEAR_{year}"] = None
+                            logging.error(f"[{group}] row {i} year {year} rule {rname} failed: {e}")
+                        break
+            out.append(row_out)
+        return out
+
+    rows = []
+    if args.chunksize and args.chunksize > 0:
+        for chunk in pd.read_csv(args.input, chunksize=args.chunksize):
+            rows.extend(process_frame(chunk))
+    else:
+        df = pd.read_csv(args.input)
+        rows.extend(process_frame(df))
+
+    pd.DataFrame(rows).to_csv(out_path, index=False)
+    print(f"✅ Saved: {out_path}")
+
+if __name__ == "__main__":
+    main()
+
