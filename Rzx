@@ -1,0 +1,11 @@
+# from project root
+python -m pip install pandas
+python pipeline/group_runner_py.py \
+  --input data/sample_data.csv \
+  --rules rules/all_rules.json \
+  --static rules/static_values.json \
+  --group shifted_script \
+  --id-col NDC \
+  --formulary-col formulary \
+  --client ClientA \
+  --outdir outputs
