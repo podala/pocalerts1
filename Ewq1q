@@ -1,0 +1,101 @@
+{
+  "years": ["2025", "2026", "2027", "2028", "2029"],
+  "rule_priority": ["shifted_script_rule1", "shifted_script_rule2"],
+  "rules": {
+    "shifted_script_rule1": {
+      "group": "shifted_script",
+      "applies_to_years": ["1"],
+      "conditions": {
+        "all": [
+          { "op": "eq", "left": { "var": "$.input_Shift" }, "right": "No" }
+        ]
+      },
+      "calculation": { "op": "var", "path": "$.ScriptsYear{year}" },
+      "else": {
+        "op": "mul",
+        "args": [
+          {
+            "op": "add",
+            "args": [
+              {
+                "op": "mul",
+                "args": [
+                  { "op": "var", "path": "$.ShiftScriptsNoCoTYear{year}", "default": 0 },
+                  { "op": "var", "path": "$.table_wgt", "default": 0 }
+                ]
+              },
+              {
+                "op": "mul",
+                "args": [
+                  { "op": "var", "path": "$.ShiftScriptsCoTYear{year}", "default": 0 },
+                  { "op": "var", "path": "$.table_waf", "default": 0 }
+                ]
+              }
+            ]
+          },
+          { "op": "coalesce", "args": [ { "op": "var", "path": "$.table_Year{year}" }, 1 ] },
+          {
+            "op": "if",
+            "cond": {
+              "op": "and",
+              "args": [
+                { "op": "eq", "left": { "op": "var", "path": "$.MSB" }, "right": 1 },
+                { "op": "eq", "left": { "op": "var", "path": "$.Generic_Ind" }, "right": "B" }
+              ]
+            },
+            "then": { "op": "var", "path": "$.msb_percentage", "default": 1 },
+            "else": 1
+          }
+        ]
+      }
+    },
+
+    "shifted_script_rule2": {
+      "group": "shifted_script",
+      "applies_to_years": ["2", "3", "4", "5"],
+      "conditions": {
+        "all": [
+          { "op": "eq", "left": { "var": "$.input_Shift" }, "right": "No" }
+        ]
+      },
+      "calculation": { "op": "var", "path": "$.ScriptsYear{year}" },
+      "else": {
+        "op": "mul",
+        "args": [
+          {
+            "op": "add",
+            "args": [
+              {
+                "op": "mul",
+                "args": [
+                  { "op": "var", "path": "$.ShiftScriptsNoCoTYear{year}", "default": 0 },
+                  { "op": "var", "path": "$.table_wgt", "default": 0 }
+                ]
+              },
+              {
+                "op": "mul",
+                "args": [
+                  { "op": "var", "path": "$.ShiftScriptsCoTYear{year}", "default": 0 },
+                  { "op": "var", "path": "$.table_waf", "default": 0 }
+                ]
+              }
+            ]
+          },
+          { "op": "coalesce", "args": [ { "op": "var", "path": "$.table_Year{year}" }, 1 ] },
+          {
+            "op": "if",
+            "cond": {
+              "op": "and",
+              "args": [
+                { "op": "eq", "left": { "op": "var", "path": "$.MSB" }, "right": 1 },
+                { "op": "eq", "left": { "op": "var", "path": "$.Generic_Ind" }, "right": "B" }
+              ]
+            },
+            "then": { "op": "var", "path": "$.msb_percentage", "default": 1 },
+            "else": 1
+          }
+        ]
+      }
+    }
+  }
+}
