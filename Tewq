@@ -1,0 +1,580 @@
+jsonlogic-spark/
+├─ engine/
+│  ├─ __init__.py
+│  ├─ jsonlogic_core.py
+│  └─ rule_executor.py
+├─ pipeline/
+│  ├─ __init__.py
+│  └─ spark_group_runner.py
+├─ utils/
+│  ├─ __init__.py
+│  └─ logging_config.py
+├─ rules/
+│  ├─ all_rules.json
+│  └─ static_values.json
+├─ data/
+│  └─ sample_data.csv
+└─ outputs/                 # created on run
+
+
+
+########
+
+
+
+"""
+JSONLogic Core (executor-safe)
+------------------------------
+Subset evaluator for your rules:
+
+- {year} placeholder replacement inside rule trees
+- var/path resolution: row -> static -> default
+- Supported ops: add, mul, coalesce, eq, and, if
+- Validator blocks unsupported ops / shapes
+"""
+
+from __future__ import annotations
+import copy
+import logging
+from typing import Any, Dict, Union
+
+log = logging.getLogger("JSONLOGIC")
+Scalar = Union[int, float, str, bool, None]
+
+# ----------------- helpers -----------------
+def _is_scalar(x: Any) -> bool:
+    return isinstance(x, (int, float, str, bool)) or x is None
+
+def _coerce_num(x: Any, default: float = 0.0) -> float:
+    try:
+        if x is None: return default
+        if isinstance(x, (int, float)): return float(x)
+        s = str(x).strip()
+        if s == "": return default
+        return float(s) if "." in s else float(int(s))
+    except Exception:
+        return default
+
+def _normalize_bool(x: Any) -> bool:
+    if isinstance(x, bool): return x
+    if x is None: return False
+    s = str(x).strip().lower()
+    if s in ("yes","y","true","1"): return True
+    if s in ("no","n","false","0",""): return False
+    try: return bool(float(s))
+    except Exception: return bool(s)
+
+# ----------------- placeholders -----------------
+def replace_year_placeholders(obj: Any, year_index: str) -> Any:
+    if isinstance(obj, dict):
+        return {k: replace_year_placeholders(v, year_index) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [replace_year_placeholders(v, year_index) for v in obj]
+    if isinstance(obj, str):
+        return obj.replace("{year}", year_index)
+    return obj
+
+# ----------------- var/path resolution -----------------
+def resolve_var(path: str, row: Dict[str, Any], static: Dict[str, Any], default=None):
+    """
+    Resolve '$.Key' by checking row -> static -> default
+    """
+    key = path.replace("$.", "")
+    if key in row:    return row[key]
+    if key in static: return static[key]
+    return default
+
+# ----------------- operators -----------------
+def _op_add(*xs): return sum((_coerce_num(x,0.0) for x in xs), 0.0)
+
+def _op_mul(*xs):
+    v = 1.0
+    for x in xs: v *= _coerce_num(x, 1.0)
+    return v
+
+def _op_coalesce(*xs):
+    for v in xs:
+        if v is not None: return v
+    return None
+
+def _op_eq(a,b): return a == b
+def _op_and(*xs): return all(_normalize_bool(x) for x in xs)
+
+OPS = {
+    "add": _op_add,
+    "mul": _op_mul,
+    "coalesce": _op_coalesce,
+    "eq": _op_eq,
+    "and": _op_and,
+}
+ALLOWED_OPS = set(OPS.keys()) | {"if"}
+
+# ----------------- validator -----------------
+def validate_jsonlogic_node(node: Any, *, path: str = "$") -> None:
+    """
+    Light validator to block unsupported ops and malformed nodes.
+    Raises ValueError on violation.
+    """
+    if _is_scalar(node):
+        return
+    if isinstance(node, list):
+        for i, it in enumerate(node):
+            validate_jsonlogic_node(it, path=f"{path}[{i}]")
+        return
+    if isinstance(node, dict):
+        if "op" in node:
+            op = node["op"]
+            if op not in ALLOWED_OPS:
+                raise ValueError(f"Unsupported op '{op}' at {path}")
+        if "var" in node and not isinstance(node["var"], str):
+            raise ValueError(f"'var' must be string at {path}")
+        if "path" in node and not isinstance(node["path"], str):
+            raise ValueError(f"'path' must be string at {path}")
+        for k, v in node.items():
+            validate_jsonlogic_node(v, path=f"{path}.{k}")
+        return
+    raise ValueError(f"Unsupported node type {type(node)} at {path}")
+
+# ----------------- evaluator -----------------
+def eval_node(node: Any, row: Dict[str, Any], static: Dict[str, Any], *, year_index: str) -> Any:
+    if _is_scalar(node): return node
+
+    if isinstance(node, list):
+        return [eval_node(x, row, static, year_index=year_index) for x in node]
+
+    if isinstance(node, dict):
+        # var/path
+        if "var" in node or "path" in node:
+            path = node.get("path") or node.get("var")
+            default = node.get("default")
+            return resolve_var(path, row, static, default)
+
+        # if as node
+        if "if" in node:
+            blk = node["if"] or {}
+            c = eval_node(blk.get("cond"), row, static, year_index=year_index)
+            return eval_node(blk.get("then") if _normalize_bool(c) else blk.get("else"),
+                             row, static, year_index=year_index)
+
+        # generic op
+        if "op" in node:
+            op = node["op"]
+
+            # if as op
+            if op == "if":
+                c = eval_node(node.get("cond"), row, static, year_index=year_index)
+                return eval_node(node.get("then") if _normalize_bool(c) else node.get("else"),
+                                 row, static, year_index=year_index)
+
+            # binary
+            if "left" in node or "right" in node:
+                l = eval_node(node.get("left"),  row, static, year_index=year_index)
+                r = eval_node(node.get("right"), row, static, year_index=year_index)
+                if op not in OPS: raise ValueError(f"Unsupported op {op}")
+                return OPS[op](l, r)
+
+            # n-ary
+            args = node.get("args", [])
+            vals = [eval_node(a, row, static, year_index=year_index) for a in args]
+            if op not in OPS: raise ValueError(f"Unsupported op {op}")
+            return OPS[op](*vals)
+
+    raise ValueError(f"Bad node: {node!r}")
+
+# ----------------- rule per year -----------------
+def prepare_rule_for_year(rule_obj: Dict[str, Any], year_index: str) -> Dict[str, Any]:
+    """Deep-copy rule and replace {year} placeholders."""
+    return replace_year_placeholders(copy.deepcopy(rule_obj), year_index)
+
+
+#########
+
+"""
+Rule Executor
+-------------
+Executes ONE rule for a given row + static context + year index.
+
+Return tuple: (value, branch, error, elapsed_ms)
+  - value: evaluated result (raw; caller can coerce to float)
+  - branch: "calculation" | "else" | "error"
+  - error: error message if exception
+  - elapsed_ms: timing
+"""
+
+from __future__ import annotations
+import logging, time
+from typing import Any, Dict, Tuple, Optional
+
+from .jsonlogic_core import eval_node, prepare_rule_for_year, validate_jsonlogic_node
+
+log = logging.getLogger("EXECUTOR")
+
+class JSONLogicRuleExecutor:
+    def __init__(self, rule_def: Dict[str, Any]):
+        self.rule = rule_def or {}
+        self.name = self.rule.get("name", "<unnamed>")
+        # validate once
+        for k in ("conditions","calculation","else"):
+            if self.rule.get(k) is not None:
+                validate_jsonlogic_node(self.rule[k], path=f"$.{self.name}.{k}")
+
+    def _cond_ok(self, cond_block: Dict[str, Any], row: Dict[str, Any],
+                 static: Dict[str, Any], year_index: str) -> bool:
+        if not cond_block: return True
+        all_conds = cond_block.get("all", [])
+        if not all_conds: return True
+        for c in all_conds:
+            v = eval_node(c, row, static, year_index=year_index)
+            if not bool(v): return False
+        return True
+
+    def execute_row(self, row: Dict[str, Any], static: Dict[str, Any], year_index: str
+                   ) -> Tuple[Optional[Any], str, Optional[str], int]:
+        t0 = time.perf_counter()
+        try:
+            ry = prepare_rule_for_year(self.rule, year_index)
+            cond_ok = self._cond_ok(ry.get("conditions"), row, static, year_index)
+            node = ry.get("calculation") if cond_ok else ry.get("else")
+            if node is None:
+                raise ValueError(f"Missing {'calculation' if cond_ok else 'else'} block (year={year_index})")
+            val = eval_node(node, row, static, year_index=year_index)
+            return val, ("calculation" if cond_ok else "else"), None, int((time.perf_counter()-t0)*1000)
+        except Exception as e:
+            # error-only logging
+            log.error(f"[EXEC-ERROR] rule={self.name} year={year_index} err={e}")
+            return None, "error", str(e), int((time.perf_counter()-t0)*1000)
+
+
+########
+
+"""
+Set ERROR-only logging for driver & executors.
+"""
+
+from __future__ import annotations
+import logging, sys
+
+def set_error_only() -> None:
+    root = logging.getLogger()
+    root.handlers.clear()
+    root.setLevel(logging.ERROR)
+
+    fmt = logging.Formatter("%(asctime)s | %(name)s | %(levelname)s | %(message)s")
+
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setLevel(logging.ERROR)
+    ch.setFormatter(fmt)
+    root.addHandler(ch)
+
+
+#####-#
+
+"""
+Spark Group Runner — ONE FILE PER GROUP
+---------------------------------------
+- Reads full CSV (must include ndc + formulary + any fields used in rules)
+- Loads rules JSON + static JSON
+- For the selected group:
+    * Evaluate each rule on its applies_to_years (disjoint; no overlaps allowed)
+    * Combine results per (ndc, year_index) — no priority logic needed
+    * Pivot to wide: year1..yearN
+    * Join formulary
+    * Write ONE artifact: <outdir>/<group>__final/ with columns:
+        ndc, formulary, year1, year2, year3, year4, year5
+- Writes status per rule and errors (if any)
+- Only errors log to console
+"""
+
+from __future__ import annotations
+import argparse, json, os
+from typing import Any, Dict, List
+
+import pandas as pd
+from pyspark.sql import SparkSession, functions as F, types as T, Window
+
+from engine.rule_executor import JSONLogicRuleExecutor
+from engine.jsonlogic_core import validate_jsonlogic_node
+from utils.logging_config import set_error_only
+
+# -------------------- helpers --------------------
+def to_float_or_none(x):
+    """Coerce to float or return None for blanks/None/errors."""
+    try:
+        if x is None: return None
+        if isinstance(x, (int, float)): return float(x)
+        s = str(x).strip()
+        if s == "": return None
+        return float(s)
+    except Exception:
+        return None
+
+def validate_ruleset(rules_data: Dict[str, Any], group: str) -> None:
+    """Basic schema + semantic checks."""
+    years = rules_data.get("years")
+    if not isinstance(years, list) or not years:
+        raise ValueError("rules.years must be a non-empty list")
+    years_n = len(years)
+
+    rules = rules_data.get("rules", {})
+    order = rules_data.get("rule_priority", [])
+    if not order:
+        raise ValueError("rules.rule_priority must be non-empty")
+
+    for r in order:
+        if r not in rules:
+            raise ValueError(f"rule_priority contains unknown rule '{r}'")
+
+    if not any(rules.get(r, {}).get("group") == group for r in order):
+        raise ValueError(f"No rules for group '{group}'")
+
+    # per-rule node validation (light)
+    for rname, rdef in rules.items():
+        if "group" not in rdef:
+            raise ValueError(f"rule '{rname}' missing 'group'")
+        applies = rdef.get("applies_to_years")
+        if applies is not None:
+            for y in applies:
+                if not str(y).isdigit() or not (1 <= int(y) <= years_n):
+                    raise ValueError(f"rule '{rname}' has invalid year index '{y}' (1..{years_n})")
+        for k in ("conditions","calculation","else"):
+            if rdef.get(k) is not None:
+                validate_jsonlogic_node(rdef[k], path=f"$.{rname}.{k}")
+
+def assert_disjoint_years(selected_rules: List[str], all_rules: Dict[str, Any], years_full: List[str]) -> None:
+    """Ensure no two rules claim the same year within the group."""
+    used = {}
+    for r in selected_rules:
+        applies = all_rules[r].get("applies_to_years") or [str(i+1) for i in range(len(years_full))]
+        for y in applies:
+            if y in used:
+                raise ValueError(f"Rules '{used[y]}' and '{r}' both claim year index '{y}'. "
+                                 "Each year must be produced by exactly one rule.")
+            used[y] = r
+
+def make_rule_mapper(rule_name: str,
+                     rule_def: Dict[str, Any],
+                     applies: List[str],
+                     id_col: str,
+                     static_ctx: Dict[str, Any]):
+    """
+    mapInPandas mapper for one rule.
+    Input : Pandas chunks of full input rows (all columns)
+    Output: ndc, year{i}, _err_year{i} for i in applies
+    """
+    executor = JSONLogicRuleExecutor({**rule_def, "name": rule_name})
+
+    def _map(pdf_iter):
+        for pdf in pdf_iter:
+            if id_col not in pdf.columns:
+                pdf = pdf.copy()
+                pdf[id_col] = range(1, len(pdf)+1)
+
+            out_rows: List[Dict[str, Any]] = []
+            for _, row in pdf.iterrows():
+                rowd = {k: (None if pd.isna(v) else v) for k, v in row.to_dict().items()}
+                ndc = None if rowd.get(id_col) is None else str(rowd.get(id_col))
+                one = {"ndc": ndc}
+                for yidx in applies:
+                    val, branch, err, _ms = executor.execute_row(rowd, static_ctx, yidx)
+                    one[f"year{yidx}"] = to_float_or_none(val) if err is None else None
+                    one[f"_err_year{yidx}"] = err
+                out_rows.append(one)
+
+            yield pd.DataFrame(out_rows)
+
+    # Spark schema for mapper output
+    fields = [T.StructField("ndc", T.StringType(), True)]
+    for y in applies:
+        fields.append(T.StructField(f"year{y}", T.DoubleType(), True))
+        fields.append(T.StructField(f"_err_year{y}", T.StringType(), True))
+    schema = T.StructType(fields)
+    return _map, schema
+
+def write_table(df, path: str, fmt: str = "csv", single_file: bool = True):
+    writer = df.coalesce(1) if single_file else df
+    if fmt == "delta":
+        (df.write.mode("overwrite").format("delta").save(path))
+    else:
+        (writer.write.mode("overwrite").option("header", True).csv(path))
+
+# -------------------- main --------------------
+def main():
+    parser = argparse.ArgumentParser("JSONLogic Spark Group Runner — one file per group")
+    parser.add_argument("--input",  required=True, help="Input CSV path (must include NDC + formulary + rule fields)")
+    parser.add_argument("--rules",  required=True, help="Rules JSON")
+    parser.add_argument("--static", required=True, help="Static JSON")
+    parser.add_argument("--group",  required=True, help="Group name (e.g., shifted_script)")
+    parser.add_argument("--id-col", default="NDC", help="ID column in CSV (e.g., NDC)")
+    parser.add_argument("--formulary-col", default="formulary", help="Formulary column in CSV")
+    parser.add_argument("--client", default="ClientA", help="Client id/name for status")
+    parser.add_argument("--outdir", default="outputs", help="Output directory")
+    parser.add_argument("--delimiter", default=",", help="CSV delimiter")
+    parser.add_argument("--infer-schema", action="store_true", help="Infer input schema")
+    parser.add_argument("--single-file", action="store_true", help="Coalesce outputs to 1 file")
+    parser.add_argument("--format", choices=["csv","delta"], default="csv", help="Output format")
+    args = parser.parse_args()
+
+    # error-only logging
+    set_error_only()
+    spark = (SparkSession.builder.appName("JSONLogicGroupRunnerOneFile").getOrCreate())
+    spark.sparkContext.setLogLevel("ERROR")
+    spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "true")
+
+    # load configs
+    with open(args.rules, "r", encoding="utf-8") as f:
+        rules_data = json.load(f)
+    with open(args.static, "r", encoding="utf-8") as f:
+        static_ctx = json.load(f)
+
+    # checks
+    validate_ruleset(rules_data, args.group)
+
+    # input DF with ALL columns needed by rules
+    df_in = (
+        spark.read.option("header", True)
+                  .option("inferSchema", args.infer_schema)
+                  .option("delimiter", args.delimiter)
+                  .csv(args.input)
+    )
+    if args.id_col not in df_in.columns:
+        raise SystemExit(f"Input CSV missing required id column: {args.id_col}")
+    if args.formulary_col not in df_in.columns:
+        raise SystemExit(f"Input CSV missing formulary column: {args.formulary_col}")
+
+    # formulary table (one per ndc)
+    df_formulary = (
+        df_in.select(F.col(args.id_col).cast("string").alias("ndc"),
+                     F.col(args.formulary_col).alias("formulary"))
+             .dropDuplicates(["ndc"])
+    )
+
+    # group rules
+    all_rules  = rules_data["rules"]
+    rule_order = rules_data["rule_priority"]
+    years_full = rules_data.get("years", [])
+    selected = [r for r in rule_order if all_rules.get(r, {}).get("group") == args.group]
+    if not selected:
+        raise SystemExit(f"No rules for group '{args.group}'")
+
+    # ensure non-overlapping years across rules
+    assert_disjoint_years(selected, all_rules, years_full)
+
+    # NDC list for status
+    ndc_df = df_in.select(F.col(args.id_col).cast("string").alias("ndc")).distinct()
+
+    # evaluate each rule
+    df_long_all = None
+    status_accum = None
+    error_accum  = None
+
+    for rname in selected:
+        rule_def = all_rules[rname]
+        applies = rule_def.get("applies_to_years") or [str(i+1) for i in range(len(years_full))]
+
+        mapper, schema = make_rule_mapper(rname, rule_def, applies, args.id_col, static_ctx)
+        df_rule = df_in.mapInPandas(mapper, schema=schema)
+
+        # long form per rule
+        year_structs = [
+            F.struct(
+                F.lit(y).alias("year_index"),
+                F.col(f"year{y}").alias("value"),
+                F.col(f"_err_year{y}").alias("error")
+            ) for y in applies
+        ]
+        df_long_rule = (
+            df_rule
+            .select("ndc", F.array(*year_structs).alias("ys"))
+            .select("ndc", F.explode("ys").alias("y"))
+            .select(
+                "ndc",
+                F.lit(args.group).alias("group"),
+                F.lit(rname).alias("rule"),
+                F.col("y.year_index").alias("year_index"),
+                F.col("y.value").alias("value"),
+                F.col("y.error").alias("error")
+            )
+        )
+        df_long_all = df_long_rule if df_long_all is None else df_long_all.unionByName(df_long_rule)
+
+        # errors
+        df_errs = df_long_rule.where(F.col("error").isNotNull()) \
+                              .select("ndc","group","rule","year_index","error")
+        if df_errs.take(1):
+            error_accum = df_errs if error_accum is None else error_accum.unionByName(df_errs)
+
+        # status rows
+        df_status_rule = (
+            ndc_df.select("ndc")
+                  .withColumn("client", F.lit(args.client))
+                  .withColumn("group",  F.lit(args.group))
+                  .withColumn("rule",   F.lit(rname))
+                  .withColumn("status", F.lit("completed"))
+                  .select("client","ndc","group","rule","status")
+        )
+        status_accum = df_status_rule if status_accum is None else status_accum.unionByName(df_status_rule)
+
+    # combine (no overlaps → simple first)
+    df_ok = df_long_all.where(F.col("error").isNull())
+    df_top = (
+        df_ok.groupBy("ndc","group","year_index")
+             .agg(F.first("value", ignorenulls=True).alias("value"))
+    )
+
+    # pivot to wide
+    years_n = len(years_full) or 5
+    pivot_keys = [str(i) for i in range(1, years_n+1)]
+    df_wide = (
+        df_top.groupBy("ndc","group")
+              .pivot("year_index", pivot_keys)
+              .agg(F.first("value"))
+    )
+    for i in range(1, years_n+1):
+        src = str(i)
+        if src not in df_wide.columns:
+            df_wide = df_wide.withColumn(src, F.lit(None).cast("double"))
+        df_wide = df_wide.withColumnRenamed(src, f"year{i}")
+
+    # final per-group artifact
+    final_cols = ["ndc", "formulary"] + [f"year{i}" for i in range(1, years_n+1)]
+    df_final_group = (
+        df_formulary.join(df_wide, on="ndc", how="left")
+                    .select(*final_cols)
+                    .orderBy("ndc")
+    )
+
+    out_dir_final = os.path.join(args.outdir, f"{args.group}__final")
+    write_table(df_final_group, out_dir_final, fmt=args.format, single_file=args.single_file)
+
+    # status + errors
+    status_dir = os.path.join(args.outdir, f"{args.group}__status")
+    write_table(status_accum, status_dir, fmt=args.format, single_file=args.single_file)
+
+    if error_accum is not None and error_accum.take(1):
+        err_dir = os.path.join(args.outdir, f"{args.group}__errors")
+        if args.format == "delta":
+            (error_accum.write.mode("overwrite").format("delta").save(err_dir))
+        else:
+            ((error_accum.coalesce(1) if args.single_file else error_accum)
+                .write.mode("overwrite").json(err_dir))
+
+    spark.stop()
+
+if __name__ == "__main__":
+    main()
+####
+
+# from project root
+spark-submit pipeline/spark_group_runner.py \
+  --input data/sample_data.csv \
+  --rules rules/all_rules.json \
+  --static rules/static_values.json \
+  --group shifted_script \
+  --id-col NDC \
+  --formulary-col formulary \
+  --client ClientA \
+  --outdir outputs \
+  --single-file \
+  --format csv
+
+
