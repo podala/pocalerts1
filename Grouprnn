@@ -1,0 +1,279 @@
+#!/usr/bin/env python3
+"""
+Group Runner (pure Python / pandas)
+-----------------------------------
+- One artifact per group: ndc, formulary, group, year1..yearN
+- Each rule owns disjoint applies_to_years (no overlaps)
+- Uses engine.JSONLogicRuleExecutor to evaluate rules row-by-row
+- Only errors are logged to console
+"""
+
+from __future__ import annotations
+import argparse, json, logging, os, sys, tempfile
+from typing import Any, Dict, List, Tuple, Optional
+
+import pandas as pd
+
+# Import your engine modules
+from engine.rule_executor import JSONLogicRuleExecutor
+from engine.jsonlogic_core import validate_jsonlogic_node
+
+# ----------------- logging: ERROR-only -----------------
+def set_error_only_logging() -> None:
+    root = logging.getLogger()
+    root.handlers.clear()
+    root.setLevel(logging.ERROR)
+    h = logging.StreamHandler(sys.stdout)
+    h.setLevel(logging.ERROR)
+    h.setFormatter(logging.Formatter("%(asctime)s | %(name)s | %(levelname)s | %(message)s"))
+    root.addHandler(h)
+
+log = logging.getLogger("GROUP_RUNNER")
+
+# ----------------- helpers -----------------
+def to_float_or_none(x) -> Optional[float]:
+    """Coerce to float or return None for blanks/NaN/errors."""
+    try:
+        if x is None:
+            return None
+        if isinstance(x, (int, float)):
+            return float(x)
+        s = str(x).strip()
+        if s == "":
+            return None
+        return float(s)
+    except Exception:
+        return None
+
+def write_csv_atomic(df: pd.DataFrame, out_path: str) -> None:
+    """Write CSV atomically (temp file then replace)."""
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    with tempfile.NamedTemporaryFile("w", delete=False, dir=os.path.dirname(out_path),
+                                     suffix=".tmp", encoding="utf-8", newline="") as tmp:
+        df.to_csv(tmp.name, index=False)
+        tmp_path = tmp.name
+    os.replace(tmp_path, out_path)
+
+def validate_ruleset(rules_data: Dict[str, Any], group: str) -> None:
+    """Basic schema + node validation."""
+    years = rules_data.get("years")
+    if not isinstance(years, list) or not years:
+        raise ValueError("rules.years must be a non-empty list")
+    years_n = len(years)
+
+    rules = rules_data.get("rules", {})
+    order = rules_data.get("rule_priority", [])
+    if not order:
+        raise ValueError("rules.rule_priority must be non-empty")
+
+    for r in order:
+        if r not in rules:
+            raise ValueError(f"rule_priority contains unknown rule '{r}'")
+
+    if not any(rules.get(r, {}).get("group") == group for r in order):
+        raise ValueError(f"No rules for group '{group}' in rule_priority")
+
+    # per-rule checks
+    for rname, rdef in rules.items():
+        if "group" not in rdef:
+            raise ValueError(f"rule '{rname}' missing 'group'")
+        applies = rdef.get("applies_to_years")
+        if applies is not None:
+            for y in applies:
+                if not str(y).isdigit() or not (1 <= int(y) <= years_n):
+                    raise ValueError(f"rule '{rname}' has invalid year index '{y}' (1..{years_n})")
+        for k in ("conditions","calculation","else"):
+            if rdef.get(k) is not None:
+                validate_jsonlogic_node(rdef[k], path=f"$.{rname}.{k}")
+
+def assert_disjoint_years(selected_rules: List[str], all_rules: Dict[str, Any], years_full: List[str]) -> None:
+    """Ensure no two rules in the group claim the same year index."""
+    used: Dict[str, str] = {}
+    for r in selected_rules:
+        applies = all_rules[r].get("applies_to_years") or [str(i+1) for i in range(len(years_full))]
+        for y in applies:
+            if y in used:
+                raise ValueError(f"Rules '{used[y]}' and '{r}' both claim year index '{y}'. "
+                                 "Each year must be produced by exactly one rule.")
+            used[y] = r
+
+# ----------------- core runner -----------------
+def run_group(
+    df: pd.DataFrame,
+    rules_data: Dict[str, Any],
+    static_ctx: Dict[str, Any],
+    group: str,
+    *,
+    id_col: str,
+    formulary_col: str,
+    client: str,
+    outdir: str
+) -> Tuple[pd.DataFrame, pd.DataFrame, Optional[pd.DataFrame]]:
+    """
+    Run all rules for a group and return:
+      - final_df: ndc, formulary, group, year1..yearN
+      - status_df: client, ndc, group, rule, status
+      - errors_df (or None): ndc, group, rule, year_index, error
+    """
+    all_rules  = rules_data["rules"]
+    rule_order = rules_data["rule_priority"]
+    years_full = rules_data.get("years", [])
+    years_n    = len(years_full) or 5
+
+    selected = [r for r in rule_order if all_rules.get(r, {}).get("group") == group]
+    if not selected:
+        raise ValueError(f"No rules for group '{group}'")
+
+    assert_disjoint_years(selected, all_rules, years_full)
+
+    # Prepare executors
+    executors: Dict[str, JSONLogicRuleExecutor] = {
+        rname: JSONLogicRuleExecutor({**all_rules[rname], "name": rname})
+        for rname in selected
+    }
+    applies_for: Dict[str, List[str]] = {
+        rname: (all_rules[rname].get("applies_to_years") or [str(i+1) for i in range(years_n)])
+        for rname in selected
+    }
+
+    # Aggregators
+    ndc_to_formulary: Dict[str, Any] = {}
+    # (ndc, year_index) -> value
+    values: Dict[Tuple[str, str], Optional[float]] = {}
+    status_rows: List[Dict[str, Any]] = []
+    error_rows: List[Dict[str, Any]] = []
+
+    # Ensure id/formulary present
+    if id_col not in df.columns:
+        raise ValueError(f"Input CSV missing required id column: {id_col}")
+    if formulary_col not in df.columns:
+        raise ValueError(f"Input CSV missing required formulary column: {formulary_col}")
+
+    # Iterate rows
+    for _, row in df.iterrows():
+        # Build row dict with None for NaN
+        rowd = {k: (None if pd.isna(v) else v) for k, v in row.to_dict().items()}
+        ndc  = rowd.get(id_col)
+        if ndc is None:
+            # Skip rows without id
+            continue
+        ndc = str(ndc)
+        ndc_to_formulary.setdefault(ndc, rowd.get(formulary_col))
+
+        for rname in selected:
+            execu = executors[rname]
+            for yidx in applies_for[rname]:
+                val, branch, err, _ms = execu.execute_row(rowd, static_ctx, yidx)
+                if err:
+                    error_rows.append({
+                        "ndc": ndc,
+                        "group": group,
+                        "rule": rname,
+                        "year_index": yidx,
+                        "error": err
+                    })
+                    continue
+                values[(ndc, yidx)] = to_float_or_none(val)
+
+            # status per ndc per rule
+            status_rows.append({
+                "client": client,
+                "ndc": ndc,
+                "group": group,
+                "rule": rname,
+                "status": "completed"
+            })
+
+    # Build final wide DataFrame: ndc, formulary, group, year1..yearN
+    out_rows: List[Dict[str, Any]] = []
+    ndcs = sorted(ndc_to_formulary.keys())
+    for ndc in ndcs:
+        one = {
+            "ndc": ndc,
+            "formulary": ndc_to_formulary.get(ndc),
+            "group": group
+        }
+        for i in range(1, years_n+1):
+            one[f"year{i}"] = values.get((ndc, str(i)))
+        out_rows.append(one)
+
+    final_df  = pd.DataFrame(out_rows, columns=["ndc","formulary","group"] + [f"year{i}" for i in range(1, years_n+1)])
+    status_df = pd.DataFrame(status_rows, columns=["client","ndc","group","rule","status"])
+    errors_df = pd.DataFrame(error_rows, columns=["ndc","group","rule","year_index","error"]) if error_rows else None
+    return final_df, status_df, errors_df
+
+# ----------------- CLI -----------------
+def main():
+    set_error_only_logging()
+
+    ap = argparse.ArgumentParser("Group Runner (pandas)")
+    ap.add_argument("--input",  required=True, help="CSV input path (must include ndc + formulary + fields used by rules)")
+    ap.add_argument("--rules",  required=True, help="Rules JSON path")
+    ap.add_argument("--static", required=True, help="Static JSON path")
+    ap.add_argument("--group",  required=True, help="Group name (e.g., shifted_script)")
+    ap.add_argument("--id-col", default="NDC", help="Identifier column (e.g., NDC)")
+    ap.add_argument("--formulary-col", default="formulary", help="Formulary column")
+    ap.add_argument("--client", default="ClientA", help="Client id/name for status")
+    ap.add_argument("--outdir", default="outputs", help="Output directory")
+    ap.add_argument("--chunksize", type=int, default=0, help="Read CSV in chunks (0 = read all)")
+    args = ap.parse_args()
+
+    # Load configs
+    with open(args.rules, "r", encoding="utf-8") as f:
+        rules_data = json.load(f)
+    with open(args.static, "r", encoding="utf-8") as f:
+        static_ctx = json.load(f)
+
+    # Validate ruleset + group
+    try:
+        validate_ruleset(rules_data, args.group)
+    except Exception as e:
+        log.error(f"[RULES-ERROR] {e}")
+        raise SystemExit(1)
+
+    # Prepare outputs
+    os.makedirs(args.outdir, exist_ok=True)
+    out_final   = os.path.join(args.outdir, f"{args.group}__final.csv")
+    out_status  = os.path.join(args.outdir, f"{args.group}__status.csv")
+    out_errors  = os.path.join(args.outdir, f"{args.group}__errors.jsonl")
+
+    # Process (chunked or all)
+    final_parts: List[pd.DataFrame]  = []
+    status_parts: List[pd.DataFrame] = []
+    error_parts: List[pd.DataFrame]  = []
+
+    if args.chunksize and args.chunksize > 0:
+        for chunk in pd.read_csv(args.input, chunksize=args.chunksize):
+            final_df, status_df, errors_df = run_group(
+                chunk, rules_data, static_ctx, args.group,
+                id_col=args.id_col, formulary_col=args.formulary_col,
+                client=args.client, outdir=args.outdir
+            )
+            final_parts.append(final_df)
+            status_parts.append(status_df)
+            if errors_df is not None and not errors_df.empty:
+                error_parts.append(errors_df)
+        final_all  = pd.concat(final_parts, ignore_index=True).drop_duplicates(["ndc"])
+        status_all = pd.concat(status_parts, ignore_index=True)
+        errors_all = pd.concat(error_parts, ignore_index=True) if error_parts else None
+    else:
+        df = pd.read_csv(args.input)
+        final_all, status_all, errors_all = run_group(
+            df, rules_data, static_ctx, args.group,
+            id_col=args.id_col, formulary_col=args.formulary_col,
+            client=args.client, outdir=args.outdir
+        )
+
+    # Write outputs (atomic for CSVs). Errors as JSONL if present.
+    write_csv_atomic(final_all, out_final)
+    write_csv_atomic(status_all, out_status)
+    if errors_all is not None and not errors_all.empty:
+        with open(out_errors, "w", encoding="utf-8") as f:
+            for _, r in errors_all.iterrows():
+                f.write(json.dumps({k: (None if pd.isna(v) else v) for k, v in r.items()}, ensure_ascii=False) + "\n")
+
+    # Done
+    # (console stays quiet unless there were errors)
+
+if __name__ == "__main__":
+    main()
