@@ -1,0 +1,228 @@
+You said:
+You are great mongodb data modeling and I want yiu create ezch pattern why,how and when should be done 
+ChatGPT said:
+Thought for 15s
+
+got it, cnu — here’s a clear, practical cheat-sheet for the most used MongoDB schema design patterns. for each one: why (benefit), when (use it), how (quick way to implement) + a tiny JSON sketch. I’ll also drop a PBM/underwriting example where it helps.
+
+1) Approximation pattern
+
+Why: keep writes fast and documents small by storing good-enough summaries instead of precise, ever-changing values.
+When: high-velocity counters/metrics (clicks, daily totals, rolling windows) where exact per-event precision isn’t needed.
+How: update bucketed counters (e.g., per-minute or per-day fields) with $inc; reconcile later with batch.
+
+{ "ndc":"0001-1111", "day":"2025-09-19", "fills": 12837 }  // per-day approx counter
+
+
+Tip: combine with Bucket (time windows) and $inc with retryable writes.
+
+2) Attribute (a.k.a. “attribute bag”)
+
+Why: support sparse, evolving fields without schema churn.
+When: product/catalog/clinical attributes vary by item or grow over time.
+How: store a map of attributes (validated by app rules). Index the few you truly query.
+
+{
+  "drugId":"NDC-0001",
+  "attrs": { "strength":"10mg", "form":"tablet", "isSpecialty":true, "tempRange":"2-8C" }
+}
+
+
+Tip: create partial indexes on popular attributes ({ "attrs.form":1 } with a filter).
+
+3) Bucket pattern
+
+Why: reduce document count and index fan-out by grouping many small events into a single “bucket” document.
+When: telemetry, logs, claims, script events, IoT—many tiny docs by time or key.
+How: choose a bucket key + window (time, sequence, size). Append events into an array until full, then rollover.
+
+{
+  "ndc":"0001-1111", "day":"2025-09-19",
+  "events":[ {"t":"10:01","qty":1}, {"t":"10:02","qty":2} ... ]
+}
+
+
+Tip: index {ndc:1, day:1}; cap array length (e.g., 1–5K) to keep docs < 16MB.
+
+4) Computed (pre-aggregation)
+
+Why: serve read-optimized numbers instantly (dashboards/SLAs) instead of aggregating live.
+When: hot KPIs, leaderboards, “top-N”, client snapshots.
+How: maintain a write-side pipeline (Change Streams or batch) that writes summarized docs.
+
+{ "clientId":"A", "year":2026, "awpInflationPct": 7.4, "rxCount": 124_551 }
+
+
+Tip: keep the transformation idempotent; store sourceWatermark for rebuilds.
+
+5) Document versioning
+
+Why: auditability and “time-travel” per document instance.
+When: you must keep every change to a case/file (e.g., pricing case).
+How: one collection; each save creates a new doc with docId, version, validFrom/To, isLatest.
+
+{ "docId":"CASE-123", "version":5, "isLatest":true, "payload":{...}, "changedBy":"uw01", "changedAt": ISODate(...) }
+
+
+Tip: unique index {docId:1, version:1}; partial index for {"isLatest":true} for fast “current” queries.
+
+6) Extended reference
+
+Why: avoid joins for common lookups by duplicating a small subset of referenced fields.
+When: you frequently need a name/code with a foreign id (client, formulary, ndc).
+How: embed “shadow” fields next to the FK and refresh via CDC or nightly job.
+
+{
+  "opportunityId":"OP-9",
+  "clientId":"C123", "client": { "name":"Acme Health", "tier":"Gold" }  // extended ref
+}
+
+
+Tip: track client.version or client.lastUpdated to detect staleness.
+
+7) Outlier (separate rare, large fields)
+
+Why: keep the main document small and hot-cacheable; move heavy/rare blobs elsewhere.
+When: 1–5% of records have huge “notes/attachments/long arrays”.
+How: split into two collections or subdocs; fetch outliers only when needed.
+
+// main
+{ "_id":"CASE-1", "status":"Approved", "hasLargeNotes":true }
+
+// outlier
+{ "caseId":"CASE-1", "notes":[ "...very long..." ] }
+
+
+Tip: build API to fetch both in one call when required.
+
+8) Polymorphic (single collection, multiple shapes)
+
+Why: simplify queries/pipelines across related types; share indexes.
+When: several close variants (retail/mail/specialty rate docs) with 80% overlap.
+How: store a type discriminator and per-type fields.
+
+{ "type":"RetailRate", "ndc":"...", "r30": {...} }
+{ "type":"MailRate",   "ndc":"...", "mail": {...} }
+
+
+Tip: compound indexes include {type:1, key:1}; validate with per-type JSON Schema.
+
+9) Preallocated (reservation)
+
+Why: guarantee unique sequential/structured ids or room for growth; mitigate contention.
+When: human-readable IDs, ticket ranges, sharded writers.
+How: keep a counters collection; allocate blocks atomically with $inc/findOneAndUpdate.
+
+// counters
+{ "_id":"CASE_SEQ", "next": 100200 }
+// on create -> reserve 100..149
+
+
+Tip: allocate ranges per writer to reduce contention under load.
+
+10) Schema versioning (evolution over time)
+
+Why: change schema safely without downtime.
+When: you’re adding/renaming fields or changing types over months.
+How: include schemaVersion; readers handle 2–3 recent versions; writers emit current.
+
+{ "schemaVersion": 3, "ndc":"...", "ratesV3": {...} }
+
+
+Tip: create read adapters that normalize to a canonical shape in your DAL.
+
+11) Subset (popular fields only)
+
+Why: fast list pages & narrow network payloads.
+When: UIs first show a table of 10–20 columns, details on click.
+How: maintain a “summary” doc per entity with the fields needed for the list; keep full detail elsewhere.
+
+// summary
+{ "caseId":"CASE-9", "client":"Acme", "status":"Review", "updatedAt": ... }
+
+// detail
+{ "caseId":"CASE-9", "allFields":{...lots...} }
+
+
+Tip: project with $project or store two collections; index only list columns in the summary.
+
+12) Tree & graph
+
+Why: efficient hierarchy/relationship queries.
+When: formulary → drug class → NDC, org charts, dependency trees.
+How (common options):
+
+Parent reference: each node stores parentId (simple, needs $graphLookup for deep).
+
+Materialized path: store "path":"root/class/subclass" string; prefix index for fast subtree.
+
+Adjacency + $graphLookup: dynamic traversal in aggregation.
+
+{ "_id":"NDC-1", "parentId":"CLASS-42", "path":"ROOT/THERAPY/CLASS-42" }
+
+
+Tip: for frequent subtree reads, materialized path with {path:1} index is your friend.
+
+13) Single-view (read model / CQRS)
+
+Why: unify data from many sources into one query-optimized document per business key.
+When: dashboards, “client 360”, underwriting case overview.
+How: build an ingestion/ETL that denormalizes source collections into a single “view” doc per key.
+
+{
+  "caseId":"CASE-77",
+  "client": {...},
+  "pricing": {...},
+  "rebates": {...},
+  "riskSignals": {...},
+  "lastBuildAt": ISODate(...)
+}
+
+
+Tip: refresh with Change Streams; include sourceVersions for lineage.
+
+choosing quickly (rules of thumb)
+
+Write heavy → Bucket, Approximation, Outlier, Subset.
+
+Read heavy → Computed, Single-view, Extended reference.
+
+Evolving schema → Attribute, Schema versioning, Polymorphic.
+
+Audit/time-travel → Document versioning.
+
+Hierarchy/relationships → Tree & graph.
+
+IDs & throughput → Preallocated.
+
+indexing & ops tips (applies to most patterns)
+
+Keep hot indexes narrow; prefer {partitionKey:1, timeOrKey:1}.
+
+Use TTL on ephemeral buckets/approximations if you only keep recent windows.
+
+Watch document size (<16MB) and array growth (cap or split).
+
+For denormalization (Extended ref / Single-view), run rebuilders and store a watermark.
+
+tiny PBM/underwriting mapping
+
+daily script counts → Bucket + Approximation
+
+client snapshot dashboards (AWP/WAC/MAF) → Computed + Single-view
+
+case audit (every edit) → Document versioning
+
+drug attributes varying by manufacturer → Attribute
+
+frequently read client name/tier with clientId → Extended reference
+
+big attachments/explanations on few cases → Outlier
+
+formulary/class hierarchies → Tree & graph
+
+evolving rate JSON → Schema versioning / Polymorphic
+
+if you want, I can turn this into a printable 1-pager or add code templates (indexes + CRUD patterns) for any two patterns you’re adopting first.
+
+ChatGPT can make mistakes. Check important info. See Cookie Preferences.
