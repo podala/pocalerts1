@@ -1,0 +1,35 @@
+{
+  "years": ["2025", "2026", "2027", "2028", "2029"],
+  "rule_priority": ["shifted_awp_rule"],
+  "rules": {
+    "shifted_awp_rule": {
+      "group": "shifted_awp",
+      "applies_to_years": ["1", "2", "3", "4", "5"],
+
+      "conditions": {
+        "all": [
+          { "op": "eq", "left": { "var": "$.selected_sp_code" }, "right": "Y" },
+          { "op": "eq", "left": { "var": "$.Inclusion_sp_code" }, "right": "N" }
+        ]
+      },
+
+      "calculation": 0,
+
+      "else": {
+        "op": "mul",
+        "args": [
+          { "op": "mul", "args": [
+            { "op": "coalesce", "args": [ { "op": "var", "path": "$.Rates_awp_per_qty{year}" }, 0 ] },
+            { "op": "coalesce", "args": [ { "op": "var", "path": "$.Qty{year}" },               0 ] }
+          ]},
+
+          { "op": "coalesce", "args": [ { "op": "var", "path": "$.Aba_pp_{year}" },             1 ] },
+          { "op": "coalesce", "args": [ { "op": "var", "path": "$.table_{year}" },              1 ] },
+          { "op": "coalesce", "args": [ { "op": "var", "path": "$.wegovy_pp_{year}" },          1 ] },
+          { "op": "coalesce", "args": [ { "op": "var", "path": "$.Partb_Rebate_adj" },          1 ] },
+          { "op": "coalesce", "args": [ { "op": "var", "path": "$.custom_rebate_Adjustment" },  1 ] }
+        ]
+      }
+    }
+  }
+}
