@@ -1,0 +1,255 @@
+"""
+JSONLogic Core (with advanced coalesce variants)
+------------------------------------------------
+Supported ops (minimal set used by your rules):
+  - add, mul
+  - eq, and
+  - if (node/op form)
+  - coalesce           : None-only defaulting
+  - coalesce_blank     : None OR blank-string defaulting
+  - coalesce0          : None OR blank-string OR numeric-zero defaulting
+  - substr             : safe substring for string logic
+
+Other features:
+  - {year} placeholder replacement in strings
+  - row/static var resolution with default
+"""
+
+from __future__ import annotations
+import copy
+import logging
+from typing import Any, Dict, Union, List
+
+log = logging.getLogger("JSONLOGIC")
+Scalar = Union[int, float, str, bool, None]
+
+# ----------------- helpers -----------------
+def _is_scalar(x: Any) -> bool:
+    return isinstance(x, (int, float, str, bool)) or x is None
+
+def _coerce_num(x: Any, default: float = 0.0) -> float:
+    """Best-effort numeric coercion with a default on failure."""
+    try:
+        if x is None:
+            return default
+        if isinstance(x, (int, float)):
+            return float(x)
+        s = str(x).strip()
+        if s == "":
+            return default
+        # prefer float for uniform downstream math
+        return float(s)
+    except Exception:
+        return default
+
+def _normalize_bool(x: Any) -> bool:
+    """Lenient boolean normalization for condition checks."""
+    if isinstance(x, bool):
+        return x
+    if x is None:
+        return False
+    s = str(x).strip().lower()
+    if s in ("yes", "y", "true", "1"):
+        return True
+    if s in ("no", "n", "false", "0", ""):
+        return False
+    try:
+        return bool(float(s))
+    except Exception:
+        return bool(s)
+
+# ----------------- placeholders -----------------
+def replace_year_placeholders(obj: Any, year_index: str) -> Any:
+    """Recursively replace '{year}' with the provided year_index."""
+    if isinstance(obj, dict):
+        return {k: replace_year_placeholders(v, year_index) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [replace_year_placeholders(v, year_index) for v in obj]
+    if isinstance(obj, str):
+        return obj.replace("{year}", year_index)
+    return obj
+
+# ----------------- var/path resolution -----------------
+def resolve_var(path: str, row: Dict[str, Any], static: Dict[str, Any], default=None):
+    """
+    Resolve '$.Key' by checking row -> static -> default.
+    Example: {"var":"$.ScriptsYear{year}"} after prepare_rule_for_year(...)
+    """
+    key = path.replace("$.", "")
+    if key in row:
+        return row[key]
+    if key in static:
+        return static[key]
+    return default
+
+# ----------------- operators -----------------
+def _op_add(*xs):
+    return sum((_coerce_num(x, 0.0) for x in xs), 0.0)
+
+def _op_mul(*xs):
+    v = 1.0
+    for x in xs:
+        v *= _coerce_num(x, 1.0)
+    return v
+
+def _op_eq(a, b):
+    return a == b
+
+def _op_and(*xs):
+    return all(_normalize_bool(x) for x in xs)
+
+def _op_coalesce(*xs):
+    """Return first value that is not None (zeros and blanks are kept)."""
+    for v in xs:
+        if v is not None:
+            return v
+    return None
+
+def _op_coalesce_blank(*xs):
+    """
+    Return first value that is not None and not a blank/whitespace-only string.
+    Keeps numeric zeros (0) as valid values.
+    """
+    for v in xs:
+        if v is None:
+            continue
+        if isinstance(v, str) and v.strip() == "":
+            continue
+        return v
+    return None
+
+def _op_coalesce0(x, default):
+    """
+    Return `default` if x is:
+      - None
+      - blank/whitespace string
+      - numerically zero (0, "0", "0.0")
+    Otherwise return x as-is.
+    """
+    if x is None:
+        return default
+    if isinstance(x, str):
+        s = x.strip()
+        if s == "":
+            return default
+        try:
+            if float(s) == 0.0:
+                return default
+        except Exception:
+            # non-numeric non-blank string -> keep as-is
+            return x
+        return x
+    # non-string
+    try:
+        if float(x) == 0.0:
+            return default
+    except Exception:
+        pass
+    return x
+
+def _op_substr(s, start, length=None):
+    """
+    Safe substring:
+      substr(value, start, length) -> string
+    - value is coerced to str (None -> "")
+    - start/length are ints; on errors returns ""
+    """
+    try:
+        s = "" if s is None else str(s)
+        start = int(start)
+        if length is None:
+            return s[start:]
+        return s[start:start + int(length)]
+    except Exception:
+        return ""
+
+# Operator registry
+OPS = {
+    "add": _op_add,
+    "mul": _op_mul,
+    "eq": _op_eq,
+    "and": _op_and,
+    "coalesce": _op_coalesce,           # None-only defaulting
+    "coalesce_blank": _op_coalesce_blank, # None OR "" defaulting
+    "coalesce0": _op_coalesce0,         # None OR "" OR numeric zero defaulting
+    "substr": _op_substr,
+}
+ALLOWED_OPS = set(OPS.keys()) | {"if"}  # 'if' handled specially
+
+# ----------------- validator -----------------
+def validate_jsonlogic_node(node: Any, *, path: str = "$") -> None:
+    """Light validator to block unsupported ops and malformed nodes. Raises ValueError on violation."""
+    if _is_scalar(node):
+        return
+    if isinstance(node, list):
+        for i, it in enumerate(node):
+            validate_jsonlogic_node(it, path=f"{path}[{i}]")
+        return
+    if isinstance(node, dict):
+        if "op" in node:
+            op = node["op"]
+            if op not in ALLOWED_OPS:
+                raise ValueError(f"Unsupported op '{op}' at {path}")
+        if "var" in node and not isinstance(node["var"], str):
+            raise ValueError(f"'var' must be string at {path}")
+        if "path" in node and not isinstance(node["path"], str):
+            raise ValueError(f"'path' must be string at {path}")
+        for k, v in node.items():
+            validate_jsonlogic_node(v, path=f"{path}.{k}")
+        return
+    raise ValueError(f"Unsupported node type {type(node)} at {path}")
+
+# ----------------- evaluator -----------------
+def eval_node(node: Any, row: Dict[str, Any], static: Dict[str, Any], *, year_index: str) -> Any:
+    """Evaluate a JSONLogic-like node."""
+    if _is_scalar(node):
+        return node
+
+    if isinstance(node, list):
+        return [eval_node(x, row, static, year_index=year_index) for x in node]
+
+    if isinstance(node, dict):
+        # var/path
+        if "var" in node or "path" in node:
+            path = node.get("path") or node.get("var")
+            default = node.get("default")
+            return resolve_var(path, row, static, default)
+
+        # if as node
+        if "if" in node:
+            blk = node["if"] or {}
+            cond_val = eval_node(blk.get("cond"), row, static, year_index=year_index)
+            branch = blk.get("then") if _normalize_bool(cond_val) else blk.get("else")
+            return eval_node(branch, row, static, year_index=year_index)
+
+        # generic op
+        if "op" in node:
+            op = node["op"]
+
+            # if as op (alternate style)
+            if op == "if":
+                cond_val = eval_node(node.get("cond"), row, static, year_index=year_index)
+                branch = node.get("then") if _normalize_bool(cond_val) else node.get("else")
+                return eval_node(branch, row, static, year_index=year_index)
+
+            # binary style: {"op":"eq","left":...,"right":...}
+            if "left" in node or "right" in node:
+                l = eval_node(node.get("left"),  row, static, year_index=year_index)
+                r = eval_node(node.get("right"), row, static, year_index=year_index)
+                if op not in OPS:
+                    raise ValueError(f"Unsupported op '{op}'")
+                return OPS[op](l, r)
+
+            # n-ary args list
+            args = node.get("args", [])
+            vals = [eval_node(a, row, static, year_index=year_index) for a in args]
+            if op not in OPS:
+                raise ValueError(f"Unsupported op '{op}'")
+            return OPS[op](*vals)
+
+    raise ValueError(f"Bad node: {node!r}")
+
+# ----------------- rule per year -----------------
+def prepare_rule_for_year(rule_obj: Dict[str, Any], year_index: str) -> Dict[str, Any]:
+    """Deep-copy rule and replace {year} placeholders."""
+    return replace_year_placeholders(copy.deepcopy(rule_obj), year_index)
