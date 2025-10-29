@@ -1,0 +1,104 @@
+#!/usr/bin/env python3
+"""
+Local Databricks / PySpark Rule Executor — Test Mode
+---------------------------------------------------
+✅ Uses in-memory DataFrame (hard-coded sample data)
+✅ Uses in-memory SQL rules (shifted_script_2025–2029)
+✅ Verifies one-pass execution via df_out.explain(True)
+"""
+
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+import re
+import time
+
+# ----------------------------------------------------------------------
+# Initialize Spark
+# ----------------------------------------------------------------------
+spark = (
+    SparkSession.builder
+        .appName("PBM_Rule_Executor_LocalTest")
+        .config("spark.databricks.photon.enabled", "true")
+        .config("spark.sql.adaptive.enabled", "true")
+        .config("spark.sql.adaptive.skewJoin.enabled", "true")
+        .getOrCreate()
+)
+
+# ----------------------------------------------------------------------
+# Hard-coded sample input DataFrame
+# ----------------------------------------------------------------------
+data = [
+    # row_id, input_Shift, MSB, Generic_Ind, msb_percentage,
+    # ScriptsYear2025, ShiftScriptsNoCoTYear2025, ShiftScriptsCoTYear2025, table_wgt, table_waf, table_Year2025,
+    # ScriptsYear2026, ShiftScriptsNoCoTYear2026, ShiftScriptsCoTYear2026, table_Year2026,
+    # ScriptsYear2027, ShiftScriptsNoCoTYear2027, ShiftScriptsCoTYear2027, table_Year2027,
+    # ScriptsYear2028, ShiftScriptsNoCoTYear2028, ShiftScriptsCoTYear2028, table_Year2028,
+    # ScriptsYear2029, ShiftScriptsNoCoTYear2029, ShiftScriptsCoTYear2029, table_Year2029
+    ("row1", "No", 1, "B", 1.1,
+     100, 80, 90, 0.5, 0.5, 1.0,
+     120, 95, 105, 1.0,
+     140, 110, 120, 1.0,
+     160, 130, 140, 1.0,
+     180, 150, 160, 1.0),
+
+    ("row2", "Yes", 0, "G", 1.0,
+     200, 150, 180, 0.6, 0.4, 1.1,
+     220, 160, 190, 1.1,
+     240, 170, 200, 1.2,
+     260, 180, 210, 1.3,
+     280, 190, 220, 1.4)
+]
+
+cols = [
+    "row_id", "input_Shift", "MSB", "Generic_Ind", "msb_percentage",
+    "ScriptsYear2025", "ShiftScriptsNoCoTYear2025", "ShiftScriptsCoTYear2025", "table_wgt", "table_waf", "table_Year2025",
+    "ScriptsYear2026", "ShiftScriptsNoCoTYear2026", "ShiftScriptsCoTYear2026", "table_Year2026",
+    "ScriptsYear2027", "ShiftScriptsNoCoTYear2027", "ShiftScriptsCoTYear2027", "table_Year2027",
+    "ScriptsYear2028", "ShiftScriptsNoCoTYear2028", "ShiftScriptsCoTYear2028", "table_Year2028",
+    "ScriptsYear2029", "ShiftScriptsNoCoTYear2029", "ShiftScriptsCoTYear2029", "table_Year2029"
+]
+
+df_base = spark.createDataFrame(data, cols)
+print(f"✅ Created base DataFrame with {df_base.count()} rows and {len(df_base.columns)} columns")
+
+# ----------------------------------------------------------------------
+# Hard-coded SQL rule map (like from Delta rule catalog)
+# ----------------------------------------------------------------------
+sql_map_total = {}
+
+for year in ["2025", "2026", "2027", "2028", "2029"]:
+    sql_map_total[f"shifted_script_{year}"] = f"""
+    (CASE WHEN (`input_Shift` = 'No')
+          THEN `ScriptsYear{year}`
+          ELSE (
+                  (
+                    (coalesce(`ShiftScriptsNoCoTYear{year}`,0) * coalesce(`table_wgt`,0)) +
+                    (coalesce(`ShiftScriptsCoTYear{year}`,0) * coalesce(`table_waf`,0))
+                  )
+                  * coalesce(`table_Year{year}`,1)
+                  * CASE WHEN (`MSB` = 1 AND `Generic_Ind` = 'B')
+                         THEN coalesce(`msb_percentage`,1)
+                         ELSE 1 END
+             )
+     END)
+    """
+
+# ----------------------------------------------------------------------
+# Build single fused projection
+# ----------------------------------------------------------------------
+select_exprs = ["row_id"] + [f"{sql} AS `{col}`" for col, sql in sql_map_total.items()]
+df_out = df_base.selectExpr(*select_exprs)
+
+# ----------------------------------------------------------------------
+# Inspect Execution Plan
+# ----------------------------------------------------------------------
+print("\n🔍 Execution Plan (to verify single pass):")
+df_out.explain(True)
+
+# ----------------------------------------------------------------------
+# Execute & show results
+# ----------------------------------------------------------------------
+start = time.time()
+df_out.show(truncate=False)
+end = time.time()
+print(f"✅ Completed rule execution in {round(end-start, 3)} seconds")
