@@ -1,0 +1,22 @@
+SELECT 
+    a.opportunityId,
+    a.ndc,
+    a.year,
+    a.channel,
+    a.metric,
+    a.value AS value_run_01,
+    b.value AS value_run_02,
+    CASE 
+        WHEN a.value = b.value THEN 'NO CHANGE'
+        ELSE 'CHANGED'
+    END AS status
+FROM model_output a
+JOIN model_output b
+    ON a.opportunityId = b.opportunityId
+   AND a.ndc = b.ndc
+   AND a.year = b.year
+   AND a.channel = b.channel
+   AND a.metric = b.metric
+WHERE a.runId = 'run_2025_01'
+  AND b.runId = 'run_2025_02'
+  AND (a.value <> b.value OR a.value IS NULL OR b.value IS NULL);
