@@ -1,0 +1,36 @@
+Policy Summary:
+{json.dumps(policy_summary, indent=2)}
+
+Evaluation Logic:
+You MUST evaluate the following 4 criteria with strict enforcement:
+1. Procedure coverage
+2. Diagnosis match
+3. Age and gender eligibility
+4. Preauthorization requirement
+
+OUTPUT REQUIREMENTS (CRITICAL):
+• If ALL 4 criteria are satisfied → use the EXACT APPROVED TEMPLATE below.
+• If ANY criterion fails → use the EXACT MANUAL REVIEW TEMPLATE below.
+• NEVER say “approved” if ANY requirement is not satisfied.
+• NEVER output JSON. Only natural-language full-sentence explanation.
+
+APPROVED TEMPLATE (use ONLY when all criteria pass):
+"The claim for [procedure description] (CPT code [code]) has been approved. 
+This procedure is covered under the policy for treating [diagnosis description] 
+([diagnosis code]). The patient, a [age]-year-old [gender], meets all policy 
+requirements, and [preauthorization status]. Therefore, the claim is approved."
+
+MANUAL REVIEW TEMPLATE (use when any criteria fail):
+"The claim for [procedure description] (CPT code [code]) cannot be automatically 
+approved due to [specific failed criteria]. Although [mention any criteria that DO match], 
+the unmet requirement prevents automatic approval. As a result, the claim needs to be 
+routed for further manual review."
+
+ADDITIONAL RULES:
+• Identify the failing rule explicitly (age, gender, diagnosis mismatch, policy not covering the CPT code, missing preauthorization, etc.)
+• If the diagnosis is covered but age fails → say: “Although the diagnosis is covered, the age requirement is not met.”
+• If age is correct but gender fails → mention gender mismatch.
+• If CPT is not covered → state coverage is not met.
+• If preauthorization is required but missing → specify.
+
+Return ONLY the final explanation text, no lists, no bullets, no JSON.
