@@ -1,0 +1,21 @@
+import pandas as pd
+import os, time
+from tqdm import tqdm  # pip install tqdm
+
+def merge_excels_to_one(input_files, output_file):
+    start = time.time()
+    with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
+        for file_path in tqdm(input_files, desc="Merging Excel files"):
+            excel = pd.ExcelFile(file_path)
+            for sheet_name in excel.sheet_names:
+                df = excel.parse(sheet_name)
+                new_sheet_name = f"{os.path.splitext(os.path.basename(file_path))[0]}_{sheet_name}"
+                df.to_excel(writer, sheet_name=new_sheet_name[:31], index=False)
+    print(f"\n✅ Merge complete → {output_file}")
+    print(f"⏱ Total time: {time.time() - start:.2f} seconds")
+
+# Example usage
+input_files = ["data1.xlsx", "data2.xlsx", "data3.xlsx"]
+output_file = "merged_output.xlsx"
+
+merge_excels_to_one(input_files, output_file)
