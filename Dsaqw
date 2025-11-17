@@ -1,0 +1,14 @@
+| **Field Name**        | **Description / Business Meaning**                                                                                        |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| **RPT**               | Report type or report identifier used in the PBM/RPT system to classify reporting modules (e.g., Trend, Rebate, Pricing). |
+| **Client**            | The client or customer entity for whom the PBM underwriting or pricing model is being executed.                           |
+| **Opp_id**            | Opportunity ID – unique identifier for a client opportunity or pricing model submission (e.g., OPP_2025_001).             |
+| **Forecast**          | Represents forecast data or model output projection, usually covering multiple years (e.g., 2025–2029).                   |
+| **Model**             | Refers to the specific actuarial or underwriting model being run (e.g., AWP Inflation Model, Rebate Model).               |
+| **RunID**             | Unique identifier for each model execution run; used for tracking re-runs and results comparison.                         |
+| **Run specific data** | Input data that changes between runs — user overrides, scenario-based parameters, or temporary adjustments.               |
+| **Master data**       | Static, version-controlled data shared across runs — includes reference values, formulary tables, and baseline factors.   |
+| **Ratepqty**          | Rate per quantity or pricing rate applied per script, per claim, or per 1000 units — used for calculation of totals.      |
+| **RA out**            | Rebate analysis output; represents the post-model rebate allocation or computation output.                                |
+| **Ratebuildup**       | Detailed rate composition (Base, MAF, PPL, PPA, etc.) that builds up the final pricing structure for underwriter review.  |
+| **Biosim**            | Biosimilar data and analysis section; evaluates alternative drug pricing or substitution impact for biosimilar products.  |
