@@ -1,0 +1,165 @@
+Excellent — now that you shared the **Pre-Sale Underwriting RFP Response Process** workflow diagram, I will:
+
+### **1. Convert this manual workflow into an AI-enabled multi-agent version**
+
+### **2. Update the UI mock to align step-by-step with this business process**
+
+### **3. Show where each agent gets triggered automatically**
+
+---
+
+# 🏛 **Current Manual Process (From Your Image)**
+
+### **Sales / Account Manager**
+
+1. Enter client intel in sales pipeline
+2. Write Sales Strategy / Business Plan
+3. Collect required documentation
+4. Request underwriting assignment
+
+### **Workflow Coordinator**
+
+5. Manage request for underwriting
+6. Assign underwriter
+
+### **Underwriter**
+
+7. Review RFP with Sales
+8. Request baseline forecast
+9. Collaborate with repricing analysts
+10. Receive baseline forecast
+11. Configure rebates
+12. Load inputs into RPT
+13. Setup business review
+14. Calculate financial guarantees
+15. Benchmark financial guarantees
+16. Conduct business review
+17. Create P&L / UW summary
+18. Work BAFO rounds
+19. END
+
+---
+
+# 🤖 **AI Multi-Agent Enhanced Flow (Proposed Version)**
+
+### **Trigger Event**
+
+📥 Opportunity Created or RFP Received in Salesforce → EventHub → **AI Underwriting Orchestrator**
+
+---
+
+### **Agent-Driven Workflow**
+
+| Step | Agent                           | AI Automated Action                          | Output                                  |
+| ---- | ------------------------------- | -------------------------------------------- | --------------------------------------- |
+| 1    | **Document Intelligence Agent** | Read RFP/RFI, SSD, competitor info           | Summary, key numbers                    |
+| 2    | **Claims Analytics Agent**      | Pull claim history, channel mix, trends      | PMPM baseline                           |
+| 3    | **Compliance Agent**            | Review formulary & state rules               | Risk & constraint summary               |
+| 4    | **Repricing Decision Agent**    | Evaluate repricing need                      | Repricing score & reasoning             |
+| 5    | **Rebate Strategy Agent**       | Auto rebate scenario modeling                | Conservative/Balance/Aggressive options |
+| 6    | **PnL Simulation Agent**        | Auto build P&L model                         | Current vs proposed output              |
+| 7    | **Recommendation Agent**        | Generate underwriter summary and BAFO inputs | PPT/PDF/Email ready                     |
+
+---
+
+# 🎨 **Updated UI Mock (Aligned to Your Process)**
+
+```
+====================================================================================
+ AI UNDERWRITER ASSIST - RFP RESPONSE WORKBENCH
+ Opportunity: ABC Health Insurance | Stage: Repricing | Case ID: RFP-2025-1182
+====================================================================================
+
+Workflow Status (Auto-progressed by Agents)
+-------------------------------------------------------------------------------------
+[✔] RFP/SSD Processed                Document Agent
+[✔] Claims Baseline Retrieved        Claims Analytics Agent
+[✔] Regulation & Compliance Check    Compliance Agent
+[✔] Repricing Recommendation         Decision Agent
+[⟳] Rebate Modeling in Progress      Rebate Agent
+[⟳] P&L Simulation Running           PnL Agent
+[ ] BAFO Business Review             Human + Recommendation Agent
+
+ETA Remaining: 00:26 seconds
+-------------------------------------------------------------------------------------
+
+🔥 Key Findings Snapshot (UW-ready)
+-------------------------------------------------------------------------------------
+Client seeking competitive repricing with PMPM target $83.5–87 (7–9% savings)
+Specialty spend 68% vs benchmark 50% | GDR 84% vs 88% | High Hep-C
+
+Repricing Recommendation: YES (Score 0.82 strong)
+-------------------------------------------------------------------------------------
+
+📊 Claims Baseline
+-------------------------------------------------------------------------------------
+Top channel mix: Mail 42.7k | Retail 30 28.5k | Specialty 9.9k
+Current PMPM: $101.92 | Benchmark: $96.13 | Variance: +6.02%
+-------------------------------------------------------------------------------------
+
+💸 Rebate Scenarios (Auto-generated)
+-------------------------------------------------------------------------------------
+| Option         | PMPM Gain | PBM Margin | Risk |
+|----------------|-----------|------------|------|
+| Conservative   | +$4.62    | 3.1%       | Low  |
+| Balanced ⭐     | +$7.91    | 4.4%       | Med  |
+| Aggressive     | +$9.82    | 6.1%       | High |
+
+[Select Scenario]  [Ask AI Why]  [Run Custom Simulation]
+-------------------------------------------------------------------------------------
+
+📦 P&L Summary (Auto-refresh)
+-------------------------------------------------------------------------------------
+Comparison chart: Current vs Proposed vs BAFO
+[Download as Excel] [Generate BAFO Slide Deck] [Submit to Sales]
+-------------------------------------------------------------------------------------
+```
+
+---
+
+# ⭐ **Where Agents Trigger Automatically in Your Real Workflow**
+
+```
+Sales uploads RFP / SSD
+      ↓
+AI Orchestrator triggers DocAgent + ClaimsAgent + ComplianceAgent
+      ↓ (Parallel processing)
+Auto Repricing Decision made
+      ↓
+RebateAgent + PnLAgent run simulations
+      ↓
+RecommendationAgent creates UW Summary & BAFO Exhibit
+      ↓
+Underwriter reviews & approves
+      ↓
+Sales receives final BAFO package
+```
+
+---
+
+# 🏆 **Value Result**
+
+| Current                       | With AI Multi-Agent      |
+| ----------------------------- | ------------------------ |
+| Weeks to complete             | Hours                    |
+| Manual reading & spreadsheets | Automated reasoning      |
+| Experience driven             | Standardized repeatable  |
+| No traceability               | Agent step audit trail   |
+| Late BAFO insights            | Early proactive strategy |
+
+---
+
+# 📍 Next Step Options
+
+Which should I produce next?
+
+### **A. Agent-to-Agent JSON Contract (input/output format)**
+
+### **B. LangGraph Planner → Agent Execution Code Example**
+
+### **C. Real PPT Slide Sample auto-generated for BAFO**
+
+### **D. End-to-End Architecture Diagram (production deployment)**
+
+Reply with **A / B / C / D**
+(or **ALL**) 🌟
