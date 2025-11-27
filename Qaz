@@ -1,0 +1,51 @@
+Here you go — **clean, professional emoji-icons** for each monitoring category and each bullet.
+(If you want image-icons/PNG/SVG style, I can also generate those.)
+
+---
+
+# **📘 2. Key Things to Monitor — With Icons**
+
+## **🔹 LLM + Assistant Layer**
+
+* 🧮 **Query tokens used** (input/output)
+* 🧭 **Assistant selected** & routing decision
+* ⏱️ **Response time** per assistant
+* 📄 **Prompt version** & retry count
+* ✔️/❌ **Output validity** (structured? failed function call?)
+
+---
+
+## **🔹 Agent Execution Layer**
+
+* 🟢🕒 **Agent start/end timestamps**
+* 🧰 **Tool/API usage logs** per agent
+* 🚦 **Tool response latency**
+* 🔁 **Failure / fallback rate** (e.g., SSD tool down → routed to fallback)
+
+---
+
+## **🔹 Orchestrator (LangGraph)**
+
+* 🔀 **Node transitions**
+* 🧩 **Execution paths taken**
+* 🔄 **Cross-agent data flow** trace
+* 📤 **Final output** vs **intermediate outputs**
+
+---
+
+## **🔹 System-Level Metrics**
+
+* ❗ **Error %** per assistant or agent
+* 🩺 **MCP tool health** (latency, uptime)
+* 🚧 **API gateway rate limits**
+* 🔐 **Auth / SSO issues**
+
+---
+
+If you want **UI-ready icons (PNG/SVG)** for each of these, tell me:
+✔ flat icons
+✔ 3D icons
+✔ outline icons
+✔ colored icons
+
+I can generate a full set for your dashboard.
