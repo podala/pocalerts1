@@ -1,0 +1,93 @@
+**Enterprise AI Underwriting: End-to-End Logical Flow – SSD to RRF**
+
+```text
+👤 Underwriter (User Identity)
+│
+│  "Can you review the SSD document for client XYZ?"
+▼
+🧭 Assistant Layer (Planner / Intent Router)
+│  - Detects intent: "Document Review"
+│  - Extracts: doc_type = SSD, client = XYZ
+│  - Loads session memory from Redis/LangGraph
+│  - Flags context: doc_scope = ["SSD"]
+│  - Routes task → Document Assistance
+▼
+📄 Document Assistance (Planner)
+│  - Filters request to SSD only
+│  - Annotates memory with target_doc = SSD
+│  - Delegates to: Document Agent
+▼
+🤖 Document Agent (ID: doc-agent-001)
+│  - Performs RAG over SSD vector database
+│  - Auth via: client_id = doc-agent-001, secret managed by Vault/MCP
+│  - Filters by: client = XYZ, doc_type = SSD
+│  - Returns:
+│     • doc_status = READY / MISSING
+│     • insights: regulatory alignment, gaps
+│  - Writes signed output + doc_insights to memory
+├───────────────┐
+│               ▼
+│       📧 Email Agent (email-001) [if MISSING]
+│       - Drafts request to Sales for SSD
+│       - Logs who triggered request
+│       - Auth via client_id = email-001 via secure API gateway
+│
+▼
+✅ Human-in-the-Loop Review
+│  - Underwriter reviews SSD summary & gaps
+│  - Confirms readiness to proceed
+▼
+🧠 Orchestrator (LangGraph FSM)
+│  - Reads: doc_scope = SSD, doc_status, user_approval
+│  - Stores session approval & insights
+│  - Emits signal: READY_FOR_RRF
+▼
+🔄 RRF Assistance (Planner, ID: rrf-planner-01)
+│  - Verifies preconditions for repricing
+│  - Extracts: SSD validation, client insights
+│  - Confirms eligibility or flags blockers
+▼
+📝 RRF Agent (rrf-agent-007)
+│  - Fills RRF form using stored context
+│  - Auth via: rrf-agent-007 credentials from Vault
+│  - Validates template completion
+│  - Submits via API or queues for review
+│  - Logs submission metadata
+```
+
+---
+
+**Support Infrastructure**
+
+🔐 Identity:
+
+* 👤 User ID (Underwriter)
+* 🤖 Agent IDs (doc-agent-001, rrf-agent-007, email-001)
+* 🔐 Auth via: client_id + secret from Vault / Secret Manager
+
+🧠 Memory:
+
+* Redis or LangGraph memory for: doc_scope, approvals, insights
+* Shared per-session and agent trace
+
+📈 Observability:
+
+* OpenTelemetry spans for each step
+* Logs: intent match, tool call, result status
+* Audit trail for all decisions
+
+🔁 Control & Retry:
+
+* Email fallback if missing docs
+* Retry-safe RRF planner with gating logic
+
+📡 Secure Tool Invocation:
+
+* MCP / API Gateway governs access
+* Client credentials injected per agent call
+* Agent-level RBAC enforced via policies
+
+✅ Human Oversight:
+
+* Every phase checkpointed via underwriter decision
+* Configurable approval flows before submission
