@@ -1,0 +1,124 @@
+# Enterprise-Ready Architecture for AI-Powered Underwriting RFP Automation
+
+## 1. Executive Summary
+
+This document presents an enterprise-level end-to-end architecture for automating the Pre-Sale Underwriting RFP Response Process using LangGraph-based AI multi-agent systems, integrated via a secure Remote MCP (Machine Control Plane) Gateway.
+
+## 2. Business Context
+
+* Manual underwriting workflows are slow and error-prone.
+* Information is sourced from SSD, RFPs, state regulations, and claims systems.
+* Final deliverables include rebate recommendations and Profit & Loss (P&L) summaries.
+
+## 3. Goals
+
+* Automate data retrieval and analysis.
+* Enable multi-agent AI collaboration with memory sharing.
+* Provide secure, observable, and scalable architecture.
+
+## 4. Technical Stack
+
+| Layer           | Technology                       |
+| --------------- | -------------------------------- |
+| UI              | Web/Chat + SSO Integration       |
+| Orchestration   | LangGraph                        |
+| Agents          | Python Agents (LangChain)        |
+| Tool Interface  | Remote MCP Gateway               |
+| Auth & Identity | JWT, SSO (via Identity Provider) |
+| Memory          | LangGraph State + Vector DB      |
+| Observability   | OpenTelemetry, Logs              |
+
+## 5. Agent Roles
+
+| Agent           | Role                            | Tools Invoked                     |
+| --------------- | ------------------------------- | --------------------------------- |
+| SSDAgent        | Extract state-specific docs     | mcp://legal-tools/ssd_fetcher     |
+| RFPAgent        | Parse RFP docs                  | mcp://doc-tools/rfp_parser        |
+| ClaimsAgent     | Analyze historical claim trends | mcp://claims-tools/claims_summary |
+| RegulationAgent | Fetch compliance by state       | mcp://legal-tools/state_laws      |
+| RebateAgent     | Recommend rebate plans          | mcp://pricing-tools/rebate_gen    |
+| PnLAgent        | Generate P&L                    | mcp://pricing-tools/pnl_calc      |
+
+## 6. LangGraph Agent Topology
+
+* Intent Router Node: Parses user input → assigns agents
+* Parallel Execution: SSD + Claims + Regulations
+* Conditional Routing: RebateAgent only runs if cost/benefit thresholds are met
+* End Node: Output formatted for sales presentation (BAFO)
+
+## 7. Memory Model
+
+| Type        | Description                                    |
+| ----------- | ---------------------------------------------- |
+| Short-term  | LangGraph context per session                  |
+| Long-term   | Vector Store for SSD, RFP, Claims              |
+| Shared Keys | contractStart, savingsTarget, utilizationTrend |
+
+## 8. MCP Integration
+
+* **Remote Gateway** exposes tool APIs.
+* **JWT Auth** issued via SSO login.
+* Each tool scoped to an MCP namespace.
+
+## 9. Observability & Security
+
+* Metrics: Tool latency, agent routing time, retry counts
+* Logs: Per-agent tool call trail with metadata
+* Trace IDs shared across all services
+* Alerts on tool failure, fallback triggers
+
+## 10. Fallback & Error Strategy
+
+| Agent       | Primary Tool   | Fallback Tool     | Human Escalation |
+| ----------- | -------------- | ----------------- | ---------------- |
+| SSDAgent    | ssd_fetcher    | OCRAgent          | Yes              |
+| RFPAgent    | rfp_parser     | semantic_RAG      | Yes              |
+| ClaimsAgent | claims_summary | alt_claim_summary | Optional         |
+| PnLAgent    | pnl_calc       | finance_model     | Yes              |
+
+## 11. Secure Access and Governance
+
+* SSO authentication via enterprise Identity Provider.
+* JWT tokens passed to MCP Gateway with time-bound scopes.
+* Agent roles mapped to permission groups.
+* Audit logs retained for every agent-tool interaction.
+
+## 12. User Flow Example
+
+1. User asks: "What are SSD terms for Client X?" → SSDAgent invoked.
+2. Follow-up: "Do these match the RFP?" → RFPAgent compares with SSD data via shared memory.
+3. Next: "Recommend rebate structure." → RebateAgent uses prior findings.
+4. Final: "Show P&L impact." → PnLAgent completes workflow.
+
+## 13. Diagrams and References
+
+* [Uploaded Flowchart of Pre-Sale Underwriting RFP Process](sandbox:/mnt/data/20251123_115028.jpg)
+* [MCP Architecture Reference](sandbox:/mnt/data/20251124_110350.jpg)
+* [LangGraph Multi-Agent Playbook ToC](sandbox:/mnt/data/Screenshot_20251120_194904_Chrome.jpg)
+* [Functional vs Specialist Agent Architecture](sandbox:/mnt/data/20251124_214028.jpg)
+* [Agent Intelligence Maturity Model](sandbox:/mnt/data/20251124_142444.jpg)
+
+## 14. Agent Type Recommendation
+
+**Current Fit:** Level 3 – Context Aware Agents
+
+* Supports memory sharing
+* Can route queries non-linearly based on past conversation
+
+**Next-Level Potential:** Level 4 – Human Behavior Agents
+
+* Anticipate downstream needs (e.g., suggest PnL if cost savings < target)
+
+## 15. Assistants vs Agents
+
+| Dimension  | Assistants (Functional)         | Agents (Specialist)               |
+| ---------- | ------------------------------- | --------------------------------- |
+| Scope      | Broad, SOP-driven               | Domain-specific, skilled          |
+| Autonomy   | Partial                         | High (invoke APIs, reason, retry) |
+| Delegation | Sends to skilled agents         | Executes with direct control      |
+| Interface  | User-facing (chat/widgets)      | System/backend-triggered          |
+| Example    | Client Assistant, BOM Assistant | ClaimsAgent, PnLAgent             |
+
+## 16. Conclusion
+
+This architecture ensures compliance, improves speed-to-quote, and leverages modular AI agents to scale underwriting workflows intelligently. Assistants triage and orchestrate the flow while specialist agents execute domain-heavy tasks with autonomy.
