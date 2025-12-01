@@ -1,0 +1,22 @@
+Here's a suggested technology stack in tabular format tailored to your use case (Document Assistance → RRF Assistance) using modern enterprise standards:
+
+| **Layer**             | **Component**               | **Technology**                                | **Notes**                                                             |
+| --------------------- | --------------------------- | --------------------------------------------- | --------------------------------------------------------------------- |
+| **Frontend (UI)**     | Web Interface               | React.js                                      | Dynamic UI for Underwriter; integrates with Planner via API gateway   |
+|                       | Visualization & Diagrams    | Recharts, D3.js                               | For span trace views, insights, and cost dashboards                   |
+| **Backend Gateway**   | API Gateway                 | Azure API Management / Kong / FastAPI         | Auth, rate-limiting, routing to assistants and agents                 |
+| **Planner Layer**     | Intent Router (Assistant)   | LangGraph + OpenAI GPT-4                      | Classifies tasks, routes to correct agent                             |
+|                       | Document Assistance Planner | LangGraph + Prompt Chains                     | Sets up task logic & fallback in multi-agent flow                     |
+| **Agents**            | Document Agent              | OpenAI / Azure OpenAI + LangChain             | RAG-based answer generation using SSD, Playbook, RFP                  |
+|                       | Email Agent                 | SMTP or ServiceNow + LangChain tool interface | Generates follow-up communication if document is missing              |
+|                       | RRF Planner & RRF Agent     | LangGraph Nodes + Tool Invocation Layer       | Business logic for pricing & form submission                          |
+| **Memory Layer**      | Session & Agent Memory      | Redis, LangGraph Memory Store, GraphDB        | Stores context, past states, document status, trace mapping           |
+| **Vector DB**         | Document Embedding Store    | MongoDB Atlas Vector Search / Azure AI Search | Index SSD / Playbook / RFP docs with metadata                         |
+| **Identity & Auth**   | User/AuthN/AuthZ            | Azure AD / Okta + JWT / OAuth 2.0             | Manages Underwriter & Agent access with scopes                        |
+| **Orchestration**     | FSM Controller              | LangGraph / Temporal.io                       | Ensures retry-safe workflows, memory control, state transitions       |
+| **Observability**     | Tracing                     | OpenTelemetry + Jaeger / Azure Monitor        | Token span, tool call, retry, errors, and performance visibility      |
+| **Cost Tracking**     | Billing Monitor             | Custom NodeJS/Python Middleware + Traces      | Uses span data to attribute token and API usage by user/session       |
+| **Security Layer**    | Data Access Controls        | Attribute-based Access (ABAC) in RAG/Planner  | Restricts SSD sections for non-financial users using metadata filters |
+| **Tool Access Layer** | MCP Gateway                 | Microservice Layer / Serverless (Azure Fn)    | Secured interface to real tools like RRF API, internal services       |
+
+Let me know if you want this in CSV, diagram, or editable format.
