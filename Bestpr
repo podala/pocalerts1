@@ -1,0 +1,301 @@
+Absolutely — here is a **single, simple end-to-end example** that covers **ALL major patterns in Lak’s Generative-AI Design Patterns repo**, tied together in **ONE use case**:
+
+---
+
+# 🌟 **Unified Example: Underwriter asks —
+
+“Extract Hep-C clause from SSD and generate JSON rule for pricing impact.”**
+
+This ONE flow will show **every pattern Lak defines**.
+
+---
+
+# ✅ **STEP 1 — Query Comes In**
+
+User (Underwriter):
+**“What is the Hep C pricing clause? Also give me rule JSON to apply Hep C exclusion to 2025–2029.”**
+
+---
+
+# 🚀 **NOW WE APPLY ALL PATTERNS BELOW — one by one — inside ONE flow**
+
+---
+
+# **🔷 1. Retrieval Pattern (RAG)**
+
+System retrieves relevant SSD sections:
+
+**Retrieved text:**
+“Section 7.2 — Hepatitis C products are excluded from discount guarantees.”
+
+---
+
+# **🔷 2. Re-Ranking Pattern**
+
+Top passages re-ranked so model sees the most relevant one first.
+
+---
+
+# **🔷 3. Context Window Optimization**
+
+Chunks are trimmed to fit <5,000 tokens.
+
+---
+
+# **🔷 4. Grounded Generation Pattern**
+
+LLM is told:
+**“Answer ONLY based on retrieved text.”**
+
+---
+
+# **🔷 5. Structured Output Pattern**
+
+We require strict JSON schema:
+
+```json
+{
+  "clause": "",
+  "source": "",
+  "extracted_value": "",
+  "years": {}
+}
+```
+
+LLM cannot output free text (grammar forces format).
+
+---
+
+# **🔷 6. Logits Masking Pattern**
+
+Allowed tokens for `years` are restricted to:
+`["2025","2026","2027","2028","2029"]`.
+
+No hallucinated years.
+
+---
+
+# **🔷 7. Few-Shot Pattern**
+
+Prompt shows 2 examples of SSD clause extraction.
+
+Model imitates format.
+
+---
+
+# **🔷 8. Chain-of-Thought Pattern**
+
+LLM thinks step-by-step (hidden), then produces final JSON.
+
+---
+
+# **🔷 9. Style Control Pattern**
+
+Style enforced:
+
+* short sentences
+* no legal jargon
+* plain English
+
+---
+
+# **🔷 10. ReAct / Tool-Use Pattern**
+
+Model decides it needs to call a tool:
+
+* `fetch_ssd_clause()`
+
+Agent output:
+**“I will call fetch_ssd_clause with keyword ‘Hep C’”**
+
+Tool returns extracted clause.
+
+---
+
+# **🔷 11. Agent Pattern (Planner)**
+
+Planner determines:
+
+1. Extract clause
+2. Generate rule
+3. Validate rule
+4. Produce final output
+
+---
+
+# **🔷 12. Orchestrator Pattern (LangGraph)**
+
+Flow looks like:
+
+```
+User → Planner → Document Agent → Rule Agent → Validator → Final Output
+```
+
+---
+
+# **🔷 13. Modular Pipeline Pattern**
+
+Each stage is a clean module:
+
+* Extractor
+* RuleGenerator
+* Validator
+* Reporter
+
+Plug-and-play.
+
+---
+
+# **🔷 14. Dependency Injection Pattern**
+
+LLM/model is injected, not hardcoded:
+
+```python
+rule_agent = RuleGenerator(llm=GPT4o())
+```
+
+We can swap to Claude with 1 line:
+
+```python
+rule_agent = RuleGenerator(llm=ClaudeSonnet())
+```
+
+---
+
+# **🔷 15. Prompt Factory Pattern**
+
+Prompts come from central config:
+
+```yaml
+ssd_clause_prompt: |
+  Extract clause: {{ clause }}
+```
+
+---
+
+# **🔷 16. Tool-Calling Pattern**
+
+LLM calls `calculate_impact(year_range, exclusion_flag)`.
+
+---
+
+# **🔷 17. Multi-Pass / Iterative Refinement Pattern**
+
+Model produces draft → reflects → corrects.
+
+1st pass: JSON missing “years”
+2nd pass: model fixes it
+
+---
+
+# **🔷 18. Auto-Repair Pattern**
+
+Validator says:
+❌ “JSON missing ‘extracted_value’ field”
+LLM automatically regenerates corrected JSON.
+
+---
+
+# **🔷 19. Evaluation Pattern (LLM-as-Judge)**
+
+A second LLM scores:
+
+* factual grounding: ✔
+* JSON validity: ✔
+* required fields: ✔
+
+---
+
+# **🔷 20. Quality Gates Pattern**
+
+If any check fails → flow stops.
+
+Only validated JSON is allowed to move to Spark.
+
+---
+
+# **🔷 21. Human-in-the-Loop Pattern**
+
+Underwriter sees extracted clause & rule.
+Can Approve or Reject.
+
+---
+
+# **🔷 22. Memory Pattern**
+
+Conversation memory stores:
+
+* client name
+* previous lift factors
+* previous clause extractions
+
+Future responses reuse this context.
+
+---
+
+# **🔷 23. Safety / Guardrails Pattern**
+
+Checklist:
+
+* No PII
+* No hallucinated years
+* No medical advice
+* Use only SSD text
+
+Only safe output is allowed.
+
+---
+
+# **🔷 24. Optimization to the Eval Pattern**
+
+We save:
+
+* good outputs → “winners”
+* bad outputs → “losers”
+
+Model later gets preference-tuned.
+
+---
+
+# **🔷 25. End-to-End Agent System Pattern**
+
+Final stack:
+
+1. Planner Agent
+2. Document Agent
+3. Rule Agent
+4. Validator Agent
+5. Summarization Agent
+
+All coordinated in one pipeline.
+
+---
+
+# 🎯 **FINAL OUTPUT (All patterns applied)**
+
+Example final result:
+
+```json
+{
+  "clause": "Hepatitis C products are excluded from discount guarantees.",
+  "source": "SSD Section 7.2",
+  "extracted_value": "Exclude Hep C from pricing and rebate guarantee calculations.",
+  "years": {
+    "2025": "excluded",
+    "2026": "excluded",
+    "2027": "excluded",
+    "2028": "excluded",
+    "2029": "excluded"
+  }
+}
+```
+
+This single JSON is the outcome of **all 25 patterns working together**.
+
+---
+
+# 🙌 Want a diagram next?
+
+I can draw a **one-page architecture diagram** that shows **all patterns mapped to nodes** in your PBM underwriting system.
+
+Just say: **“diagram please”**.
