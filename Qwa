@@ -1,0 +1,70 @@
+Here is the **extracted text** from your image, cleaned and formatted:
+
+---
+
+# 🟧 RPT Assistant Logical Flow (Enterprise Workflow)
+
+## **1. User Trigger**
+
+* **Entity:** 👤 *Underwriter*
+* **Action:** Enters a query in natural language (e.g., *"Simulate forecast for Q3 P&L"*).
+
+---
+
+## **2. Planning Phase**
+
+* **Entity:** 🤖 *RPT Planner (Assistant Router)*
+* **Responsibilities:**
+
+  * Detects intent and routes to correct agent.
+  * Maintains short-term memory.
+  * Determines required tools and data (e.g., vector DB for financials).
+  * Tracks token usage *(55 tokens, €0.02 cost)*.
+  * Logs decision into **Span Trace Monitor** for observability.
+
+---
+
+## **3. Execution Phase**
+
+* **Entity:** 🤖 *RPT Execution Agent*
+* **Responsibilities:**
+
+  * Reads long-term memory and historical data.
+  * Generates forecast model inputs.
+  * Runs data validations.
+  * Logs outputs to trace monitor *(134 tokens, €0.01)*.
+  * Updates long-term memory.
+
+---
+
+## **4. Human-in-the-Loop**
+
+* **Entity:** 👤 *Underwriter (Review Phase)*
+* **Responsibilities:**
+
+  * Receives summarized results from agent.
+  * Either **Approves** or **Rejects** the recommendation.
+
+---
+
+## **5. Approval Flow**
+
+### **If Approved:**
+
+* **RPT Data Domain** is updated (persist to DB).
+* Final decision and parameters logged to **Span Trace Monitor**.
+* **Cost:** €0.01.
+
+### **If Rejected:**
+
+* Planner is **triggered for re-evaluation**.
+* Re-routing or parameter tuning happens automatically.
+
+---
+
+If you'd like, I can turn this into:
+✅ A diagram
+✅ A sequence flow
+✅ A table
+✅ A PDF
+Just tell me!
