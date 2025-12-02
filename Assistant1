@@ -1,0 +1,65 @@
+Here's a concise breakdown of each **Functional Assistant** shown in your architecture, along with their responsibilities and delegation behavior to Specialist Agents (via A2A + MCP):
+
+---
+
+### 📘 **1. Document Assistant**
+
+| Function      | Description                                                          |
+| ------------- | -------------------------------------------------------------------- |
+| 🔍 RAG Tasks  | Retrieves relevant clauses from SSD, Playbook, RFP.                  |
+| 📎 Output     | Structured doc_insights with doc_status (READY / MISSING).           |
+| 🤝 Delegation | Triggers Document Agent for search + Email Agent for missing inputs. |
+
+---
+
+### 📘 **2. RRF Assistant**
+
+| Function           | Description                                                           |
+| ------------------ | --------------------------------------------------------------------- |
+| 🧠 Validation      | Checks if preconditions for RRF submission are met.                   |
+| 🔁 Context Handoff | Receives document insights from memory / orchestrator.                |
+| 🤝 Delegation      | Hands off to RRF Agent for form generation via MCP-secured tool call. |
+
+---
+
+### 📘 **3. RPT Assistant**
+
+| Function             | Description                                                          |
+| -------------------- | -------------------------------------------------------------------- |
+| 🧠 Forecast Planning | Plans input structure for pricing / forecast model.                  |
+| 📋 Control Logic     | Applies business rules for margin, eligibility, thresholds.          |
+| 🤝 Delegation        | RPT Execution Agent handles model inputs + calls Spark/Cosmos tools. |
+
+---
+
+### 📘 **4. P&L Assistant**
+
+| Function             | Description                                                       |
+| -------------------- | ----------------------------------------------------------------- |
+| 📊 Summary Generator | Creates textual + tabular breakdowns of margin %, loss %, trends. |
+| 📚 Model Reviewer    | Validates past vs present metrics (includes variance notes).      |
+| 🤝 Delegation        | Uses P&L Agent or RPT outputs to compile summaries or insights.   |
+
+---
+
+### 📘 **5. PETL Assistant**
+
+| Function                | Description                                                       |
+| ----------------------- | ----------------------------------------------------------------- |
+| 🔗 Pipeline Planner     | Determines ETL steps needed to integrate pricing or doc data.     |
+| 🧮 Transformation Logic | Validates schema + transformation order (e.g., JSON to Parquet).  |
+| 🤝 Delegation           | PETL Expert Agent handles data engineering logic + notebook runs. |
+
+---
+
+### 📘 **6. Compliance Assistant**
+
+| Function         | Description                                                       |
+| ---------------- | ----------------------------------------------------------------- |
+| ✅ Policy Checks  | Flags non-compliance with financial or regulatory conditions.     |
+| 🕵️‍♂️ Red Flags | Inspects RFP terms, pricing model, jurisdiction constraints.      |
+| 🤝 Delegation    | Delegates to Compliance Expert Agent for risk summaries / alerts. |
+
+---
+
+Would you like me to generate a tabular export version (e.g., Excel-compatible) or a visualization next?
