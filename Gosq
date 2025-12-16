@@ -1,0 +1,121 @@
+import pandas as pd
+
+# ------------------------------------------------------------
+# 1) INPUTS (this is what you cache from ONE full Excel run)
+# ------------------------------------------------------------
+# constant and sensitivity are derived from your real Excel formula
+# (CP/AT4, lookup factors, H13, etc.). Lift grid is NOT included here.
+
+ndc_cache = pd.DataFrame([
+    {"ndc_id": "NDC1", "ds_range": "0-30",  "constant": -40.0, "sensitivity": 1200.0},
+    {"ndc_id": "NDC2", "ds_range": "0-30",  "constant": -20.0, "sensitivity": 800.0},
+    {"ndc_id": "NDC3", "ds_range": "31-60", "constant": -30.0, "sensitivity": 600.0},
+    {"ndc_id": "NDC4", "ds_range": "61+",   "constant": -50.0, "sensitivity": 1400.0},
+])
+
+# ------------------------------------------------------------
+# 2) CURRENT "Lift Adjustment" grid (DS-range → lift)
+# ------------------------------------------------------------
+lift_grid = {
+    "0-30": 1.10,
+    "31-60": 1.05,
+    "61+": 1.08,
+}
+
+# ------------------------------------------------------------
+# 3) Functions
+# ------------------------------------------------------------
+def compute_ndc_outputs(df: pd.DataFrame, lift: dict) -> pd.DataFrame:
+    """
+    For each NDC:
+        output = constant + sensitivity * lift(ds_range)
+    """
+    out = df.copy()
+    out["lift"] = out["ds_range"].map(lift)
+
+    if out["lift"].isna().any():
+        missing = out[out["lift"].isna()]["ds_range"].unique().tolist()
+        raise ValueError(f"Missing lift values for ds_range: {missing}")
+
+    out["ndc_output"] = out["constant"] + out["sensitivity"] * out["lift"]
+    return out
+
+def compute_total(df_outputs: pd.DataFrame) -> float:
+    """Grand total is sum of NDC outputs (your SUMIFS is a filtered sum; this is the simplest case)."""
+    return float(df_outputs["ndc_output"].sum())
+
+def goal_seek_total_by_scaling(df: pd.DataFrame, lift: dict, target_total: float) -> dict:
+    """
+    Goal seek by scaling ALL lift values by a single scale factor.
+
+    Why it works:
+      Total = Σ constant_i + Σ (sensitivity_i * lift_ds(i))
+      If we scale all lift values by 'scale', the lift-driven part scales linearly.
+    """
+    # Current outputs using current lift grid
+    current_outputs = compute_ndc_outputs(df, lift)
+    current_total = compute_total(current_outputs)
+
+    # Split total into:
+    # fixed_part = Σ constant
+    # lift_effect = Total - fixed_part
+    fixed_part = float(df["constant"].sum())
+    current_lift_effect = current_total - fixed_part
+
+    # Target lift effect needed
+    target_lift_effect = target_total - fixed_part
+
+    if abs(current_lift_effect) < 1e-12:
+        raise ValueError("Current lift effect is ~0; cannot goal-seek by scaling lifts.")
+
+    # Compute scale factor
+    scale = target_lift_effect / current_lift_effect
+
+    # Apply scale to every DS lift (this updates Lift Adjustment grid)
+    new_lift = {ds: old_lift * scale for ds, old_lift in lift.items()}
+
+    # Print details for transparency
+    print("\n--- GOAL SEEK DETAILS ---")
+    print(f"Current Total        : {current_total:.6f}")
+    print(f"Target Total         : {target_total:.6f}")
+    print(f"Fixed Part (ΣC)      : {fixed_part:.6f}")
+    print(f"Current Lift Effect  : {current_lift_effect:.6f}")
+    print(f"Target Lift Effect   : {target_lift_effect:.6f}")
+    print(f"Scale Factor         : {scale:.6f}")
+
+    return new_lift
+
+# ------------------------------------------------------------
+# 4) RUN: show current state
+# ------------------------------------------------------------
+print("=== CURRENT STATE ===")
+cur_outputs = compute_ndc_outputs(ndc_cache, lift_grid)
+print(cur_outputs[["ndc_id", "ds_range", "constant", "sensitivity", "lift", "ndc_output"]])
+
+cur_total = compute_total(cur_outputs)
+print(f"\nCurrent Total = {cur_total:.6f}")
+
+# ------------------------------------------------------------
+# 5) USER changes total to 4500
+# ------------------------------------------------------------
+target_total = 4500.0
+print(f"\n=== USER TARGET TOTAL: {target_total:.2f} ===")
+
+# Goal seek -> new lift grid
+new_lift_grid = goal_seek_total_by_scaling(ndc_cache, lift_grid, target_total)
+
+print("\n=== UPDATED LIFT ADJUSTMENT GRID ===")
+for ds in sorted(new_lift_grid.keys()):
+    print(f"{ds:>5} : old={lift_grid[ds]:.6f}  new={new_lift_grid[ds]:.6f}")
+
+# ------------------------------------------------------------
+# 6) VERIFY: recompute with new lifts
+# ------------------------------------------------------------
+print("\n=== VERIFY NEW TOTAL ===")
+new_outputs = compute_ndc_outputs(ndc_cache, new_lift_grid)
+print(new_outputs[["ndc_id", "ds_range", "lift", "ndc_output"]])
+
+new_total = compute_total(new_outputs)
+print(f"\nNew Total = {new_total:.6f}")
+print(f"Difference (New - Target) = {new_total - target_total:.6f}")
+
