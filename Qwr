@@ -1,0 +1,101 @@
+import pandas as pd
+
+# ============================================================
+# CONSTANTS (same meaning as Excel)
+# ============================================================
+AT4 = 100.0          # Tables!AT4
+H13 = 1.20           # 'Lift Adjustment'!H13
+
+# ============================================================
+# INPUT: NDC rows (lookups already resolved ONCE)
+# A = result of XLOOKUP / INDEX fallback logic
+# ============================================================
+ndc_df = pd.DataFrame([
+    {"ndc_id": "NDC1", "channel": "R30", "ds": "0-30", "year": 2025, "CP": 1200, "A": 1.20},
+    {"ndc_id": "NDC2", "channel": "R30", "ds": "0-30", "year": 2025, "CP": 800,  "A": 1.20},
+    {"ndc_id": "NDC3", "channel": "Mail","ds": "31-60","year": 2025, "CP": 600,  "A": 1.10},
+    {"ndc_id": "NDC4", "channel": "Spec","ds": "61+",  "year": 2025, "CP": 1400, "A": 1.30},
+])
+
+# ============================================================
+# INPUT: Lift Adjustment grid
+# ============================================================
+lift_grid = pd.DataFrame([
+    {"channel": "R30",  "ds": "0-30",  "year": 2025, "lift": 1.10},
+    {"channel": "Mail", "ds": "31-60", "year": 2025, "lift": 1.05},
+    {"channel": "Spec", "ds": "61+",   "year": 2025, "lift": 1.08},
+])
+
+# ============================================================
+# NDC FORMULA (EXACT Excel structure)
+# (CP / AT4) * ((A * Lift - 1) * H13 + 1)
+# ============================================================
+def ndc_formula(cp, A, lift):
+    return (cp / AT4) * ((A * lift - 1.0) * H13 + 1.0)
+
+# ============================================================
+# FORWARD CALCULATION (current state)
+# ============================================================
+calc = ndc_df.merge(lift_grid, on=["channel", "ds", "year"], how="left")
+calc["ndc_value"] = calc.apply(
+    lambda r: ndc_formula(r["CP"], r["A"], r["lift"]),
+    axis=1
+)
+
+print("\nCURRENT NDC VALUES")
+print(calc[["ndc_id", "channel", "ds", "ndc_value"]])
+
+current_retail30 = calc[calc["channel"] == "R30"]["ndc_value"].sum()
+print("\nCURRENT RETAIL-30 TOTAL:", round(current_retail30, 6))
+
+# ============================================================
+# USER INPUT (Retail-30 target)
+# ============================================================
+target_retail30 = 2000.0
+print("\nUSER TARGET RETAIL-30:", target_retail30)
+
+# ============================================================
+# LINEAR DECOMPOSITION
+# NDC = C + S * Lift
+# ============================================================
+calc["S"] = (calc["CP"] / AT4) * calc["A"] * H13
+calc["C"] = (calc["CP"] / AT4) * (1.0 - H13)
+
+r30 = calc[calc["channel"] == "R30"]
+
+sum_C = r30["C"].sum()
+current_lift_effect = r30["ndc_value"].sum() - sum_C
+required_lift_effect = target_retail30 - sum_C
+
+scale = required_lift_effect / current_lift_effect
+print("\nSCALE FACTOR:", round(scale, 6))
+
+# ============================================================
+# UPDATE ONLY RETAIL-30 LIFT ROW
+# ============================================================
+lift_grid["new_lift"] = lift_grid.apply(
+    lambda r: r["lift"] * scale if r["channel"] == "R30" else r["lift"],
+    axis=1
+)
+
+print("\nUPDATED LIFT GRID")
+print(lift_grid)
+
+# ============================================================
+# VERIFY RESULT
+# ============================================================
+verify = ndc_df.merge(
+    lift_grid[["channel", "ds", "year", "new_lift"]],
+    on=["channel", "ds", "year"],
+    how="left"
+)
+
+verify["ndc_new"] = verify.apply(
+    lambda r: ndc_formula(r["CP"], r["A"], r["new_lift"]),
+    axis=1
+)
+
+final_retail30 = verify[verify["channel"] == "R30"]["ndc_new"].sum()
+
+print("\nFINAL RETAIL-30 TOTAL:", round(final_retail30, 6))
+print("DIFFERENCE:", round(final_retail30 - target_retail30, 9))
