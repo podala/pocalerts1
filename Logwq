@@ -1,0 +1,136 @@
+import pandas as pd
+import numpy as np
+import logging
+
+# ============================================================
+# LOGGING SETUP
+# ============================================================
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s"
+)
+logger = logging.getLogger("GOAL_SEEK")
+
+# ============================================================
+# CONSTANTS
+# ============================================================
+AT4 = 100.0
+H13 = 1.20
+
+# ============================================================
+# INPUT DATA
+# ============================================================
+ndc_df = pd.DataFrame([
+    {"ndc_id": "NDC1", "channel": "R30",  "CP": 1200, "ndc_lift": 1.02, "class_lift": np.nan},
+    {"ndc_id": "NDC2", "channel": "R30",  "CP": 800,  "ndc_lift": np.nan, "class_lift": 1.10},
+    {"ndc_id": "NDC3", "channel": "Mail", "CP": 600,  "ndc_lift": np.nan, "class_lift": 1.08},
+    {"ndc_id": "NDC4", "channel": "Spec", "CP": 1400, "ndc_lift": 1.03, "class_lift": np.nan},
+])
+
+channel_lift = {
+    "R30": 1.08,
+    "Mail": 1.05,
+    "Spec": 1.07
+}
+
+target_retail30 = 30.0
+
+# ============================================================
+# EFFECTIVE LIFT + AUDIT
+# ============================================================
+ndc_df["lift_source"] = np.select(
+    [ndc_df["ndc_lift"].notna(), ndc_df["class_lift"].notna()],
+    ["NDC", "CLASS"],
+    default="NONE"
+)
+
+ndc_df["eff_lift"] = (
+    ndc_df["ndc_lift"]
+    .fillna(ndc_df["class_lift"])
+    .fillna(1.0)
+)
+
+# ============================================================
+# NDC CALCULATION (vectorized)
+# ============================================================
+def compute_retail30_total(ndc_df, channel_lift):
+    df = ndc_df.copy()
+    df["channel_lift"] = df["channel"].map(channel_lift)
+
+    df["ndc_value"] = (
+        (df["CP"] / AT4)
+        * (1.0 + H13 * ((df["eff_lift"] * df["channel_lift"]) - 1.0))
+    )
+
+    return df[df["channel"] == "R30"]["ndc_value"].sum()
+
+# ============================================================
+# ITERATIVE GOAL SEEK WITH LOGGING
+# ============================================================
+def goal_seek_channel_lift(
+    ndc_df,
+    channel_lift,
+    target,
+    channel="R30",
+    tol=1e-6,
+    max_iter=50,
+    step=0.05
+):
+    logs = []
+
+    current_lift = channel_lift[channel]
+
+    logger.info("Starting Goal Seek")
+    logger.info(f"Target Retail-30 = {target}")
+    logger.info(f"Initial {channel} lift = {current_lift}")
+
+    for i in range(1, max_iter + 1):
+        channel_lift[channel] = current_lift
+
+        total = compute_retail30_total(ndc_df, channel_lift)
+        error = total - target
+
+        logs.append({
+            "iteration": i,
+            "channel_lift": current_lift,
+            "retail30_total": total,
+            "error": error
+        })
+
+        logger.info(
+            f"Iter {i:02d} | lift={current_lift:.6f} "
+            f"| total={total:.6f} | error={error:.6f}"
+        )
+
+        if abs(error) <= tol:
+            logger.info("Converged successfully")
+            break
+
+        # Proportional adjustment (Excel-like)
+        adjustment = -error / max(abs(total), 1e-6)
+        current_lift = current_lift * (1 + adjustment)
+
+    return current_lift, pd.DataFrame(logs)
+
+# ============================================================
+# RUN GOAL SEEK
+# ============================================================
+final_lift, iteration_log = goal_seek_channel_lift(
+    ndc_df,
+    channel_lift,
+    target_retail30
+)
+
+channel_lift["R30"] = final_lift
+
+# ============================================================
+# FINAL VERIFICATION
+# ============================================================
+final_total = compute_retail30_total(ndc_df, channel_lift)
+
+logger.info(f"FINAL R30 LIFT = {final_lift:.6f}")
+logger.info(f"FINAL RETAIL-30 TOTAL = {final_total:.6f}")
+logger.info(f"DIFFERENCE = {final_total - target_retail30:.9f}")
+
+print("\nITERATION LOG")
+print(iteration_log)
