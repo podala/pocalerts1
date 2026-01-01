@@ -1,0 +1,230 @@
+"""
+Excel-faithful Pricing Lift Engine (Single File)
+
+Math model:
+    TOTAL = BASE + SENSITIVITY * LIFT
+
+User changes TOTAL
+→ Engine solves LIFT
+→ Contribution % derived
+→ Before / After + iteration logs produced
+
+Authoritative behavior matches Excel Goal Seek.
+"""
+
+from dataclasses import dataclass, asdict
+from typing import List, Dict
+from datetime import datetime
+import logging
+
+
+# ============================================================
+# LOGGING CONFIG
+# ============================================================
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s"
+)
+logger = logging.getLogger("PRICING_ENGINE")
+
+
+# ============================================================
+# DATA MODELS
+# ============================================================
+
+@dataclass
+class IterationLog:
+    iteration: int
+    lift: float
+    total: float
+    error: float
+
+
+@dataclass
+class SolveResult:
+    base: float
+    sensitivity: float
+    final_lift: float
+    contribution_pct: float
+    final_total: float
+    iterations: List[IterationLog]
+
+
+@dataclass
+class AuditRecord:
+    run_id: str
+    timestamp: str
+    before: Dict
+    after: Dict
+    stop_reason: str
+
+
+# ============================================================
+# CORE ENGINE
+# ============================================================
+
+class PricingLiftEngine:
+    """
+    Excel-faithful Goal Seek engine.
+    """
+
+    def __init__(
+        self,
+        tolerance: float = 1e-6,
+        max_iter: int = 50,
+        min_lift: float = 0.5,
+        max_lift: float = 3.0
+    ):
+        self.tol = tolerance
+        self.max_iter = max_iter
+        self.min_lift = min_lift
+        self.max_lift = max_lift
+
+    # --------------------------------------------------------
+    # Estimate BASE and SENSITIVITY
+    # --------------------------------------------------------
+    def _estimate_base_and_sensitivity(
+        self,
+        total1: float,
+        lift1: float,
+        total2: float,
+        lift2: float
+    ):
+        if lift1 == lift2:
+            raise ValueError("Cannot estimate sensitivity with identical lifts")
+
+        S = (total2 - total1) / (lift2 - lift1)
+        BASE = total1 - S * lift1
+
+        return BASE, S
+
+    # --------------------------------------------------------
+    # Solve lift for target total (Excel-style)
+    # --------------------------------------------------------
+    def solve(
+        self,
+        before_total: float,
+        before_lift: float,
+        target_total: float
+    ) -> SolveResult:
+
+        logger.info("Starting Goal Seek")
+        logger.info(f"Before total={before_total}, lift={before_lift}")
+        logger.info(f"Target total={target_total}")
+
+        # ---- Bootstrap a second point (small perturbation)
+        test_lift = before_lift * 1.01
+        test_total = before_total * 1.01
+
+        BASE, S = self._estimate_base_and_sensitivity(
+            before_total, before_lift,
+            test_total, test_lift
+        )
+
+        logger.info(f"Estimated BASE={BASE:.6f}, SENSITIVITY={S:.6f}")
+
+        iterations: List[IterationLog] = []
+        current_lift = before_lift
+        stop_reason = "MAX_ITER"
+
+        for i in range(1, self.max_iter + 1):
+            current_total = BASE + S * current_lift
+            error = current_total - target_total
+
+            iterations.append(
+                IterationLog(
+                    iteration=i,
+                    lift=round(current_lift, 6),
+                    total=round(current_total, 6),
+                    error=round(error, 6)
+                )
+            )
+
+            logger.info(
+                f"Iter {i:02d} | lift={current_lift:.6f} "
+                f"| total={current_total:.6f} "
+                f"| error={error:.6f}"
+            )
+
+            if abs(error) <= self.tol:
+                stop_reason = "CONVERGED"
+                break
+
+            # Excel-like correction
+            adjustment = -error / max(abs(S), 1e-9)
+            current_lift += adjustment
+
+            # Caps / floors
+            if current_lift < self.min_lift:
+                current_lift = self.min_lift
+                stop_reason = "HIT_FLOOR"
+                break
+
+            if current_lift > self.max_lift:
+                current_lift = self.max_lift
+                stop_reason = "HIT_CAP"
+                break
+
+        final_total = BASE + S * current_lift
+        contribution_pct = (S * current_lift) / target_total * 100
+
+        return SolveResult(
+            base=round(BASE, 6),
+            sensitivity=round(S, 6),
+            final_lift=round(current_lift, 6),
+            contribution_pct=round(contribution_pct, 1),
+            final_total=round(final_total, 6),
+            iterations=iterations
+        ), stop_reason
+
+
+# ============================================================
+# ORCHESTRATION (SINGLE ENTRY POINT)
+# ============================================================
+
+def run_pricing_engine(
+    run_id: str,
+    before_total: float,
+    before_lift: float,
+    target_total: float
+) -> AuditRecord:
+
+    engine = PricingLiftEngine()
+
+    result, stop_reason = engine.solve(
+        before_total=before_total,
+        before_lift=before_lift,
+        target_total=target_total
+    )
+
+    audit = AuditRecord(
+        run_id=run_id,
+        timestamp=datetime.utcnow().isoformat(),
+        before={
+            "total": before_total,
+            "lift": before_lift
+        },
+        after=asdict(result),
+        stop_reason=stop_reason
+    )
+
+    return audit
+
+
+# ============================================================
+# RUN (LOCAL / API / JOB)
+# ============================================================
+
+if __name__ == "__main__":
+
+    audit = run_pricing_engine(
+        run_id="RUN_2026_SINGLE_FILE",
+        before_total=337.0,
+        before_lift=1.085,
+        target_total=399.0
+    )
+
+    print("\nFINAL AUDIT OUTPUT\n")
+    for k, v in asdict(audit).items():
+        print(f"{k}: {v}")
