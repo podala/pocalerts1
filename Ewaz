@@ -1,0 +1,32 @@
+model: pricing_model
+version: v2
+
+default_cluster:
+  spark_version: "14.3.x-scala2.12"
+  node_type_id: "Standard_DS3_v2"
+  num_workers: 4
+
+parameters:
+  retry_count: 2
+  timeout_minutes: 60
+
+tasks:
+  ingest:
+    notebook: "/pricing/ingest"
+    depends_on: []
+
+  normalize:
+    notebook: "/pricing/normalize"
+    depends_on: [ingest]
+
+  rebate_calc:
+    notebook: "/pricing/rebate_calc_v2"
+    depends_on: [normalize]
+
+  lift_adjustment:
+    notebook: "/pricing/lift_adjustment"
+    depends_on: [normalize]
+
+  finalize:
+    notebook: "/pricing/finalize"
+    depends_on: [rebate_calc, lift_adjustment]
