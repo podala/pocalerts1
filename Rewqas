@@ -1,0 +1,85 @@
+Perfect — here’s a **final, hiring-ready job posting** that includes **Azure OpenAI + Databricks + Python + Agent-to-Agent + MCP (Model Context Protocol)** capabilities.
+This version is suitable for LinkedIn, Naukri, or internal enterprise hiring pages.
+
+---
+
+## 💼 **Job Title:** Azure OpenAI Engineer – Databricks, RAG & Agentic Systems
+
+**Location:** Bengaluru / Hybrid
+**Experience:** 6 – 12 years
+**Employment Type:** Full-time
+
+---
+
+### 🧠 **About the Role**
+
+Join our AI Center of Excellence to build production-grade **LLM solutions on Azure**, integrating **Databricks, RAG, agent-to-agent orchestration**, and **MCP-based tool ecosystems**.
+You’ll design intelligent multi-agent systems, connect enterprise data through RAG pipelines, and ship secure, observable, and cost-efficient AI services.
+
+---
+
+### ⚙️ **Key Responsibilities**
+
+* **Agentic Architecture:** Design planner → solver → verifier and supervisor graphs; implement agent-to-agent communication, memory sharing, and context handoff.
+* **MCP Integration:** Develop and register **Model Context Protocol servers/clients**; expose Azure, SQL, and API systems as MCP tools with versioning and auth.
+* **RAG Pipelines:** Build retrieval layers using **Azure AI Search, Cosmos DB Vector Index, and Databricks Delta Tables**; optimize chunking, metadata, and reranking.
+* **Azure OpenAI Services:** Use GPT-4 Turbo/5, Embeddings v3, and function calling for reasoning and tool use. Leverage Prompt Flow and Azure AI Studio for LLMOps.
+* **Databricks Integration:** Orchestrate data pipelines, feature stores, and batch/streaming jobs feeding LLM retrieval layers. Automate data preparation and monitoring.
+* **Backend Services:** Develop FastAPI/Flask microservices integrating LLM logic; deploy via Azure Functions, App Service, or AKS.
+* **Observability & Safety:** Implement guardrails (PII filters, content policies), logging, trace spans, and cost/latency telemetry (Application Insights + LangSmith).
+* **Collaboration:** Work with data engineering and cloud teams to enable secure, governed, multi-tenant AI deployments.
+
+---
+
+### 🧩 **Required Skills**
+
+**Azure & Cloud Ecosystem**
+
+* Azure OpenAI, Azure AI Search, Cosmos DB (Vector), Event Hub, Key Vault, Managed Identity.
+* Databricks (Delta Lake, Spark SQL, Auto Loader, Structured Streaming).
+* Azure Functions / App Service / AKS, GitHub Actions, Containerization (Docker).
+
+**Python & Engineering**
+
+* Python 3.9+, AsyncIO, Pydantic v2, FastAPI, Requests/AioHTTP, Pandas, PySpark.
+* Solid coding practices: OOP, typing, unit tests (pytest), exception handling, structured logging.
+
+**LLM & Agentic Frameworks**
+
+* Prompt engineering, few-shot design, structured outputs (JSON mode).
+* LangChain (Chains, Agents, Memory, Tool Calling).
+* LangGraph (planner/solver/verifier graphs).
+* CrewAI / AutoGen / Agno / Microsoft Agentic Framework (MAF).
+* MCP implementation (tool servers/clients, context resources).
+
+**RAG & Search**
+
+* Embedding models (OpenAI, BGE, E5, Instructor XL).
+* Hybrid search (BM25 + vector), context compression, re-ranking.
+* Semantic chunking and metadata enrichment pipelines.
+
+**LLMOps & Governance**
+
+* Azure Prompt Flow, LangSmith, MLflow, Application Insights.
+* Monitoring cost, latency, groundedness, faithfulness metrics.
+* Knowledge of content filters and enterprise safety policies.
+
+---
+
+### 🎓 **Preferred Qualifications**
+
+* B.E./B.Tech/M.Tech in Computer Science, AI/ML, or Data Engineering.
+* Certifications: Azure AI Engineer (AI-102), Databricks Certified Data Engineer, DP-100.
+* Experience with enterprise data pipelines or AI Copilot solutions.
+
+---
+
+### 🚀 **Why Join Us**
+
+* Build **multi-agent copilots** integrated with Azure and Databricks data ecosystems.
+* Work on the latest **MCP and agent-to-agent patterns** with real impact across domains.
+* Exposure to end-to-end Azure LLM stack — from data to deployment to governance.
+
+---
+
+Would you like me to create a **Senior AI Architect version** next — with more focus on **solution blueprints, security, governance, and Databricks-Azure integration**?
