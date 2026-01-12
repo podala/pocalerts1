@@ -1,0 +1,13 @@
+| Guideline             | Question                                                                                | Embed      | Reference  |
+| --------------------- | --------------------------------------------------------------------------------------- | ---------- | ---------- |
+| **Simplicity**        | Would keeping the pieces of information together lead to a simpler data model and code? | ⬜ Yes ⬜ No | ⬜ Yes ⬜ No |
+| **Go Together**       | Do the pieces of information have a “has-a”, “contains”, or similar relationship?       | ⬜ Yes ⬜ No | ⬜ Yes ⬜ No |
+| **Query Atomicity**   | Does the application query the pieces of information together?                          | ⬜ Yes ⬜ No | ⬜ Yes ⬜ No |
+| **Update Complexity** | Are the pieces of information updated together?                                         | ⬜ Yes ⬜ No | ⬜ Yes ⬜ No |
+| **Archival**          | Should the pieces of information be archived at the same time?                          | ⬜ Yes ⬜ No | ⬜ Yes ⬜ No |
+| **Cardinality**       | Is there high (or growing) cardinality on the “many” side?                              | ⬜ No ⬜ Yes | ⬜ Yes ⬜ No |
+| **Data Duplication**  | Would data duplication be too complex or undesired?                                     | ⬜ No ⬜ Yes | ⬜ Yes ⬜ No |
+| **Document Size**     | Would the combined size cause large document or bandwidth issues?                       | ⬜ No ⬜ Yes | ⬜ Yes ⬜ No |
+| **Document Growth**   | Would the embedded piece grow without bound?                                            | ⬜ No ⬜ Yes | ⬜ Yes ⬜ No |
+| **Workload**          | Are the pieces written at different times in a write-heavy workload?                    | ⬜ No ⬜ Yes | ⬜ Yes ⬜ No |
+| **Individuality**     | Can the child exist independently without the parent?                                   | ⬜ No ⬜ Yes | ⬜ Yes ⬜ No |
