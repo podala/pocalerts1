@@ -1,0 +1,306 @@
+Perfect 👍
+
+Let’s now design a **production-grade Trust Framework for your enterprise RAG system** (especially relevant for underwriting / pricing / regulatory domains).
+
+I’ll break this into:
+
+1. 🔐 Trust Architecture Layers
+2. 🧱 MongoDB Data Model for Citations
+3. 🔎 Retrieval + Citation Mapping Flow
+4. 🖥 UI Trust Components
+5. 🏭 Enterprise Audit & Governance Layer
+
+---
+
+# 1️⃣ Enterprise RAG Trust Architecture
+
+Trust is not just UI. It’s 5 layers:
+
+```
+User
+  ↓
+Answer UI (with citations)
+  ↓
+Citation Mapping Layer
+  ↓
+Retrieval Layer (Vector + Filter)
+  ↓
+Document Store (MongoDB)
+  ↓
+Source Governance (version, metadata, approval)
+```
+
+If any layer is weak → trust collapses.
+
+---
+
+# 2️⃣ MongoDB Data Model for Trustable Citations
+
+Each chunk should be stored like this:
+
+```json
+{
+  "_id": "chunk_abc_001",
+  "documentId": "regulation_2026_v3",
+  "sourceType": "state_regulation",
+  "sourceName": "NY State Regulation",
+  "version": "2026.1",
+  "effectiveDate": "2026-01-01",
+  "pageNumber": 14,
+  "section": "Rebate Cap Clause",
+  "text": "The rebate shall not exceed...",
+  "embedding": [ ... ],
+  "approved": true,
+  "confidenceScore": 0.98,
+  "lastReviewedBy": "LegalTeam"
+}
+```
+
+Why this matters:
+
+✔ Version awareness
+✔ Audit trail
+✔ Human review tracking
+✔ Regulatory defensibility
+
+This is critical in underwriting.
+
+---
+
+# 3️⃣ Retrieval + Citation Mapping Flow
+
+Here is how citation mapping works technically.
+
+### Step 1: User Query
+
+```
+“What is rebate cap for ABC client in 2026?”
+```
+
+### Step 2: Convert to embedding
+
+### Step 3: MongoDB Vector Search with filter
+
+```js
+{
+  $vectorSearch: {
+    index: "reg_vector",
+    path: "embedding",
+    queryVector: [...],
+    numCandidates: 200,
+    limit: 5,
+    filter: {
+      client: "ABC",
+      version: "2026.1",
+      approved: true
+    }
+  }
+}
+```
+
+### Step 4: Returned chunks
+
+MongoDB returns:
+
+```
+chunk_abc_001
+chunk_abc_004
+chunk_abc_009
+```
+
+### Step 5: Citation Injection
+
+Before sending to LLM:
+
+You wrap chunks as:
+
+```
+[1] NY Regulation 2026 – Section 4.2 – Page 14
+"The rebate shall not exceed..."
+
+[2] Client Amendment ABC – Appendix B
+"The negotiated cap is..."
+```
+
+The LLM is instructed:
+
+> Use numbered references when citing information.
+
+Now your answer becomes:
+
+```
+The rebate cap for ABC client in 2026 is 12% [1][2].
+```
+
+Now mapping:
+
+```
+[1] → chunk_abc_001
+[2] → chunk_abc_004
+```
+
+---
+
+# 4️⃣ UI Trust Components (Like Perplexity, but Enterprise)
+
+You need:
+
+---
+
+## 🟢 A) Inline Citations
+
+Each claim must map to chunk ID.
+
+Clickable → opens source card.
+
+---
+
+## 🟢 B) Citation Card Should Show:
+
+* Document Name
+* Version
+* Effective Date
+* Page
+* Section
+* Highlighted excerpt
+* Confidence score
+* Review status
+
+Example:
+
+```
+Source: NY Regulation 2026
+Version: 2026.1
+Reviewed by: Legal
+Effective: Jan 1, 2026
+Confidence: 98%
+```
+
+---
+
+## 🟢 C) Retrieval Transparency Panel
+
+Optional but powerful:
+
+“Steps taken to answer this question”
+
+```
+1. Filtered documents by client = ABC
+2. Retrieved 127 candidate chunks
+3. Re-ranked top 5
+4. Generated answer using 3 chunks
+```
+
+This builds serious trust in regulated industries.
+
+---
+
+## 🟢 D) Feedback Layer
+
+Allow:
+
+👍 Correct
+👎 Incorrect
+⚠ Flag for review
+
+When user flags → store:
+
+```json
+{
+  question: "...",
+  answerId: "...",
+  flaggedChunkIds: ["chunk_abc_004"],
+  flaggedBy: "underwriter_123",
+  timestamp: "..."
+}
+```
+
+Now you have human-in-loop governance.
+
+---
+
+# 5️⃣ Enterprise Governance Layer
+
+For underwriting domain, you need:
+
+### ✔ Version Control
+
+Never mix regulation versions.
+
+### ✔ Role-Based Filtering
+
+Underwriter sees only permitted docs.
+
+### ✔ Source Approval Flag
+
+Only approved documents searchable.
+
+### ✔ Audit Log
+
+Log:
+
+* Query
+* Retrieved chunks
+* Generated answer
+* User feedback
+
+---
+
+# 🔐 Trust Architecture Maturity Model
+
+| Level   | Capability                        |
+| ------- | --------------------------------- |
+| Level 1 | Vector search only                |
+| Level 2 | Inline citations                  |
+| Level 3 | Version-aware filtering           |
+| Level 4 | Human review metadata             |
+| Level 5 | Full audit + explainability chain |
+
+You should aim for Level 4–5.
+
+---
+
+# 🏭 Why This Is Critical In Your Domain
+
+In underwriting:
+
+* Regulatory misinterpretation = financial risk
+* Pricing assumption error = legal exposure
+* Client-specific clause misread = compliance breach
+
+So you need:
+
+✔ Deterministic citation
+✔ Version isolation
+✔ Approval workflow
+✔ Traceable chunk mapping
+
+---
+
+# 🔎 MongoDB vs Azure AI Search (Trust Layer Perspective)
+
+MongoDB:
+✔ Strong metadata filtering
+✔ Transaction support
+✔ Operational + RAG data in one DB
+
+Azure AI Search:
+✔ Built-in ranking profiles
+✔ Cognitive skills (OCR, chunking)
+✔ Deep semantic ranking
+
+For strict audit-driven industries → MongoDB + strong metadata modeling works very well.
+
+---
+
+# 🚀 If You Want Next
+
+I can now:
+
+* Design exact MongoDB schema for your underwriting RAG
+* Show how to implement citation mapping in code (Node or Python)
+* Or design UI wireframe for enterprise trust RAG
+* Or explain hallucination mitigation strategies in RAG
+
+Tell me which direction you want.
+
