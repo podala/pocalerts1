@@ -1,0 +1,356 @@
+Perfect. Now let’s design a **production-grade MongoDB Atlas RAG workflow** for *your underwriting / regulatory use case*, combining:
+
+> ✅ Semantic search
+> ✅ Metadata filtering
+> ✅ Hybrid search (vector + keyword)
+> ✅ Business-aware re-ranking
+> ✅ Version + governance control
+> ✅ Audit trail
+
+This will be fully aligned with your enterprise underwriting system.
+
+---
+
+# 🎯 YOUR USE CASE CONTEXT
+
+You have:
+
+* State regulations
+* Contract documents
+* Rebate clauses
+* Versioned policy docs
+* Client-specific documents
+* Legal approvals
+* Effective dates
+
+And you need:
+
+* Accurate retrieval
+* Version control
+* Tenant isolation
+* Regulatory correctness
+* Traceability
+
+---
+
+# 🏗 E2E MONGODB RAG WORKFLOW
+
+---
+
+# 🧱 STEP 1 — DOCUMENT INGESTION
+
+Collection: `knowledge_chunks`
+
+Example document:
+
+```json
+{
+  "_id": "chunk_abc_001",
+  "documentId": "regulation_2026_v3",
+  "clientId": "ABC",
+  "sourceType": "state_regulation",
+  "sourceName": "NY State Regulation",
+  "version": "2026.1",
+  "effectiveDate": ISODate("2026-01-01"),
+  "pageNumber": 14,
+  "section": "Rebate Cap Clause",
+  "text": "The rebate shall not exceed...",
+  "embedding": [ ... ],
+  "approved": true,
+  "confidenceScore": 0.98,
+  "lastReviewedBy": "LegalTeam"
+}
+```
+
+---
+
+# 🧱 STEP 2 — INDEXING
+
+## Vector Index
+
+```json
+{
+  "fields": [
+    {
+      "type": "vector",
+      "path": "embedding",
+      "numDimensions": 1536,
+      "similarity": "cosine"
+    }
+  ]
+}
+```
+
+---
+
+## Full-Text Search Index (Hybrid Support)
+
+Atlas Search index:
+
+```json
+{
+  "mappings": {
+    "dynamic": false,
+    "fields": {
+      "text": { "type": "string" },
+      "section": { "type": "string" }
+    }
+  }
+}
+```
+
+---
+
+# 🧱 STEP 3 — USER QUERY FLOW
+
+User asks:
+
+> "What is the rebate cap for NY regulation effective 2026?"
+
+---
+
+# 🧠 STEP 4 — QUERY PROCESSING
+
+## 4.1 Generate embedding for query
+
+```
+queryEmbedding = embed(userQuery)
+```
+
+---
+
+## 4.2 HYBRID + FILTERED SEARCH PIPELINE
+
+```js
+db.knowledge_chunks.aggregate([
+
+  // 1️⃣ Vector Search (semantic)
+  {
+    $vectorSearch: {
+      index: "vector_index",
+      path: "embedding",
+      queryVector: queryEmbedding,
+      numCandidates: 200,
+      limit: 50,
+      filter: {
+        approved: true,
+        clientId: "ABC",
+        effectiveDate: { $lte: new Date() }
+      }
+    }
+  },
+
+  // 2️⃣ Add vector score
+  {
+    $addFields: {
+      vectorScore: { $meta: "vectorSearchScore" }
+    }
+  },
+
+  // 3️⃣ Full-Text Keyword Boost (hybrid layer)
+  {
+    $addFields: {
+      keywordBoost: {
+        $cond: [
+          { $regexMatch: { input: "$text", regex: "rebate cap", options: "i" } },
+          1,
+          0
+        ]
+      }
+    }
+  },
+
+  // 4️⃣ Business Re-Ranking
+  {
+    $addFields: {
+      finalScore: {
+        $add: [
+          { $multiply: ["$vectorScore", 0.6] },
+          { $multiply: ["$confidenceScore", 0.2] },
+          { $multiply: ["$keywordBoost", 0.1] },
+          {
+            $multiply: [
+              { $cond: ["$approved", 1, 0] },
+              0.1
+            ]
+          }
+        ]
+      }
+    }
+  },
+
+  { $sort: { finalScore: -1 } },
+  { $limit: 5 }
+])
+```
+
+---
+
+# 💡 What Just Happened?
+
+You combined:
+
+| Layer           | Purpose                    |
+| --------------- | -------------------------- |
+| Vector search   | Semantic meaning           |
+| Metadata filter | Tenant + version control   |
+| Keyword boost   | Precision on legal phrases |
+| ConfidenceScore | Legal review weight        |
+| Approved flag   | Governance enforcement     |
+| FinalScore sort | Business-aware ranking     |
+
+This is exactly how production systems combine:
+
+> semantic + filtering + hybrid + ranking
+
+---
+
+# 🧠 STEP 5 — CONTEXT BUILDING
+
+Top 5 chunks are passed to LLM:
+
+```
+[1] NY Regulation 2026.1 Page 14
+"The rebate shall not exceed..."
+
+[2] NY Regulation 2026.1 Page 15
+...
+```
+
+---
+
+# 🧠 STEP 6 — LLM GENERATION
+
+Prompt:
+
+```
+Answer strictly based on the following regulatory excerpts.
+Cite using [1], [2], etc.
+Do not invent.
+```
+
+---
+
+# 🧠 STEP 7 — CITATION MAPPING
+
+Store:
+
+```json
+{
+  "question": "...",
+  "retrievedChunkIds": ["chunk_abc_001", "chunk_abc_014"],
+  "finalAnswer": "...",
+  "citations": {
+    "1": "chunk_abc_001"
+  },
+  "timestamp": ISODate()
+}
+```
+
+---
+
+# 🛡 STEP 8 — GUARDRAILS
+
+Before sending to user:
+
+✔ If no chunk score > 0.75 → fallback
+✔ If chunks from mixed versions → reject
+✔ If no approved document → reject
+
+---
+
+# 📊 STEP 9 — FEEDBACK LOOP
+
+Collection: `rag_feedback`
+
+```json
+{
+  "questionId": "...",
+  "chunkId": "chunk_abc_001",
+  "feedback": "incorrect",
+  "user": "underwriter_1",
+  "timestamp": ...
+}
+```
+
+Adjust future `confidenceScore`.
+
+---
+
+# 🏢 ENTERPRISE-READY ARCHITECTURE
+
+```
+User Query
+   ↓
+Embedding
+   ↓
+Vector Search (semantic)
+   ↓
+Metadata Filtering (client + version + approved)
+   ↓
+Keyword Boost (hybrid)
+   ↓
+Business Re-Ranking
+   ↓
+Top-K Chunks
+   ↓
+LLM Answer
+   ↓
+Citation Mapping
+   ↓
+Audit Log
+   ↓
+User
+```
+
+---
+
+# 🚀 WHY THIS IS INDUSTRIAL GRADE
+
+Because it:
+
+✔ Prevents cross-client data leaks
+✔ Prevents outdated regulation usage
+✔ Prioritizes legally reviewed content
+✔ Combines semantic + lexical precision
+✔ Stores full traceability
+✔ Enables deterministic re-ranking
+
+---
+
+# ⚙ PERFORMANCE CONSIDERATION
+
+For scale (10M+ chunks):
+
+* Use Search Nodes
+* Use sharding by clientId
+* Limit numCandidates
+* Project only required fields
+* Cache embeddings
+
+---
+
+# 🔥 Final Answer
+
+In production MongoDB RAG systems, teams combine:
+
+> Semantic search
+
+* Strict metadata filtering
+* Hybrid keyword boosting
+* Weighted business re-ranking
+* Governance validation
+
+Exactly what we designed above.
+
+---
+
+If you want next level:
+
+* I can show cost + latency modeling
+* Or multi-tenant scaling design
+* Or cross-encoder re-ranking integration
+* Or show difference vs Azure AI Search
+
+Tell me which direction you want to go deeper.
+
