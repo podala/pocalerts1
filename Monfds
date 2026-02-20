@@ -1,0 +1,385 @@
+Perfect.
+
+Now I will give you a **clean, structured, production-ready E2E flow**.
+
+Not theory.
+Not book copy.
+A real **MongoDB Atlas Hybrid Contract RAG Flow** for your use case.
+
+---
+
+# 🧠 ENTERPRISE CONTRACT RAG
+
+## Proper End-to-End System Flow
+
+We divide into 2 big pipelines:
+
+1. **Indexing Pipeline (Offline / Upload Time)**
+2. **Query & Answer Pipeline (Real Time)**
+
+---
+
+# 🔷 PART 1 — INDEXING PIPELINE (When Contract Is Uploaded)
+
+### STEP 1 — Document Ingestion
+
+Input:
+
+* PDF / DOCX
+* Metadata (client, jurisdiction, effective date, version, etc.)
+
+Process:
+
+* Extract text
+* Extract tables separately
+* Detect headings (Clause-aware parsing)
+
+Output:
+Structured document sections
+
+---
+
+### STEP 2 — Clause-Aware Chunking (NOT Token Chunking)
+
+Chunk rules:
+
+| Content Type     | Chunk Strategy                 |
+| ---------------- | ------------------------------ |
+| Clause           | 1 clause = 1 chunk             |
+| Sub-clause       | Separate if legally meaningful |
+| Table            | 1 table = 1 structured chunk   |
+| Definition block | Separate chunk                 |
+| Amendment        | Separate version-linked chunk  |
+
+Each chunk:
+
+```json
+{
+  contractId,
+  version,
+  jurisdiction,
+  effectiveDate,
+  section,
+  clauseType,
+  pageNumber,
+  text,
+  approved,
+  confidenceScore
+}
+```
+
+Important:
+We preserve source context for citation tracking.
+
+---
+
+### STEP 3 — Auto-Embedding (MongoDB Atlas Voyage)
+
+Atlas generates:
+
+```
+embedding: [vector]
+```
+
+No external embedding pipeline.
+
+---
+
+### STEP 4 — Indexing
+
+Create:
+
+* 1 Vector Index on `embedding`
+* Metadata indexes on:
+
+  * contractId
+  * effectiveDate
+  * jurisdiction
+  * approved
+  * version
+
+Now system is ready.
+
+---
+
+# 🔷 PART 2 — QUERY & ANSWER PIPELINE (Real Time Flow)
+
+This is the important part.
+
+---
+
+# 🟡 STEP 1 — Query Intake
+
+User asks:
+
+> “Show active NY PBM contracts for Client X with admin fee details”
+
+---
+
+# 🟡 STEP 2 — Out-of-Domain Check
+
+We run 3 signals:
+
+1. Embedding similarity to domain corpus
+2. Keyword presence (admin fee, rebate, clause, contract, etc.)
+3. Lightweight classifier
+
+If OOD → return safe fallback.
+
+If in-domain → continue.
+
+---
+
+# 🟡 STEP 3 — Metadata Hard Filtering (Compliance Gate)
+
+Before vector search.
+
+```js
+{
+  client: "Client X",
+  jurisdiction: "NY",
+  effectiveDate: { $lte: today },
+  expiryDate: { $gte: today },
+  approved: true
+}
+```
+
+This ensures:
+
+* No expired contracts
+* No unapproved clauses
+* No wrong jurisdiction
+
+Only filtered subset proceeds.
+
+---
+
+# 🟡 STEP 4 — Vector Similarity Search
+
+Run `$vectorSearch` only on filtered subset.
+
+Return top 20 candidates.
+
+Each candidate has:
+
+* similarity score
+* metadata
+* chunkId
+
+---
+
+# 🟡 STEP 5 — Hybrid Re-Ranking (Critical Layer)
+
+Compute final score:
+
+```
+FinalScore =
+  0.6 * vectorScore
++ 0.15 * clauseTypeWeight
++ 0.15 * recencyWeight
++ 0.1 * confidenceScore
+```
+
+This reduces:
+
+* False positives
+* Wrong version matches
+* Low-confidence clauses
+
+Now select top 5.
+
+---
+
+# 🟡 STEP 6 — Retrieval Quality Evaluation (CRAG-Inspired)
+
+Evaluate:
+
+* Is top1 similarity < threshold?
+* Is similarity gap too small?
+* Are results from mixed contracts?
+* Are clause types inconsistent?
+
+If LOW confidence:
+→ Re-run with query expansion
+→ Add keyword filter
+→ Or fallback to hybrid keyword search
+
+If HIGH confidence:
+→ Continue to generation.
+
+---
+
+# 🟡 STEP 7 — Citation-Aware Prompt Construction
+
+We build structured prompt:
+
+```
+Chunk C1:
+Text: ...
+Source: NY Regulation 2026 v3
+Section: Rebate Cap Clause
+Page: 14
+
+Chunk C2:
+Text: ...
+...
+```
+
+We instruct LLM:
+
+* Use ONLY provided chunks
+* Cite using chunk IDs
+* Do not add external facts
+
+---
+
+# 🟡 STEP 8 — LLM Response Generation
+
+Output:
+
+```
+The rebate shall not exceed 12%. [C1]
+
+Administrative fees are capped at 3%. [C2]
+```
+
+Each sentence tied to chunkId.
+
+---
+
+# 🟡 STEP 9 — Post-Generation Guardrails
+
+We check:
+
+1. Every sentence has citation
+2. Citation ID exists in retrieval list
+3. No hallucinated content
+4. Version consistency
+
+If violation:
+→ Regenerate only invalid section.
+
+---
+
+# 🟡 STEP 10 — Response Packaging (Trust Layer)
+
+Return to UI:
+
+* Answer text
+* Inline citations
+* Clickable citation card:
+
+  * Full clause
+  * Version
+  * Effective date
+  * Page number
+* Confidence score
+* Retrieval transparency:
+
+  * “Filtered 312 clauses”
+  * “Top similarity 0.92”
+
+---
+
+# 🟡 STEP 11 — Feedback Capture
+
+Store:
+
+```json
+{
+  query,
+  retrievedChunkIds,
+  selectedChunk,
+  userFeedback,
+  timestamp
+}
+```
+
+Used for:
+
+* Re-ranking tuning
+* Threshold optimization
+* False positive control
+
+---
+
+# 🔷 OPTIONAL — SELF-RAG LOOP (Advanced)
+
+After generation:
+
+System self-checks:
+
+“Is answer fully grounded?”
+
+If uncertain:
+→ Run second retrieval
+→ Merge new evidence
+→ Regenerate final answer
+
+---
+
+# 🔷 LATENCY FLOW (Expected)
+
+| Stage           | Target  |
+| --------------- | ------- |
+| Metadata filter | < 200ms |
+| Vector search   | < 800ms |
+| Re-ranking      | < 100ms |
+| LLM generation  | 1–2s    |
+| Total           | ~2–3s   |
+
+Enterprise acceptable.
+
+---
+
+# 🔷 SUMMARY FLOW DIAGRAM (Text Version)
+
+```
+Upload → Chunk → Embed → Index
+        ↓
+User Query
+        ↓
+Out-of-domain check
+        ↓
+Metadata filter
+        ↓
+Vector search
+        ↓
+Re-rank
+        ↓
+Retrieval quality evaluator
+        ↓
+Prompt construction
+        ↓
+LLM generation
+        ↓
+Citation validation
+        ↓
+Response + transparency + feedback
+```
+
+---
+
+# This Is Your Proper Enterprise Flow
+
+It includes:
+
+✔ Hybrid search
+✔ Filtering first
+✔ Re-ranking
+✔ Retrieval evaluator (CRAG-style)
+✔ Citation enforcement
+✔ Guardrails
+✔ Feedback loop
+✔ MongoDB-native implementation
+
+---
+
+If you want next, I can:
+
+* Turn this into architecture diagram form
+* Convert into executive POC doc
+* Or simulate how this handles a failure case
+
+Tell me which direction you want.
+
