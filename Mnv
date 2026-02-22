@@ -1,0 +1,482 @@
+Perfect.
+Now we will combine **everything properly** into one unified, enterprise-grade blueprint:
+
+* 📘 Trustworthy RAG principles
+* 📄 PDF research learnings (evaluation, security, benchmarking)
+* 🟢 MongoDB POC capabilities
+* 🏢 Enterprise ingestion (text + tables + mixed content)
+* 🛡 Guardrails + governance
+* 📊 Evaluation + feedback loop
+* 🧠 Context handling
+* 🧾 Citation lifecycle
+
+No shortcuts. Structured. Layered. Production-ready.
+
+---
+
+# 🔷 ENTERPRISE TRUSTWORTHY RAG SYSTEM (FULL MODEL)
+
+We design this in **7 major layers**.
+
+---
+
+# 🧱 LAYER 1 — Document Intelligence Layer (Ingestion)
+
+### Problem
+
+Documents contain:
+
+* Free text
+* Tables
+* Headers
+* Clauses
+* Footnotes
+* Cross references
+* OCR content
+
+Blind chunking fails.
+
+---
+
+## 🔹 Step 1 — Layout-Aware Parsing
+
+Extract:
+
+```json
+{
+  "documentId": "doc_101",
+  "type": "contract",
+  "structure": {
+    "sections": [
+      {
+        "title": "Rebate Terms",
+        "pageStart": 12,
+        "paragraphs": [...],
+        "tables": [...]
+      }
+    ]
+  }
+}
+```
+
+✔ Section-aware
+✔ Page-aware
+✔ Table-aware
+
+---
+
+## 🔹 Step 2 — Multi-Modal Separation
+
+Split into:
+
+1. Text chunks
+2. Tables
+3. Metadata objects
+
+---
+
+## 🔹 Step 3 — Text Chunking (Enterprise Pattern)
+
+Instead of 300 characters:
+
+* 500–800 tokens
+* Section-aware
+* Clause-aware
+* 10–15% overlap
+* Respect semantic boundaries
+
+Output:
+
+```json
+{
+  "_id": "chunk_456",
+  "type": "text",
+  "contractId": "C-789",
+  "section": "Rebate Terms",
+  "clauseId": "rebate_3",
+  "pageNumber": 14,
+  "text": "...",
+  "embedding": [...],
+  "embeddingModel": "text-embedding-3-small",
+  "embeddingVersion": "2026-02"
+}
+```
+
+---
+
+## 🔹 Step 4 — Table Handling (Advanced Pattern)
+
+Store both:
+
+### A) Structured form
+
+```json
+{
+  "_id": "table_12",
+  "type": "table",
+  "headers": ["Category", "Rebate %"],
+  "rows": [
+    ["Specialty", "12%"],
+    ["Brand", "8%"]
+  ]
+}
+```
+
+### B) Semantic rendering
+
+```
+"Specialty drugs have a rebate of 12%."
+```
+
+Embed that.
+
+This avoids table loss.
+
+---
+
+# 🧱 LAYER 2 — Embedding & Index Governance
+
+---
+
+## 🔹 Embedding Versioning Strategy
+
+Every record must include:
+
+```json
+{
+  "embeddingModel": "text-embedding-3-small",
+  "embeddingVersion": "2026-02",
+  "vectorDimension": 1536
+}
+```
+
+Why?
+
+Because upgrading embedding model changes similarity space.
+
+Enterprise must support:
+
+* Re-embedding pipeline
+* Dual index during migration
+* Evaluation before switch
+
+---
+
+## 🔹 MongoDB Atlas Index
+
+```json
+{
+  "mappings": {
+    "fields": {
+      "embedding": {
+        "type": "knnVector",
+        "dimensions": 1536,
+        "similarity": "cosine"
+      }
+    }
+  }
+}
+```
+
+MongoDB handles:
+✔ Vector search
+✔ Hybrid metadata filters
+✔ ABAC
+✔ Encryption
+
+---
+
+# 🧱 LAYER 3 — Hybrid Retrieval Engine
+
+This is where MongoDB POC stops — and enterprise begins.
+
+---
+
+## 🔹 Query Flow
+
+User input:
+
+```json
+{
+  "queryText": "What is the rebate for specialty drugs?",
+  "role": "underwriter",
+  "contractId": "C-789",
+  "topK": 5,
+  "similarityThreshold": 0.78
+}
+```
+
+---
+
+## 🔹 Hybrid Mongo Query
+
+```json
+{
+  "$vectorSearch": {
+    "index": "contract_vector_index",
+    "path": "embedding",
+    "queryVector": [...],
+    "filter": {
+      "contractId": "C-789",
+      "allowedRoles": { "$in": ["underwriter"] }
+    },
+    "limit": 5
+  }
+}
+```
+
+---
+
+## 🔹 Similarity Threshold Gate (Trust Layer)
+
+MongoDB returns topK even if irrelevant.
+
+Backend must enforce:
+
+```
+IF topScore < threshold
+    → Return NOT FOUND
+```
+
+Without this → hallucinations.
+
+---
+
+# 🧱 LAYER 4 — Context Assembly & Citation Lifecycle
+
+---
+
+## 🔹 Citation Builder
+
+Each retrieved chunk becomes:
+
+```json
+{
+  "citationId": 1,
+  "chunkId": "chunk_456",
+  "documentId": "doc_101",
+  "section": "Rebate Terms",
+  "pageNumber": 14,
+  "snippet": "Rebate shall be 12%..."
+}
+```
+
+---
+
+## 🔹 Context Window Construction
+
+System must:
+
+1. Deduplicate chunks
+2. Rank by score
+3. Remove noise
+4. Fit within LLM token limit
+
+---
+
+## 🔹 Prompt Construction (Guarded)
+
+```
+Answer ONLY using provided context.
+Cite sources as [1], [2].
+If insufficient information, say "Not Found."
+Do not invent.
+```
+
+---
+
+# 🧱 LAYER 5 — LLM + Faithfulness Validation
+
+After generation:
+
+Validate:
+
+* Are all claims backed by citations?
+* Does answer reference chunk IDs?
+* Any unsupported statement?
+
+Optional:
+Second LLM checks faithfulness.
+
+Output:
+
+```json
+{
+  "answer": "The rebate for specialty drugs is 12%. [1]",
+  "citations": [...],
+  "confidenceScore": 0.88,
+  "faithfulnessScore": 0.91
+}
+```
+
+---
+
+# 🧱 LAYER 6 — Evaluation Framework (From PDF)
+
+Separate:
+
+### A) Retrieval Metrics
+
+* Context precision
+* Context recall
+* Top-3 accuracy
+* False positives
+
+### B) Answer Metrics
+
+* Faithfulness
+* Relevance
+* Hallucination rate
+* Not-found correctness
+
+Must test on:
+
+* 100–500 synthetic QA pairs
+* Regression before deployment
+
+MongoDB POC does not show this layer.
+
+---
+
+# 🧱 LAYER 7 — Governance & Security Layer
+
+From PDF research + enterprise best practice.
+
+---
+
+## 🔹 Threats Identified
+
+* Embedding inversion
+* Membership inference
+* Data leakage
+
+Mitigation:
+
+✔ AES-256 encryption
+✔ TLS 1.3
+✔ ABAC
+✔ Field-level redaction
+✔ Immutable audit logs
+
+---
+
+## 🔹 Query Audit Log
+
+```json
+{
+  "queryId": "q_789",
+  "userId": "u_102",
+  "role": "underwriter",
+  "topScore": 0.89,
+  "threshold": 0.78,
+  "responseType": "answer",
+  "timestamp": "2026-02-20T11:00:00Z"
+}
+```
+
+---
+
+# 🧱 LAYER 8 — UX Trust Layer (From Perplexity Pattern)
+
+Enterprise UX must include:
+
+✔ Inline citations
+✔ Clickable citation cards
+✔ Source diversity indicator
+✔ Feedback panel
+✔ Follow-up suggestions
+✔ Transparency ("Searching 12 clauses...")
+
+MongoDB POC does not include this.
+
+---
+
+# 🧱 LAYER 9 — Feedback Loop
+
+User feedback stored:
+
+```json
+{
+  "queryId": "q_789",
+  "feedback": "incorrect",
+  "reason": "wrong contract"
+}
+```
+
+Used for:
+
+* Threshold tuning
+* Reranker training
+* Re-embedding decisions
+
+---
+
+# 🔷 COMPLETE UNIFIED FLOW
+
+```
+PDF → Layout Parsing → Text + Table Separation
+      ↓
+Semantic Chunking + Table Rendering
+      ↓
+Embedding (Versioned)
+      ↓
+MongoDB Atlas (Vector + Metadata)
+      ↓
+Hybrid Retrieval
+      ↓
+Threshold Gate
+      ↓
+Context Builder
+      ↓
+Citation Mapping
+      ↓
+Guarded Prompt
+      ↓
+LLM Answer
+      ↓
+Faithfulness Check
+      ↓
+Response + UX Trust Indicators
+      ↓
+Audit Log + Feedback
+      ↓
+Evaluation & Continuous Improvement
+```
+
+---
+
+# 🔷 Final Reality
+
+MongoDB provides:
+
+✔ Vector search
+✔ Hybrid filtering
+✔ ABAC
+✔ Encryption
+✔ Scalability
+
+You must provide:
+
+✔ Trust enforcement
+✔ Citation lifecycle
+✔ Evaluation harness
+✔ Threshold gating
+✔ Embedding governance
+✔ Guardrails
+✔ Feedback loop
+✔ UX transparency
+
+---
+
+If you want next level:
+
+We can now produce:
+
+* 🔬 Deep evaluation harness design
+* 🧠 Embedding migration playbook
+* 📊 Trust score mathematical model
+* 🛡 Prompt injection defense architecture
+* 📈 SLA & performance model
+* 🏗 MongoDB review questionnaire (advanced technical)
+
+Tell me which one.
