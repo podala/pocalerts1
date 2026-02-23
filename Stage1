@@ -1,0 +1,270 @@
+Good question.
+
+Short answer:
+👉 **No — ingestion stage alone does NOT fully handle citations and roles yet.**
+
+We registered sensitivity and tenant isolation,
+but we have NOT yet structured:
+
+* Citation traceability model
+* Role-based citation visibility
+* Redaction rules
+* Section-level access control
+* Citation audit linkage
+* Source trust scoring
+
+So now we fix that.
+
+We will enhance **Ingestion Stage** properly.
+
+Only ingestion + citation governance + role control.
+
+No mixing.
+
+---
+
+# 🟦 STAGE 1 (ENHANCED) — INGESTION WITH CITATION & ROLE MODELING
+
+We now extend ingestion to include:
+
+1. Citation metadata strategy
+2. Role-based document visibility
+3. Role-based citation exposure
+4. Redaction rules
+5. Source trust scoring
+6. Audit trace linkage
+
+---
+
+# 🔷 1️⃣ CITATION STRUCTURE MUST BE PREPARED DURING INGESTION
+
+You cannot add citation later magically.
+You must prepare citation trace fields at ingestion.
+
+Each document must include:
+
+* citationBaseId
+* citationFormatTemplate
+* sourceDisplayName
+* citationPriority
+* trustLevel
+
+---
+
+## Citation Metadata at Document Level
+
+```json
+{
+  "documentId": "DOC_RFP_2026_TX_001",
+  "sourceType": "RFP",
+  "citationConfig": {
+    "sourceDisplayName": "Texas RFP 2026 v2",
+    "citationTemplate": "{sourceDisplayName}, Section {section}, Page {pageNumber}",
+    "citationPriority": 2,
+    "trustLevel": "CLIENT_PROVIDED"
+  }
+}
+```
+
+For regulation:
+
+```json
+{
+  "documentId": "DOC_TX_REG_2026",
+  "sourceType": "Regulation",
+  "citationConfig": {
+    "sourceDisplayName": "Texas Regulation 2026",
+    "citationTemplate": "{sourceDisplayName}, Article {section}, Page {pageNumber}",
+    "citationPriority": 1,
+    "trustLevel": "GOVERNMENT_SOURCE"
+  }
+}
+```
+
+Priority determines citation ordering in UI.
+
+---
+
+# 🔷 2️⃣ ROLE-BASED ACCESS MODEL (At Ingestion Level)
+
+You must define role visibility at document registration.
+
+Each document must contain:
+
+* allowedRoles
+* restrictedRoles
+* redactionPolicy
+* citationVisibilityLevel
+
+---
+
+## Example Role Configuration
+
+```json
+{
+  "documentId": "DOC_RFP_2026_TX_001",
+  "accessControl": {
+    "allowedRoles": ["SeniorUnderwriter", "PricingManager"],
+    "restrictedRoles": ["JuniorUnderwriter"],
+    "citationVisibilityLevel": "FULL",
+    "redactionPolicy": "NONE"
+  }
+}
+```
+
+For sensitive pricing model:
+
+```json
+{
+  "documentId": "DOC_PRICING_MODEL_2026",
+  "accessControl": {
+    "allowedRoles": ["PricingDirector"],
+    "citationVisibilityLevel": "LIMITED",
+    "redactionPolicy": "MASK_FINANCIAL_FIELDS"
+  }
+}
+```
+
+---
+
+# 🔷 3️⃣ SECTION-LEVEL ROLE CONTROL (Important)
+
+Enterprise systems often miss this.
+
+A document may be visible, but some sections are restricted.
+
+So ingestion must allow section policy mapping.
+
+```json
+{
+  "documentId": "DOC_RFP_2026_TX_001",
+  "sectionPolicies": [
+    {
+      "section": "Financial Guarantees",
+      "allowedRoles": ["PricingDirector"]
+    },
+    {
+      "section": "Network Terms",
+      "allowedRoles": ["SeniorUnderwriter"]
+    }
+  ]
+}
+```
+
+This affects retrieval filtering later.
+
+---
+
+# 🔷 4️⃣ CITATION AUDIT LINKAGE
+
+Every document must include:
+
+* auditTraceId
+* complianceCategory
+* regulatoryRelevanceFlag
+
+Example:
+
+```json
+{
+  "documentId": "DOC_TX_REG_2026",
+  "auditConfig": {
+    "auditTraceId": "AUD_TX_REG_2026",
+    "complianceCategory": "STATE_REGULATION",
+    "regulatoryRelevance": true
+  }
+}
+```
+
+This allows:
+
+* Regulatory audit reporting
+* Compliance proof generation
+
+---
+
+# 🔷 5️⃣ TRUST SCORE MODEL (Optional but Enterprise Grade)
+
+Each document can have a trust score at ingestion.
+
+```json
+{
+  "documentId": "DOC_CONSULTANT_BENCHMARK",
+  "trustScore": 0.82,
+  "trustFactors": {
+    "sourceAuthority": 0.8,
+    "recencyScore": 0.9,
+    "validationStatus": 0.75
+  }
+}
+```
+
+Later used in source diversity indicator in UI.
+
+---
+
+# 🔷 6️⃣ FULL INGESTION RECORD (ENHANCED)
+
+Now combining everything:
+
+```json
+{
+  "_id": "DOC_RFP_2026_TX_001",
+  "tenantId": "T1",
+  "clientId": "C101",
+  "opportunityId": "O455",
+  "sourceType": "RFP",
+  "documentVersion": "v2",
+  "jurisdiction": "Texas",
+  "sensitivityLevel": 2,
+  "blobLocation": "blob://rfp/T1/C101/O455/DOC_RFP_2026_TX_001_v2.pdf",
+
+  "citationConfig": {
+    "sourceDisplayName": "Texas RFP 2026 v2",
+    "citationTemplate": "{sourceDisplayName}, Section {section}, Page {pageNumber}",
+    "citationPriority": 2,
+    "trustLevel": "CLIENT_PROVIDED"
+  },
+
+  "accessControl": {
+    "allowedRoles": ["SeniorUnderwriter", "PricingManager"],
+    "citationVisibilityLevel": "FULL",
+    "redactionPolicy": "NONE"
+  },
+
+  "auditConfig": {
+    "auditTraceId": "AUD_RFP_2026_TX",
+    "complianceCategory": "CLIENT_DOCUMENT"
+  },
+
+  "trustScore": 0.87,
+  "createdAt": "2026-02-22T11:00:00Z"
+}
+```
+
+---
+
+# 🔷 WHAT IS NOW COVERED
+
+✔ Document ingestion
+✔ Versioning
+✔ Tenant isolation
+✔ Sensitivity
+✔ Citation template model
+✔ Role-based access
+✔ Section-level role control
+✔ Redaction policies
+✔ Audit linkage
+✔ Trust scoring
+
+Now ingestion stage is enterprise-complete.
+
+---
+
+If you approve this ingestion model,
+we move to Stage 2:
+
+🟦 Parsing + Chunk Modeling
+(where citation IDs are generated per chunk and tied to role control)
+
+Let me know if ingestion now meets your expectation.
