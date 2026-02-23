@@ -1,0 +1,373 @@
+Good.
+Now we move to:
+
+# 🟦 STAGE 4 — RETRIEVAL ENGINE
+
+(Hybrid Search + Policy Enforcement + Reranker + CRAG + Retrieval Metrics)
+
+This is the heart of your underwriting RAG system.
+
+We will define:
+
+1. Retrieval objectives
+2. Full retrieval data flow
+3. Policy enforcement in retrieval
+4. Hybrid vector + metadata search
+5. Reranking stage
+6. CRAG evaluation
+7. Multi-source merge
+8. Retrieval payload structures
+9. Retrieval metrics
+10. Retrieval UI transparency data
+
+No LLM yet.
+Only retrieval.
+
+---
+
+# 🎯 OBJECTIVE OF STAGE 4
+
+Given a validated query (Stage 3 output), retrieval must:
+
+* Respect tenant boundaries
+* Enforce policy dynamically
+* Filter by client/opportunity/version
+* Filter by sensitivity level
+* Filter by source types
+* Return high-recall candidates
+* Improve precision via reranker
+* Detect weak retrieval quality
+* Decide whether fallback or merge needed
+* Prepare structured context payload
+
+---
+
+# 🔷 1️⃣ INPUT TO RETRIEVAL
+
+From Stage 3 Query Stage:
+
+```json
+{
+  "queryId": "Q_20260222_0001",
+  "tenantId": "T1",
+  "clientId": "C101",
+  "opportunityId": "O455",
+  "queryEmbeddingModel": "voyage-3-legal-v2",
+  "embeddingVector": [...],
+  "selectedSourceTypes": ["RFP", "Regulation"],
+  "retrievalDepth": 50,
+  "similarityThreshold": 0.75,
+  "policyEvaluationRequired": true
+}
+```
+
+---
+
+# 🔷 2️⃣ POLICY ENFORCEMENT DURING RETRIEVAL
+
+Before vector search executes:
+
+System computes allowed policies for user.
+
+User Profile:
+
+```json
+{
+  "userId": "U1001",
+  "roleLevel": 4,
+  "department": "Underwriting",
+  "clearanceLevel": 2
+}
+```
+
+Policy Engine evaluates:
+
+```plaintext
+User clearanceLevel >= document.sensitivityLevel
+AND roleLevel >= policy.roleLevelMin
+AND department in policy.departmentAllowed
+```
+
+Result:
+
+```json
+{
+  "allowedPolicyIds": [
+    "POLICY_CLIENT_DOC_STANDARD",
+    "POLICY_REGULATION_PUBLIC"
+  ]
+}
+```
+
+These become part of retrieval filter.
+
+---
+
+# 🔷 3️⃣ HYBRID VECTOR SEARCH PAYLOAD (MongoDB)
+
+```json
+{
+  "$vectorSearch": {
+    "index": "underwriting_vector_index",
+    "queryVector": [...],
+    "path": "embedding.vector",
+    "numCandidates": 200,
+    "limit": 50,
+    "filter": {
+      "tenantId": "T1",
+      "clientId": "C101",
+      "opportunityId": "O455",
+      "sourceType": { "$in": ["RFP", "Regulation"] },
+      "policyId": { "$in": ["POLICY_CLIENT_DOC_STANDARD", "POLICY_REGULATION_PUBLIC"] },
+      "indexStatus": "ACTIVE"
+    }
+  }
+}
+```
+
+This ensures:
+
+✔ Tenant isolation
+✔ Client isolation
+✔ Source filtering
+✔ Policy enforcement
+✔ Only active versions
+
+---
+
+# 🔷 4️⃣ RAW RETRIEVAL RESULT PAYLOAD
+
+```json
+{
+  "queryId": "Q_20260222_0001",
+  "retrievedChunks": [
+    {
+      "chunkId": "CH_RFP_SEC4_P14",
+      "similarityScore": 0.89,
+      "sourceType": "RFP"
+    },
+    {
+      "chunkId": "CH_REG_SEC12_P42",
+      "similarityScore": 0.91,
+      "sourceType": "Regulation"
+    }
+  ],
+  "retrievalLatencyMs": 340
+}
+```
+
+---
+
+# 🔷 5️⃣ SIMILARITY THRESHOLD FILTER
+
+Remove weak matches.
+
+```json
+{
+  "afterThresholdFilter": [
+    {
+      "chunkId": "CH_RFP_SEC4_P14",
+      "score": 0.89
+    },
+    {
+      "chunkId": "CH_REG_SEC12_P42",
+      "score": 0.91
+    }
+  ]
+}
+```
+
+If no chunk > threshold → return "INSUFFICIENT_CONTEXT".
+
+---
+
+# 🔷 6️⃣ RERANKER STAGE (PRECISION IMPROVEMENT)
+
+Input:
+
+```json
+{
+  "queryText": "Does the RFP rebate violate Texas regulation cap?",
+  "candidateChunks": [
+    { "chunkId": "CH_RFP_SEC4_P14", "text": "..." },
+    { "chunkId": "CH_REG_SEC12_P42", "text": "..." }
+  ],
+  "rerankerModel": "cross-encoder-legal-v1"
+}
+```
+
+Output:
+
+```json
+{
+  "rerankedChunks": [
+    {
+      "chunkId": "CH_REG_SEC12_P42",
+      "relevanceScore": 0.96
+    },
+    {
+      "chunkId": "CH_RFP_SEC4_P14",
+      "relevanceScore": 0.93
+    }
+  ]
+}
+```
+
+Keep top N (e.g., 5).
+
+---
+
+# 🔷 7️⃣ CRAG RETRIEVAL EVALUATOR
+
+Evaluate retrieval quality:
+
+Criteria:
+
+* Minimum 1 regulation chunk present?
+* Source diversity achieved?
+* Combined coverage score?
+* Avg similarity > threshold?
+
+Evaluation payload:
+
+```json
+{
+  "retrievalQualityScore": 0.87,
+  "regulationFound": true,
+  "rfpFound": true,
+  "fallbackRequired": false
+}
+```
+
+If fallbackRequired = true:
+Trigger alternative retrieval strategy (e.g., broader scope).
+
+---
+
+# 🔷 8️⃣ MULTI-SOURCE MERGE LOGIC
+
+You may need to ensure minimum source coverage.
+
+Example:
+
+```json
+{
+  "requiredSources": ["RFP", "Regulation"],
+  "actualSources": ["Regulation"],
+  "action": "FORCE_RFP_RETRIEVAL"
+}
+```
+
+This ensures regulatory override detection is possible.
+
+---
+
+# 🔷 9️⃣ FINAL CONTEXT PREPARATION PAYLOAD
+
+```json
+{
+  "queryId": "Q_20260222_0001",
+  "contextChunks": [
+    {
+      "chunkId": "CH_REG_SEC12_P42",
+      "text": "...",
+      "citationId": "CIT_REG_SEC12_P42",
+      "sourceType": "Regulation"
+    },
+    {
+      "chunkId": "CH_RFP_SEC4_P14",
+      "text": "...",
+      "citationId": "CIT_RFP_SEC4_P14",
+      "sourceType": "RFP"
+    }
+  ],
+  "retrievalMetadata": {
+    "retrievalLatencyMs": 340,
+    "rerankerLatencyMs": 120,
+    "retrievalQualityScore": 0.87
+  }
+}
+```
+
+This is what Stage 5 (LLM) receives.
+
+---
+
+# 🔷 🔟 RETRIEVAL METRICS
+
+You must measure:
+
+| Metric                     | Why                     |
+| -------------------------- | ----------------------- |
+| Recall@10                  | Retrieval completeness  |
+| Precision@5                | Final relevance         |
+| Avg similarity score       | Embedding health        |
+| Source diversity score     | Multi-source reasoning  |
+| Retrieval latency p95      | SLA                     |
+| Reranker improvement delta | Value of reranker       |
+| Threshold rejection rate   | Guardrail effectiveness |
+| Fallback trigger rate      | Knowledge gaps          |
+
+Daily metric payload:
+
+```json
+{
+  "date": "2026-02-22",
+  "avgRecallAt10": 0.88,
+  "avgPrecisionAt5": 0.91,
+  "avgRetrievalLatencyMs": 310,
+  "fallbackRate": 0.04,
+  "rerankerImprovement": 0.07
+}
+```
+
+---
+
+# 🔷 1️⃣1️⃣ UI TRANSPARENCY DATA (Retrieval Panel)
+
+UI should display:
+
+* Sources used
+* Similarity score
+* Retrieval confidence
+* Model versions
+* Fallback triggered or not
+* Source diversity indicator
+
+Example UI Data Payload:
+
+```json
+{
+  "queryId": "Q_20260222_0001",
+  "retrievalSummary": {
+    "sourcesUsed": ["Regulation", "RFP"],
+    "avgSimilarity": 0.92,
+    "confidenceScore": 0.87,
+    "fallbackTriggered": false
+  }
+}
+```
+
+---
+
+# 🔷 WHAT IS ACHIEVED AFTER STAGE 4
+
+✔ Tenant-safe retrieval
+✔ Policy-enforced filtering
+✔ Hybrid search
+✔ Reranker precision
+✔ CRAG evaluation
+✔ Multi-source validation
+✔ Structured context ready for LLM
+✔ Retrieval metrics logged
+
+---
+
+Stop here.
+
+Review Stage 4.
+
+If approved →
+Stage 5: LLM Reasoning + Multi-Source Conflict Resolution + Citation Enforcement + Self-RAG Loop.
+
+Let me know.
