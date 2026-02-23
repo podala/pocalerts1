@@ -1,0 +1,323 @@
+Good.
+Now we move to:
+
+# 🟦 STAGE 3 — EMBEDDING + VECTOR INDEXING + MODEL GOVERNANCE
+
+We will not mix with retrieval yet.
+
+This stage begins **after Stage 2 chunk modeling is complete**.
+
+Goal:
+
+Convert structured, policy-bound chunks into searchable vector assets with version control, governance, and monitoring.
+
+---
+
+# 🎯 OBJECTIVE OF STAGE 3
+
+1. Generate embeddings
+2. Track embedding model version
+3. Detect embedding drift
+4. Store vector + metadata in MongoDB
+5. Build vector + metadata index
+6. Preserve policy & citation linkage
+7. Enable model comparison
+8. Capture embedding metrics
+
+No retrieval yet.
+
+---
+
+# 🔷 1️⃣ INPUT TO STAGE 3
+
+Chunk record from Stage 2:
+
+```json
+{
+  "chunkId": "CH_DOC_RFP_2026_TX_001_SEC4_P14_01",
+  "documentId": "DOC_RFP_2026_TX_001",
+  "tenantId": "T1",
+  "clientId": "C101",
+  "opportunityId": "O455",
+  "sourceType": "RFP",
+  "section": "Rebate Terms",
+  "pageNumber": 14,
+  "text": "The proposed rebate shall be 15% of AWP...",
+  "policyId": "POLICY_CLIENT_DOC_STANDARD",
+  "citationId": "CIT_DOC_RFP_2026_TX_001_SEC4_P14"
+}
+```
+
+---
+
+# 🔷 2️⃣ EMBEDDING STRATEGY
+
+Enterprise requirements:
+
+* Versioned embedding model
+* Domain-specific embedding
+* Re-embedding support
+* Backward compatibility
+* Drift monitoring
+
+---
+
+## 2.1 Embedding Request Payload
+
+```json
+{
+  "embeddingRequestId": "EMB_001",
+  "modelVersion": "voyage-3-legal-v2",
+  "inputText": "The proposed rebate shall be 15% of AWP..."
+}
+```
+
+---
+
+## 2.2 Embedding Response Payload
+
+```json
+{
+  "embeddingRequestId": "EMB_001",
+  "modelVersion": "voyage-3-legal-v2",
+  "dimension": 768,
+  "embeddingVector": [0.0123, -0.3321, 0.7812, ...],
+  "embeddingTimestamp": "2026-02-22T12:20:00Z"
+}
+```
+
+---
+
+# 🔷 3️⃣ VECTOR DOCUMENT STORAGE STRUCTURE (MongoDB)
+
+After embedding, store complete searchable record.
+
+```json
+{
+  "_id": "CH_DOC_RFP_2026_TX_001_SEC4_P14_01",
+  "tenantId": "T1",
+  "clientId": "C101",
+  "opportunityId": "O455",
+  "sourceType": "RFP",
+  "documentId": "DOC_RFP_2026_TX_001",
+  "documentVersion": "v2",
+  "section": "Rebate Terms",
+  "pageNumber": 14,
+  "chunkSequence": 1,
+  "text": "The proposed rebate shall be 15% of AWP...",
+  "isTable": false,
+
+  "embedding": {
+    "modelVersion": "voyage-3-legal-v2",
+    "dimension": 768,
+    "vector": [0.0123, -0.3321, 0.7812, ...],
+    "createdAt": "2026-02-22T12:20:00Z"
+  },
+
+  "policyId": "POLICY_CLIENT_DOC_STANDARD",
+  "citationId": "CIT_DOC_RFP_2026_TX_001_SEC4_P14",
+  "sensitivityLevel": 2,
+
+  "indexStatus": "ACTIVE"
+}
+```
+
+---
+
+# 🔷 4️⃣ VECTOR INDEX CONFIGURATION (MongoDB Atlas)
+
+Vector index must include:
+
+* embedding.vector
+* metadata filters
+
+Example index config:
+
+```json
+{
+  "fields": [
+    {
+      "type": "vector",
+      "path": "embedding.vector",
+      "numDimensions": 768,
+      "similarity": "cosine"
+    },
+    {
+      "type": "filter",
+      "path": "tenantId"
+    },
+    {
+      "type": "filter",
+      "path": "clientId"
+    },
+    {
+      "type": "filter",
+      "path": "sourceType"
+    },
+    {
+      "type": "filter",
+      "path": "policyId"
+    }
+  ]
+}
+```
+
+This enables hybrid filtering later.
+
+---
+
+# 🔷 5️⃣ EMBEDDING GOVERNANCE MODEL
+
+You must support:
+
+* embeddingModelVersion history
+* Re-embedding jobs
+* Model rollback
+* Multi-model coexistence
+* Side-by-side model testing
+
+---
+
+## Embedding Registry Record
+
+```json
+{
+  "embeddingModelVersion": "voyage-3-legal-v2",
+  "dimension": 768,
+  "deploymentDate": "2026-01-01",
+  "status": "ACTIVE",
+  "previousVersion": "voyage-3-legal-v1"
+}
+```
+
+---
+
+# 🔷 6️⃣ DRIFT MONITORING
+
+Enterprise system must detect:
+
+* Embedding degradation
+* Semantic shift
+* Distribution anomaly
+
+Drift metrics to store:
+
+```json
+{
+  "modelVersion": "voyage-3-legal-v2",
+  "date": "2026-02-22",
+  "avgVectorMagnitude": 0.82,
+  "cosineDistributionMean": 0.67,
+  "driftScore": 0.03
+}
+```
+
+If driftScore > threshold → alert.
+
+---
+
+# 🔷 7️⃣ RE-EMBEDDING WORKFLOW
+
+If model upgraded:
+
+1. Mark new model ACTIVE
+2. Start background re-embedding job
+3. Store both embeddings temporarily
+4. Switch retrieval model gradually
+5. Decommission old model
+
+Re-embedding job payload:
+
+```json
+{
+  "jobId": "REEMB_20260222",
+  "oldModel": "voyage-3-legal-v1",
+  "newModel": "voyage-3-legal-v2",
+  "totalChunks": 12000,
+  "status": "IN_PROGRESS"
+}
+```
+
+---
+
+# 🔷 8️⃣ EMBEDDING METRICS
+
+You must track:
+
+* embeddingLatencyMs
+* embeddingCostPerChunk
+* failedEmbeddings
+* driftScore
+* reembeddingDuration
+* avgVectorNorm
+* vectorStorageGrowth
+
+Example daily metric:
+
+```json
+{
+  "date": "2026-02-22",
+  "totalChunksEmbedded": 450,
+  "avgEmbeddingLatencyMs": 220,
+  "embeddingFailures": 0,
+  "embeddingCostUsd": 12.40
+}
+```
+
+---
+
+# 🔷 9️⃣ SECURITY CONTROLS
+
+* Vector encryption at rest
+* Model access restricted
+* No cross-tenant indexing
+* Sensitive chunk flag enforcement
+* Embedding access logged
+
+---
+
+# 🔷 🔟 MODEL COMPARISON SUPPORT (Embedding Level)
+
+You must allow side-by-side embedding model comparison.
+
+Store alternative embeddings:
+
+```json
+{
+  "embeddingVariants": [
+    {
+      "modelVersion": "voyage-3-legal-v2",
+      "vector": [...]
+    },
+    {
+      "modelVersion": "openai-embed-v3",
+      "vector": [...]
+    }
+  ]
+}
+```
+
+This enables A/B retrieval testing later.
+
+---
+
+# 🔷 WHAT IS ACHIEVED AFTER STAGE 3
+
+✔ Chunks embedded
+✔ Model version tracked
+✔ Policy preserved
+✔ Citation preserved
+✔ Multi-model supported
+✔ Drift monitored
+✔ Ready for retrieval
+
+---
+
+Stop here.
+
+Review Stage 3.
+
+Once approved →
+Stage 4: Retrieval Engine (Hybrid Search + Policy Enforcement + Reranker + CRAG).
+
+Let me know if Stage 3 meets enterprise depth.
