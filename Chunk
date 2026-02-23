@@ -1,0 +1,246 @@
+Excellent. Now you’re asking the **correct enterprise question**:
+
+> How do we scientifically decide which Voyage model and which chunk size to use?
+> I need a benchmark framework.
+
+Good. Because model + chunk size must NEVER be decided by intuition.
+
+Below is a **production-grade benchmarking framework** specifically for:
+
+* MongoDB Atlas Vector Search
+* Voyage AI models (voyage-4-large, voyage-4-lite, voyage-context-3, multimodal, etc.)
+* Enterprise document types (RFP, Sales, Contracts, Regulations)
+
+---
+
+# 🎯 STEP 1 — Define What “Good” Means (Business KPI First)
+
+Before testing models, define:
+
+| KPI Type           | Example                                |
+| ------------------ | -------------------------------------- |
+| Retrieval Accuracy | Does it return the correct clause?     |
+| Answer Quality     | Does RAG answer match expected answer? |
+| Recall@K           | Is correct chunk in top 5?             |
+| Precision@K        | Are top 5 results relevant?            |
+| Latency            | < 200ms search?                        |
+| Cost               | Embedding cost + storage               |
+| Storage Footprint  | Vector count growth                    |
+
+If you don’t define this → benchmark is useless.
+
+---
+
+# 🎯 STEP 2 — Create a Gold Evaluation Dataset
+
+You need 100–300 real enterprise queries.
+
+Example by document type:
+
+### RFP
+
+* “What is your retail 90 rebate structure?”
+* “Describe your specialty drug management approach.”
+
+### Contract
+
+* “What are termination rights?”
+* “Indemnification clause details?”
+
+### Sales
+
+* “How do we differentiate in specialty pricing?”
+
+For each query, define:
+
+```json
+{
+  "query": "...",
+  "expected_document_id": "...",
+  "expected_section": "...",
+  "expected_text_snippet": "..."
+}
+```
+
+This becomes your ground truth.
+
+---
+
+# 🎯 STEP 3 — Define Benchmark Variables
+
+You will vary two things:
+
+## Variable 1: Embedding Model
+
+| Model Candidate  |
+| ---------------- |
+| voyage-4-large   |
+| voyage-4-lite    |
+| voyage-context-3 |
+
+---
+
+## Variable 2: Chunk Size Strategy
+
+| Strategy ID | Chunk Method               | Token Size |
+| ----------- | -------------------------- | ---------- |
+| S1          | Fixed window               | 300        |
+| S2          | Fixed window               | 600        |
+| S3          | Fixed window               | 1000       |
+| S4          | Structural (section-based) | variable   |
+| S5          | Clause-based               | variable   |
+
+Now you have combinations:
+
+* Model A + S1
+* Model A + S2
+* Model B + S1
+* Model C + S4
+  etc.
+
+---
+
+# 🎯 STEP 4 — Measure Retrieval Metrics
+
+For each combination, compute:
+
+---
+
+## 📊 Core Retrieval Metrics
+
+| Metric       | What It Means                  | Enterprise Target |
+| ------------ | ------------------------------ | ----------------- |
+| Recall@5     | Correct chunk appears in top 5 | > 90%             |
+| Recall@3     | Correct chunk appears in top 3 | > 85%             |
+| MRR          | Ranking quality                | Higher is better  |
+| Latency      | Search speed                   | < 300 ms          |
+| Vector Count | Storage growth                 | Controlled        |
+| Cost         | Embedding cost                 | Acceptable budget |
+
+---
+
+# 🎯 STEP 5 — Example Benchmark Output Table
+
+After running test queries, produce a table like this:
+
+| Model            | Chunk Strategy | Recall@5 | Recall@3 | Avg Latency | Vector Count | Cost |
+| ---------------- | -------------- | -------- | -------- | ----------- | ------------ | ---- |
+| voyage-4-large   | 300 tokens     | 94%      | 88%      | 180ms       | 40k          | $$$  |
+| voyage-4-large   | 1000 tokens    | 89%      | 82%      | 140ms       | 15k          | $$   |
+| voyage-context-3 | section-based  | 96%      | 91%      | 200ms       | 18k          | $$$  |
+| voyage-4-lite    | 600 tokens     | 85%      | 78%      | 120ms       | 22k          | $    |
+
+Now you have objective comparison.
+
+---
+
+# 🎯 STEP 6 — How to Decide Model
+
+Use this decision logic:
+
+### If accuracy difference < 2–3%
+
+→ Choose cheaper model.
+
+### If contextual model improves Recall@3 significantly
+
+→ Use voyage-context-3.
+
+### If latency is critical
+
+→ Use voyage-4-lite.
+
+### If clause precision is required (legal)
+
+→ Likely contextual model wins.
+
+---
+
+# 🎯 STEP 7 — How to Decide Chunk Size
+
+Look at:
+
+* Does smaller chunk increase Recall?
+* Does larger chunk reduce vector count significantly?
+* Does overlap help?
+
+General pattern observed in enterprise systems:
+
+| Document Type | Best Performing Chunk |
+| ------------- | --------------------- |
+| RFP           | 400–600 structured    |
+| Contract      | Clause-based          |
+| Sales         | 800–1200              |
+| Regulation    | 300–600 structured    |
+
+But benchmark proves it.
+
+---
+
+# 🏢 Enterprise Benchmarking Architecture
+
+You should automate this.
+
+Pipeline:
+
+```plaintext
+1. Ingest Documents
+2. Apply Chunk Strategy
+3. Generate Embeddings (Model X)
+4. Store in MongoDB
+5. Run Evaluation Queries
+6. Compute Metrics
+7. Store Benchmark Results
+```
+
+Repeat for each model + chunk combo.
+
+---
+
+# 🧠 Important Insight
+
+Most enterprises discover:
+
+* Structural chunking beats blind fixed token chunking.
+* voyage-context-3 reduces need for overlap.
+* 500–800 token range is usually optimal.
+* Larger chunks reduce storage but may hurt precision.
+
+But DO NOT assume — measure.
+
+---
+
+# 📊 Example Decision Matrix
+
+| Condition                | Decision                          |
+| ------------------------ | --------------------------------- |
+| High compliance use case | voyage-context-3 + structural     |
+| Budget constrained       | voyage-4-lite + 600 tokens        |
+| Mixed documents          | Hybrid strategy per document type |
+| Heavy RAG reasoning      | voyage-4-large                    |
+
+---
+
+# 🔥 Enterprise Recommendation For You
+
+Based on your domain (RFP + regulatory + sales + contracts):
+
+1. Use document-type-driven chunking.
+2. Benchmark:
+
+   * voyage-context-3
+   * voyage-4-large
+   * voyage-4-lite
+3. Use 400, 600, 1000 token tests.
+4. Measure Recall@5 and Recall@3.
+5. Choose best cost/accuracy ratio.
+
+---
+
+If you want next, I can:
+
+* Give you a **Python benchmark framework**
+* Give you a **MongoDB aggregation-based evaluation script**
+* Or design a **Databricks + Mongo benchmarking job**
+
+Tell me your environment and I’ll make it enterprise-ready.
