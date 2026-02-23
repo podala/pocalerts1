@@ -1,0 +1,44 @@
+| **Document Type**                     | **Primary Retrieval Goal**         | **Best Model Choice**                                 | **Chunk Strategy**                  | **Chunk Size (Tokens)** |
+| ------------------------------------- | ---------------------------------- | ----------------------------------------------------- | ----------------------------------- | ----------------------- |
+| **Contracts / Legal**                 | Clause lookup / compliance         | **voyage-context-3** + rerank                         | Clause-preserving structural chunks | *300–700*               |
+| **RFPs / Proposals**                  | Q&A matching / info retrieval      | **voyage-context-3**                                  | Section / question block chunks     | *400–800*               |
+| **Sales Decks / Strategy Docs**       | Narrative + conceptual search      | **voyage-4-large** or **multimodal-3.5** (if visuals) | Slide-level or thematic chunks      | *800–1500*              |
+| **Technical Manuals / Help Docs**     | Fact + context retrieval           | **voyage-4-large**                                    | Paragraph + semantic refinement     | *500–900*               |
+| **Multi-media Docs (slides, images)** | Visual and text search             | **voyage-multimodal-3.5**                             | Unified multimodal chunks           | Up to *32k* context     |
+| **Tabular / Spreadsheet Logic**       | Field lookup + numeric explanation | **voyage-4**                                          | Logical row/section grouping        | Flexible—small chunks   |
+| **Regulations / Policies**            | Exact clause search                | **voyage-context-3**                                  | Numbered section + clause split     | *300–700*               |
+
+
+Voyage AI Models — Overview
+🔹 1. Text Embedding Models
+
+These convert text into vector representations that capture semantic meaning. They differ by quality, latency, and cost.
+
+Model	Context Length	Primary Use
+voyage-4-large	~32,000 tokens	Best general-purpose retrieval quality
+voyage-4	~32,000 tokens	Balanced quality/performance
+voyage-4-lite	~32,000 tokens	Lower latency & lower cost
+Domain-specific models (e.g., voyage-code-3, voyage-finance-2, etc.)	~32,000 tokens	Specialized domains where semantics differ (e.g., code, finance)
+
+➡️ These models produce vector embeddings you store in MongoDB Vector Search. Larger context lengths let you embed longer text chunks.
+
+Contextualized Chunk Embedding Model
+
+voyage-context-3
+
+Designed to produce chunk embeddings that also encode global document context — not just the local chunk text.
+
+This helps retrieval quality in multi-section or complex documents (since the vector captures surrounding context without needing overlapping chunks).
+
+👉 Recommended when:
+✔ You want better retrieval quality without heavy overlap between chunks
+✔ You are working with long structured documents (reports, contracts, RFPs)
+✔ You’re building RAG applications over large corpora
+
+Multimodal Embeddings
+
+voyage-multimodal-3.5 (and older voyage-multimodal-3)
+
+Embeds interleaved text + images + video (e.g., screenshots, slide decks with visuals), all into a unified vector space.
+
+Useful when your corpus is not just text — such as marketing decks, scanned docs, figures in PDFs, etc.
