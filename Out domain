@@ -1,0 +1,225 @@
+You’re right to call that out.
+
+Let’s reset and answer clearly, without confusion.
+
+You asked:
+
+> In Stage 4 you are missing Out-of-Domain.
+> Where is it handled?
+
+Here is the **correct architecture answer** — clean and precise.
+
+---
+
+# 🟦 OUT-OF-DOMAIN HANDLING IN STAGE 4 (RETRIEVAL LAYER)
+
+Out-of-Domain must be handled at **three checkpoints**, and one of them is inside Stage 4.
+
+---
+
+# ✅ 1️⃣ Pre-Retrieval OOD (Before Stage 4)
+
+This is **hard OOD**.
+
+Example:
+
+* “Who won the IPL?”
+* “Write a poem”
+* “Explain quantum mechanics”
+
+Handled by:
+👉 Domain classifier before embedding.
+
+If domainScore < threshold → STOP.
+
+---
+
+# ✅ 2️⃣ Stage 4 OOD (Retrieval-Time OOD) ← THIS IS WHAT YOU ARE ASKING
+
+This is **semantic OOD**.
+
+Query looks valid but:
+
+* No matching documents
+* Similarity extremely low
+* Wrong jurisdiction
+* Wrong source type
+* Missing domain coverage
+
+This must be handled inside Stage 4 after vector search.
+
+---
+
+## 🔷 Case A — No Relevant Chunks
+
+```json
+{
+  "retrievedCount": 0,
+  "highestSimilarity": 0.32
+}
+```
+
+Decision:
+
+```json
+{
+  "status": "OUT_OF_DOMAIN",
+  "type": "NO_RELEVANT_CONTENT",
+  "reason": "No underwriting documents matched the query."
+}
+```
+
+---
+
+## 🔷 Case B — Wrong Jurisdiction (Domain Gap OOD)
+
+User asks:
+
+> “Does Florida regulation cap rebate stacking?”
+
+But only Texas + CA exist.
+
+Detection:
+
+```json
+{
+  "requestedJurisdiction": "Florida",
+  "availableJurisdictions": ["Texas", "California"]
+}
+```
+
+Decision:
+
+```json
+{
+  "status": "OUT_OF_DOMAIN",
+  "type": "JURISDICTION_NOT_AVAILABLE"
+}
+```
+
+---
+
+## 🔷 Case C — Query Mentions Entity Not In System
+
+Query:
+
+> “Does ABC Pharmacy contract violate…”
+
+But ABC Pharmacy not in tenant dataset.
+
+Detection:
+
+```json
+{
+  "detectedEntity": "ABC Pharmacy",
+  "entityExistsInTenant": false
+}
+```
+
+Decision:
+
+```json
+{
+  "status": "OUT_OF_DOMAIN",
+  "type": "ENTITY_NOT_FOUND"
+}
+```
+
+---
+
+# ✅ 3️⃣ Post-Retrieval OOD (Context Weakness)
+
+Even if chunks retrieved, CRAG evaluator may say:
+
+* Low coverage
+* No regulatory chunk
+* No pricing chunk
+* Semantic conflict
+
+Then:
+
+```json
+{
+  "status": "OUT_OF_DOMAIN",
+  "type": "INSUFFICIENT_CONTEXT"
+}
+```
+
+LLM must not answer.
+
+---
+
+# 🟦 WHERE EXACTLY IT SITS IN STAGE 4
+
+Correct Stage 4 flow:
+
+```plaintext
+Vector Search
+    ↓
+Similarity Threshold Check
+    ↓
+Jurisdiction / Entity Validation
+    ↓
+Source Coverage Check
+    ↓
+CRAG Evaluation
+    ↓
+OOD Decision (if triggered)
+    ↓
+Else → Pass to LLM
+```
+
+So yes — OOD absolutely belongs inside Stage 4.
+
+---
+
+# 🟦 ENTERPRISE OOD DECISION STRUCTURE
+
+```json
+{
+  "queryId": "Q_20260222_0009",
+  "retrievalStatus": "OUT_OF_DOMAIN",
+  "oodCategory": "JURISDICTION_NOT_AVAILABLE",
+  "confidence": 0.94,
+  "recommendation": "Upload Florida regulation documents."
+}
+```
+
+---
+
+# 🟦 IMPORTANT FOR YOUR RFP/REGULATION USE CASE
+
+In your system, OOD must block:
+
+* Regulation validation without regulation chunk
+* Compliance decision without jurisdiction data
+* Pricing comparison without pricing tables
+* Consultant guidance without consultant documents
+
+If required source missing → treat as OOD.
+
+---
+
+# 🟦 SUMMARY
+
+You were correct.
+
+Stage 4 must explicitly contain:
+
+* No-result OOD
+* Low-similarity OOD
+* Jurisdiction OOD
+* Entity OOD
+* Source coverage OOD
+* CRAG-based OOD
+
+If any of these triggered → LLM must not answer.
+
+---
+
+Now we are aligned.
+
+If this satisfies Stage 4 correction,
+we move to Stage 5 — LLM reasoning layer with strict citation enforcement.
+
+Let me know.
