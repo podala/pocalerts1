@@ -1,0 +1,10 @@
+| Method                         | How It Works                                     | Best For               | Risk                   | Recommended For            |
+| ------------------------------ | ------------------------------------------------ | ---------------------- | ---------------------- | -------------------------- |
+| **Fixed Token**                | Split every N tokens                             | Simple docs            | Breaks sentences       | Low maturity systems       |
+| **Sliding Window**             | Fixed size + overlap                             | RAG Q&A                | Storage increase       | Non-contextual embeddings  |
+| **Recursive Chunking**         | Split by paragraph → sentence → token if too big | Mixed structure docs   | Slight complexity      | General enterprise default |
+| **Structural (Heading-Based)** | Split by headings/sections                       | Reports, RFP, Sales    | Uneven chunk size      | Most enterprise documents  |
+| **Clause-Based**               | Split by legal numbering                         | Contracts, Regulations | Needs regex rules      | Legal systems              |
+| **Semantic Boundary**          | Split when topic changes (embedding similarity)  | Whitepapers            | Heavy compute          | Research systems           |
+| **Hierarchical Chunking**      | Multi-level parent-child chunks                  | Long complex docs      | Requires metadata mgmt | Advanced enterprise        |
+| **Contextual Chunking**        | Use voyage-context-3 to encode global context    | Large multi-topic docs | Model cost             | High-quality RAG           |
