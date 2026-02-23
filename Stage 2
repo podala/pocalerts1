@@ -1,0 +1,337 @@
+Good.
+Now we move properly.
+
+No mixing.
+Only:
+
+# 🟦 STAGE 2 — PARSING + STRUCTURAL EXTRACTION + CHUNK MODELING
+
+This stage begins **after ingestion is approved**.
+
+Goal:
+
+Convert registered document → structured, citation-traceable, policy-aware chunks ready for embedding.
+
+---
+
+# 🎯 OBJECTIVE OF STAGE 2
+
+1. Extract structured content from raw file
+2. Detect sections + hierarchy
+3. Detect tables separately
+4. Generate citation-ready chunk IDs
+5. Bind policy to chunk
+6. Preserve document version integrity
+7. Prepare clean embedding payload
+8. Capture parsing quality metrics
+
+No embedding yet.
+No vector index yet.
+
+Only structured chunk modeling.
+
+---
+
+# 🔷 1️⃣ INPUT TO STAGE 2
+
+Document Registry Record (from Stage 1):
+
+```json
+{
+  "documentId": "DOC_RFP_2026_TX_001",
+  "blobLocation": "blob://rfp/T1/C101/O455/DOC_RFP_2026_TX_001_v2.pdf",
+  "policyId": "POLICY_CLIENT_DOC_STANDARD",
+  "citationConfig": {
+    "citationTemplate": "{sourceDisplayName}, Section {section}, Page {pageNumber}"
+  }
+}
+```
+
+---
+
+# 🔷 2️⃣ PARSING SUB-STAGES
+
+We break parsing into structured layers.
+
+---
+
+## 2.1 File Normalization
+
+✔ OCR (if scanned)
+✔ Remove headers/footers
+✔ Normalize whitespace
+✔ Preserve page numbers
+✔ Preserve numeric values exactly
+
+Parsing Output Payload:
+
+```json
+{
+  "documentId": "DOC_RFP_2026_TX_001",
+  "normalizedPages": [
+    {
+      "pageNumber": 14,
+      "rawText": "Section 4: Rebate Terms..."
+    }
+  ],
+  "ocrConfidence": 0.97
+}
+```
+
+Metrics:
+
+* OCR confidence
+* Missing page ratio
+
+---
+
+## 2.2 Section Hierarchy Detection
+
+Detect:
+
+* Section title
+* Subsection
+* Clause numbering
+
+Example:
+
+```json
+{
+  "documentId": "DOC_RFP_2026_TX_001",
+  "sections": [
+    {
+      "sectionId": "SEC_4",
+      "title": "Rebate Terms",
+      "pageStart": 14,
+      "pageEnd": 18,
+      "hierarchyLevel": 1
+    }
+  ]
+}
+```
+
+Metrics:
+
+* Section detection accuracy
+* Misclassification rate
+
+---
+
+## 2.3 Table Detection & Isolation
+
+Important for your pricing domain.
+
+Tables must not mix with paragraph text.
+
+Example:
+
+```json
+{
+  "tableId": "TBL_4_1",
+  "pageNumber": 15,
+  "columns": ["Drug Type", "Proposed Rebate %"],
+  "rows": [
+    ["Brand", "15%"],
+    ["Generic", "5%"]
+  ]
+}
+```
+
+Table handling strategy:
+
+* Option A: Serialize as structured JSON
+* Option B: Convert to natural language but tag as table
+
+We will store both:
+
+```json
+{
+  "tableRepresentation": {
+    "structured": {...},
+    "flattenedText": "Brand rebate is 15%. Generic rebate is 5%."
+  }
+}
+```
+
+Metrics:
+
+* Table extraction accuracy
+* Numeric preservation check
+
+---
+
+# 🔷 3️⃣ CHUNK GENERATION STRATEGY
+
+Now we generate chunks.
+
+Chunk rules:
+
+✔ Section-aware
+✔ Max token length (e.g. 500–800 tokens)
+✔ Preserve page number
+✔ Preserve section
+✔ Link to policy
+✔ Link to citation template
+✔ Link to document version
+
+---
+
+## 3.1 Chunk Payload Structure
+
+```json
+{
+  "chunkId": "CH_DOC_RFP_2026_TX_001_SEC4_P14_01",
+  "documentId": "DOC_RFP_2026_TX_001",
+  "tenantId": "T1",
+  "clientId": "C101",
+  "opportunityId": "O455",
+  "sourceType": "RFP",
+  "documentVersion": "v2",
+  "section": "Rebate Terms",
+  "sectionId": "SEC_4",
+  "pageNumber": 14,
+  "chunkSequence": 1,
+  "text": "The proposed rebate shall be 15% of AWP...",
+  "isTable": false,
+  "policyId": "POLICY_CLIENT_DOC_STANDARD",
+  "citationTemplate": "{sourceDisplayName}, Section {section}, Page {pageNumber}",
+  "sensitivityLevel": 2,
+  "createdAt": "2026-02-22T12:00:00Z"
+}
+```
+
+---
+
+## 3.2 Table Chunk Example
+
+```json
+{
+  "chunkId": "CH_DOC_RFP_2026_TX_001_TBL4_1",
+  "documentId": "DOC_RFP_2026_TX_001",
+  "section": "Rebate Terms",
+  "pageNumber": 15,
+  "isTable": true,
+  "tableData": {
+    "columns": ["Drug Type", "Rebate %"],
+    "rows": [
+      ["Brand", "15%"],
+      ["Generic", "5%"]
+    ]
+  },
+  "flattenedText": "Brand rebate is 15%. Generic rebate is 5%.",
+  "policyId": "POLICY_CLIENT_DOC_STANDARD"
+}
+```
+
+---
+
+# 🔷 4️⃣ CITATION ID GENERATION
+
+Each chunk must pre-generate citation reference ID.
+
+Example:
+
+```json
+{
+  "citationId": "CIT_DOC_RFP_2026_TX_001_SEC4_P14",
+  "citationDisplay": "Texas RFP 2026 v2, Section 4, Page 14"
+}
+```
+
+This avoids building citation later.
+
+---
+
+# 🔷 5️⃣ POLICY BINDING AT CHUNK LEVEL
+
+If section-level override exists:
+
+```json
+{
+  "chunkId": "CH_DOC_RFP_2026_TX_001_SEC4_P14_01",
+  "effectivePolicyId": "POLICY_FINANCIAL_RESTRICTED"
+}
+```
+
+Otherwise inherit document policy.
+
+---
+
+# 🔷 6️⃣ PARSING METRICS
+
+You must log:
+
+* totalChunksGenerated
+* avgChunkLength
+* tableChunkCount
+* numericIntegrityCheck
+* policyInheritanceCount
+* parsingErrors
+* sectionMappingAccuracy
+
+Example:
+
+```json
+{
+  "documentId": "DOC_RFP_2026_TX_001",
+  "parsingMetrics": {
+    "totalChunks": 38,
+    "tableChunks": 4,
+    "avgTokensPerChunk": 612,
+    "numericIntegrityPassed": true,
+    "parsingErrorCount": 0
+  }
+}
+```
+
+---
+
+# 🔷 7️⃣ PARSING AUDIT LOG
+
+```json
+{
+  "documentId": "DOC_RFP_2026_TX_001",
+  "stage": "PARSING",
+  "status": "COMPLETED",
+  "timestamp": "2026-02-22T12:10:00Z",
+  "performedBy": "ParserService_v3"
+}
+```
+
+---
+
+# 🔷 WHAT IS ACHIEVED AFTER STAGE 2
+
+✔ Structured document
+✔ Section hierarchy
+✔ Tables isolated
+✔ Citation IDs generated
+✔ Policy bound
+✔ Version preserved
+✔ Tenant isolation preserved
+✔ Ready for embedding
+
+---
+
+# 🔷 COMMON MISTAKE IF THIS STAGE IS WEAK
+
+If chunking is poor:
+
+* Retrieval recall drops
+* Citation mismatches
+* LLM hallucinations increase
+* Table reasoning fails
+* Section-level policy breaks
+
+Stage 2 quality directly affects entire RAG system.
+
+---
+
+Stop here.
+
+Review Stage 2.
+
+Once approved →
+Stage 3: Embedding Strategy + Versioning + Drift Monitoring + Vector Index Design.
+
+Let me know.
