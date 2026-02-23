@@ -1,0 +1,301 @@
+Very good question.
+
+No — the previous Stage 4 description did NOT fully design **“Not Found / Insufficient Context / Zero-Result / Low-Confidence” handling** at enterprise depth.
+
+That is critical in underwriting RAG.
+
+Let’s fix it properly.
+
+---
+
+# 🟦 STAGE 4B — NOT FOUND / LOW CONFIDENCE HANDLING
+
+This is part of Retrieval Engine, but it must be explicitly designed.
+
+We handle **5 failure categories**, not just “no results”.
+
+---
+
+# 🔷 1️⃣ TYPE 1 — HARD ZERO RESULT
+
+### Scenario
+
+Vector search returns zero matches.
+
+### Detection
+
+```json
+{
+  "retrievedCount": 0
+}
+```
+
+### Action
+
+Return structured “NOT_FOUND”.
+
+### Response Payload
+
+```json
+{
+  "queryId": "Q_20260222_0002",
+  "status": "NOT_FOUND",
+  "reason": "NO_VECTOR_MATCH",
+  "recommendedActions": [
+    "Broaden source filter",
+    "Remove opportunity restriction",
+    "Search across all client versions"
+  ]
+}
+```
+
+UI Should Show:
+
+* “No relevant documents found”
+* Suggested filter relaxation
+* Expand scope toggle
+
+---
+
+# 🔷 2️⃣ TYPE 2 — BELOW SIMILARITY THRESHOLD
+
+Matches found, but all below threshold (e.g. 0.75).
+
+### Detection
+
+```json
+{
+  "highestSimilarity": 0.61,
+  "threshold": 0.75
+}
+```
+
+### Action
+
+Flag LOW_CONFIDENCE_RETRIEVAL.
+
+### Response
+
+```json
+{
+  "status": "LOW_CONFIDENCE",
+  "confidenceScore": 0.42,
+  "fallbackTriggered": true,
+  "fallbackStrategy": "EXPAND_TO_ALL_REGULATIONS"
+}
+```
+
+Fallback options:
+
+* Increase numCandidates
+* Broaden source types
+* Expand to previous versions
+* Lower threshold (if allowed)
+
+---
+
+# 🔷 3️⃣ TYPE 3 — POLICY BLOCKED
+
+Chunks exist but user has no access.
+
+### Detection
+
+Vector count > 0
+After policy filter → 0
+
+### Payload
+
+```json
+{
+  "status": "ACCESS_RESTRICTED",
+  "reason": "POLICY_BLOCK",
+  "deniedChunkCount": 8,
+  "visibleChunkCount": 0
+}
+```
+
+UI should show:
+
+> “Relevant content exists but you do not have access.”
+
+And optionally:
+
+* Request access button
+* Escalation workflow
+
+---
+
+# 🔷 4️⃣ TYPE 4 — SOURCE IMBALANCE (Critical for Your Use Case)
+
+For underwriting:
+
+If query requires:
+
+* RFP + Regulation
+* Or Pricing + Consultant
+
+But retrieval only returns RFP
+
+This is dangerous.
+
+### Detection
+
+```json
+{
+  "requiredSources": ["RFP", "Regulation"],
+  "retrievedSources": ["RFP"]
+}
+```
+
+### Action
+
+Trigger targeted secondary retrieval for missing source.
+
+If still not found:
+
+```json
+{
+  "status": "PARTIAL_CONTEXT",
+  "missingSources": ["Regulation"],
+  "confidenceScore": 0.63
+}
+```
+
+LLM must not answer regulatory compliance without regulation chunk.
+
+---
+
+# 🔷 5️⃣ TYPE 5 — CONTEXT TOO WEAK FOR ANSWER
+
+Even if matches exist, CRAG evaluator may say:
+
+* Coverage incomplete
+* Conflict detected
+* Low semantic density
+
+### CRAG Evaluation Payload
+
+```json
+{
+  "retrievalQualityScore": 0.48,
+  "semanticCoverage": 0.51,
+  "sourceDiversityScore": 0.33,
+  "decision": "INSUFFICIENT_CONTEXT"
+}
+```
+
+### Final Output
+
+```json
+{
+  "status": "INSUFFICIENT_CONTEXT",
+  "explanation": "Relevant regulation content not found to validate RFP rebate cap."
+}
+```
+
+LLM must not hallucinate.
+
+---
+
+# 🟦 ENTERPRISE NOT FOUND DECISION TREE
+
+```
+1. Vector search → 0 results?
+   → HARD NOT_FOUND
+
+2. Results exist → below similarity threshold?
+   → LOW_CONFIDENCE
+
+3. Results exist → filtered by policy?
+   → ACCESS_RESTRICTED
+
+4. Results exist → missing required source types?
+   → PARTIAL_CONTEXT
+
+5. Results exist → CRAG low score?
+   → INSUFFICIENT_CONTEXT
+```
+
+---
+
+# 🔷 UI DESIGN FOR NOT FOUND CASES
+
+You should show:
+
+| Case           | UI Message                     | Action                    |
+| -------------- | ------------------------------ | ------------------------- |
+| No match       | “No relevant documents found.” | Expand filters            |
+| Low confidence | “Low confidence result.”       | Retry with broader search |
+| Policy blocked | “Access restricted.”           | Request access            |
+| Missing source | “Regulation not found.”        | Expand regulation scope   |
+| Weak context   | “Insufficient evidence.”       | Manual review             |
+
+---
+
+# 🔷 RETRIEVAL LOGGING FOR FAILURE
+
+```json
+{
+  "queryId": "Q_20260222_0002",
+  "retrievalStatus": "LOW_CONFIDENCE",
+  "retrievedCount": 3,
+  "highestSimilarity": 0.61,
+  "fallbackTriggered": true,
+  "fallbackType": "EXPAND_SCOPE",
+  "timestamp": "2026-02-22T14:10:00Z"
+}
+```
+
+Metrics to Track:
+
+* NotFoundRate
+* LowConfidenceRate
+* AccessRestrictedRate
+* PartialContextRate
+* CRAGRejectionRate
+* HallucinationPreventionCount
+
+---
+
+# 🟦 CRITICAL FOR YOUR DOMAIN
+
+For underwriting RAG:
+
+LLM must NEVER:
+
+* Assume regulation exists
+* Assume compliance
+* Assume rebate cap
+* Fabricate clause
+
+If retrieval status != SUCCESS_WITH_CONFIDENCE
+LLM must answer:
+
+> “Insufficient regulatory context found to validate compliance.”
+
+This is enterprise-grade trustworthy RAG.
+
+---
+
+# 🔷 SUMMARY
+
+Yes — now Not Found is fully handled.
+
+We designed:
+
+* 5 failure categories
+* Payload structure
+* Fallback strategies
+* UI messaging
+* Metrics
+* LLM guardrails
+
+---
+
+If this is approved,
+we move to:
+
+🟦 Stage 5 — LLM Reasoning Layer
+(Citation Enforcement + Conflict Resolution + Self-Check + Structured Answer + Feedback Capture)
+
+Let me know.
