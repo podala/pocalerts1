@@ -1,0 +1,270 @@
+Below is a **detailed technical decision report for the RPT (Rate Projection Tool) Project** in **tabular format**, structured for enterprise architecture review.
+
+This explains:
+
+* Why specific technologies were selected
+* Why alternatives were not chosen
+* Performance, scalability, cost, and operational reasoning
+* Alignment with your workload (100 jobs/day, 20 collections/job, 20k–70k records/job, underwriter SLA requirements)
+
+---
+
+# 📘 RPT – Technology Stack Decision Report
+
+---
+
+## 1️⃣ Storage Layer Decision
+
+### 🔹 Data Lake vs SQL Server
+
+| Category            | Azure Data Lake (Chosen)        | SQL Server (Not Chosen)       | Why Data Lake Wins for RPT                           |
+| ------------------- | ------------------------------- | ----------------------------- | ---------------------------------------------------- |
+| Data Volume         | Handles TB–PB scale             | Designed for structured GB–TB | RPT produces large model outputs across 100 jobs/day |
+| Schema Flexibility  | Schema-on-read                  | Schema-on-write               | RPT versions (22.7, 22.8) change structure           |
+| Cost                | Cheap object storage            | Expensive compute + storage   | RPT stores historical model runs                     |
+| Parallel Processing | Native integration with Spark   | Limited parallel scale        | Required for 50k–100k row model calculations         |
+| Versioning          | Supports Delta Lake time travel | Complex to version tables     | RPT model version comparison                         |
+| Write Pattern       | Batch heavy writes              | OLTP optimized                | RPT writes in bulk per job                           |
+| Storage Format      | Parquet/Delta optimized         | Row-based storage             | Wide 400+ column datasets                            |
+
+### ✅ Decision:
+
+RPT is **analytics-heavy, write-heavy, schema-evolving** → Data Lake is the correct architectural fit.
+
+---
+
+## 2️⃣ Processing Engine Decision
+
+### 🔹 Why Databricks (Spark)?
+
+| Category          | Databricks (Chosen)          | Alternatives (App Server / SQL) | Why Databricks                     |
+| ----------------- | ---------------------------- | ------------------------------- | ---------------------------------- |
+| Daily Jobs        | ~100 jobs/day                | Would overload app servers      | Parallel execution across clusters |
+| Per Job Data      | 20k–70k docs, 20 collections | App server memory constraints   | Distributed execution              |
+| Column Width      | 400+ columns                 | Inefficient in SQL row engine   | Spark columnar optimization        |
+| Parallel Sections | 6 sections in parallel       | Complex threading in backend    | Native parallel execution          |
+| Re-run Capability | Independent job clusters     | Risk of blocking                | SLA-friendly                       |
+| Cost Model        | Pay per cluster              | SQL license costs               | Scalable horizontally              |
+| Delta Support     | Built-in                     | Extra infra                     | Audit + Time Travel                |
+
+### 🔹 Why Needed for Underwriter Workload?
+
+| Workload                        | Impact Without Spark              |
+| ------------------------------- | --------------------------------- |
+| 100 submissions/day             | Backend bottleneck                |
+| Each job 15 mins                | Serial processing would break SLA |
+| 3 clusters × 5 jobs parallel    | Controlled throughput             |
+| Heavy joins, formula evaluation | CPU intensive                     |
+
+### ✅ Decision:
+
+Databricks allows **distributed compute + SLA protection + model version isolation**.
+
+---
+
+## 3️⃣ Orchestration Layer
+
+### 🔹 Why ADF as Orchestrator (Not Rule Engine)?
+
+| Category          | ADF (Chosen)                  | Rule Engine (Not Chosen)       | Reason                       |
+| ----------------- | ----------------------------- | ------------------------------ | ---------------------------- |
+| Purpose           | Workflow orchestration        | Business logic execution       | Clear separation of concerns |
+| Retry Handling    | Built-in retry policies       | Custom implementation needed   | Production reliability       |
+| Monitoring        | Native pipeline monitoring    | Custom logging                 | Enterprise observability     |
+| Scheduling        | Time + Event based            | Not primary use case           | Job trigger flexibility      |
+| Parameter Passing | Supports metadata-driven jobs | Limited orchestration          | Version control handling     |
+| Integration       | Event Hub, Blob, Databricks   | Not designed for orchestration | Clean trigger chain          |
+
+### ✅ Design Principle:
+
+* **ADF = Control plane**
+* **Spark = Compute plane**
+* **Rule Engine = Business logic layer inside compute**
+
+Never mix orchestration with business rule execution.
+
+---
+
+## 4️⃣ Output Storage – MongoDB vs Cosmos DB
+
+| Category         | MongoDB Atlas (Chosen)     | Cosmos DB (Not Chosen) | Why MongoDB                       |
+| ---------------- | -------------------------- | ---------------------- | --------------------------------- |
+| Write Pattern    | Heavy bulk inserts         | RU throttling risk     | RPT bulk loads 20 collections/job |
+| JSON Flexibility | Native JSON                | Requires RU tuning     | Precomputed nested structures     |
+| Cost Model       | Node-based                 | RU-based unpredictable | 100 jobs/day predictable          |
+| Query Pattern    | Read by client/opportunity | Partition complexity   | Easier flexible queries           |
+| Aggregation      | Rich aggregation framework | Similar but costly     | Optimized for document model      |
+| Dev Familiarity  | Strong ecosystem           | Azure-specific         | Flexibility advantage             |
+
+### Example Load:
+
+* 100 jobs/day
+* 20 collections
+* 20k docs per job
+* Total daily writes ≈ 2M docs
+
+Cosmos RU spikes could become unpredictable.
+
+### ✅ Decision:
+
+MongoDB Atlas offers **predictable performance + better document flexibility**.
+
+---
+
+## 5️⃣ Why Precomputed Data in MongoDB?
+
+| Reason                  | Explanation                         |
+| ----------------------- | ----------------------------------- |
+| UI Performance          | Underwriter cannot wait 10–15 mins  |
+| Low Read App            | Read frequency medium, write heavy  |
+| Avoid Real-Time Compute | No Spark call during UI interaction |
+| Version Isolation       | Each model run stored separately    |
+| Dashboard Speed         | Pre-aggregated fields               |
+| SLA                     | < 2 second page load                |
+
+### Example:
+
+Instead of:
+
+```
+UI → Call API → Run Spark → Return result
+```
+
+We do:
+
+```
+Spark → Precompute → Store in Mongo
+UI → Simple fetch
+```
+
+### ✅ Decision:
+
+Precomputation ensures **enterprise UX speed + SLA guarantee**.
+
+---
+
+## 6️⃣ Excel Output Generation
+
+### 🔹 Why Python (Spark) Generates Excel Instead of Spring Boot?
+
+| Category              | Python (Chosen)          | Spring Boot (Not Chosen) | Reason                  |
+| --------------------- | ------------------------ | ------------------------ | ----------------------- |
+| Data Already in Spark | Yes                      | No                       | Avoid data movement     |
+| Large Dataframes      | Native Pandas/OpenPyXL   | Memory intensive         | Spark handles better    |
+| Formula Preservation  | Python libraries support | Complex in Java          | Excel automation easier |
+| Performance           | Runs inside cluster      | App server load          | Separation of concerns  |
+| Formatting Control    | Strong ecosystem         | Limited libraries        | Rich Excel formatting   |
+
+### ✅ Design:
+
+Compute → Format → Generate Excel → Store → Download
+
+Avoid moving 50k rows to Java backend.
+
+---
+
+## 7️⃣ Why Not SQL for Final UI Layer?
+
+| Reason                  | Explanation             |
+| ----------------------- | ----------------------- |
+| Wide Schema (400+ cols) | JSON better suited      |
+| Dynamic Versions        | SQL ALTER heavy         |
+| Nested Structures       | Mongo handles naturally |
+| High Write Frequency    | No index locking        |
+| Per Client Document     | Document model better   |
+
+---
+
+## 8️⃣ Complete Architecture Summary
+
+| Layer           | Technology               | Why                          |
+| --------------- | ------------------------ | ---------------------------- |
+| Storage (Raw)   | Azure Data Lake + Delta  | Cheap, scalable, versionable |
+| Compute         | Databricks (Spark)       | Parallel processing          |
+| Orchestration   | Azure Data Factory       | Enterprise workflow control  |
+| Messaging       | Event Hub                | Decoupled job trigger        |
+| Output Store    | MongoDB Atlas            | Fast UI retrieval            |
+| API Layer       | Spring Boot              | Secure API gateway           |
+| UI              | Next.js / React          | Interactive dashboards       |
+| Excel Generator | Python (OpenPyXL/Pandas) | Direct dataframe export      |
+
+---
+
+# 📊 End-to-End RPT Flow
+
+```
+Underwriter UI
+        ↓
+Spring Boot API
+        ↓
+Event Hub
+        ↓
+ADF Pipeline Trigger
+        ↓
+Databricks Job (Spark)
+        ↓
+Delta Lake (optional intermediate)
+        ↓
+Precompute Aggregations
+        ↓
+Bulk Insert to MongoDB
+        ↓
+SignalR Notification
+        ↓
+UI Refresh
+```
+
+---
+
+# 📈 Scalability Justification
+
+| Metric          | Value                    |
+| --------------- | ------------------------ |
+| Jobs/day        | 100                      |
+| Parallel Jobs   | 15 (3 clusters × 5 jobs) |
+| Avg Job Time    | 15 mins                  |
+| Collections/job | 20                       |
+| Docs/job        | 20k–70k                  |
+| Daily Writes    | ~2M+                     |
+| UI SLA          | <2 sec load              |
+
+---
+
+# 🧠 Core Architectural Principles Applied
+
+| Principle                  | How RPT Applies It |
+| -------------------------- | ------------------ |
+| Separation of Concerns     | ADF ≠ Rule Engine  |
+| Compute-Storage Separation | Spark + Data Lake  |
+| Precomputation Pattern     | Mongo optimized    |
+| Event Driven               | Event Hub triggers |
+| Horizontal Scaling         | Multiple clusters  |
+| SLA Isolation              | Job clusters       |
+| Versioned Model Execution  | Delta + Mongo      |
+| Document-Based UI          | Mongo optimized    |
+
+---
+
+# 🎯 Final Enterprise Positioning Statement
+
+RPT is:
+
+* A **batch-heavy distributed pricing engine**
+* Not a transactional OLTP system
+* Not a real-time compute service
+* Designed for **high write volume**
+* Optimized for **precomputed fast reads**
+* Architected for **model versioning**
+* Built to support **100+ daily actuarial submissions**
+
+---
+
+If you want, I can now also provide:
+
+* 🔎 Cost comparison sheet (Databricks vs SQL)
+* 📊 RU vs Node cost projection (Mongo vs Cosmos)
+* 🧩 RPT 22.7 vs 22.8 versioning strategy table
+* 📈 Performance tuning sheet (shuffle partitions, cluster sizing)
+* 🏗 Enterprise Architecture slide-ready version
+
+Just tell me which one you need next.
