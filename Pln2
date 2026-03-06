@@ -1,0 +1,204 @@
+You are a senior Spark performance architect auditing a production PySpark repository.
+
+Analyze the entire repository and generate a Spark Execution & Shuffle Risk Report.
+
+IMPORTANT:
+- Ignore comments and commented code.
+- Ignore docstrings.
+- Analyze only executable code.
+- Do not give theory. Provide counts and concrete refactor advice.
+
+This repository processes 10k–200k rows per run, 20+ logical groups, and burst concurrency up to 20 jobs. Final output is written once to MongoDB as 10k documents.
+
+Your job is to detect execution inefficiencies that increase Spark jobs, shuffles, and runtime.
+
+------------------------------------------------------------
+SECTION 1 — Spark Action & Job Trigger Analysis
+------------------------------------------------------------
+
+Count executable occurrences of:
+
+.collect(
+.count(
+.write
+.save(
+.saveAsTable(
+.toPandas(
+.foreach(
+.foreachBatch(
+deltaTable.merge(
+MERGE INTO
+insertInto(
+dbutils.notebook.run(
+
+For each file:
+- Count occurrences
+- Detect if inside loop (for/while)
+- Detect if nested inside function called in loop
+- Flag as CRITICAL if action appears inside loop
+
+Estimate Spark jobs per pipeline run based on action count.
+
+------------------------------------------------------------
+SECTION 2 — Wide Transformation (Shuffle) Detection
+------------------------------------------------------------
+
+Count and classify:
+
+.groupBy(
+.agg(
+.join(
+.crossJoin(
+.repartition(
+.distinct(
+.orderBy(
+.sort(
+.explode(
+.union(
+.window(
+.dropDuplicates(
+
+For each file:
+- Count occurrences
+- Detect chained joins (join >3 depth)
+- Detect groupBy followed by another groupBy on same DF
+- Detect repartition before groupBy
+- Detect repartition immediately before write
+- Detect unnecessary distinct after groupBy
+
+Classify shuffle intensity:
+LOW (≤5 wide ops)
+MEDIUM (6–15)
+HIGH (>15)
+CRITICAL (deep join chains + repeated groupBy)
+
+------------------------------------------------------------
+SECTION 3 — Row Explosion & Data Growth Risk
+------------------------------------------------------------
+
+Detect patterns that increase row count:
+
+- explode(
+- crossJoin(
+- union(
+- join without grouping back
+- no groupBy after explode
+
+Flag potential row multiplication risk.
+
+Estimate row growth factor if possible.
+
+------------------------------------------------------------
+SECTION 4 — Data Re-read & Fragmentation Risk
+------------------------------------------------------------
+
+Detect:
+
+- Same dataset read multiple times
+- read → write → read pattern
+- Intermediate Delta materialization
+- Multiple notebooks computing dependent groups
+- notebook.run chains
+
+Flag:
+HIGH if repeated re-read
+CRITICAL if execution split across >5 notebooks
+
+------------------------------------------------------------
+SECTION 5 — Join Optimization Opportunities
+------------------------------------------------------------
+
+Detect joins that:
+
+- Do not use broadcast on small lookup
+- Join large DF to large DF repeatedly
+- Join on non-partition key
+- Use Python UDF before join
+
+Suggest broadcast where applicable.
+
+------------------------------------------------------------
+SECTION 6 — Partition & Shuffle Configuration Risk
+------------------------------------------------------------
+
+Detect:
+
+- Hardcoded spark.sql.shuffle.partitions
+- Missing shuffle config
+- repartition with high number (e.g., 200+)
+- coalesce after repartition
+- excessive repartition calls
+
+Flag:
+HIGH if shuffle partitions likely mismatched to data size.
+
+------------------------------------------------------------
+SECTION 7 — Python Bottleneck Detection
+------------------------------------------------------------
+
+Detect:
+
+- udf(
+- pandas_udf(
+- mapPartitions(
+- Python for-loops operating on DF rows
+- collect used for driver-side logic
+
+Flag driver-side compute patterns.
+
+------------------------------------------------------------
+SECTION 8 — Mongo Write Pressure Analysis
+------------------------------------------------------------
+
+Detect:
+
+- Multiple Mongo writes per pipeline
+- Writes inside loop
+- Missing repartition before Mongo write
+- No batch size config
+- No partition key usage
+
+Estimate:
+Documents per run × burst concurrency = docs/sec required.
+
+Flag risk if Mongo write likely bottleneck.
+
+------------------------------------------------------------
+SECTION 9 — Final Structured Output
+------------------------------------------------------------
+
+Produce structured tables:
+
+1. File-Level Risk Table:
+
+| File | Metric | Count | Risk Level | Why Risky | Suggested Refactor |
+
+2. Repository-Level Summary:
+
+- Total Spark actions
+- Total wide transformations
+- Estimated shuffle count
+- Estimated Spark jobs per run
+- Estimated row explosion risk
+- Estimated fragmentation score (Low/Medium/High/Critical)
+- Estimated Mongo write pressure per burst
+
+------------------------------------------------------------
+SECTION 10 — Concrete Refactor Plan For This Repo
+------------------------------------------------------------
+
+Provide:
+
+1. How to merge 20+ groups into single execution DAG
+2. How to eliminate write-in-loop patterns
+3. How to reduce shuffle count
+4. How to restructure join chains
+5. Suggested shuffle partition value for 200k–500k rows
+6. Suggested cluster sizing for burst 20 jobs
+7. Estimated Spark job reduction
+8. Estimated runtime reduction (range)
+
+Be strict.
+Be specific.
+Provide numeric estimates.
+No generic advice.
