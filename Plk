@@ -1,0 +1,149 @@
+You are a senior Spark performance architect.
+
+Analyze the entire repository and generate a Spark Performance Audit Report.
+
+Your job is to statically scan all Python files (.py), notebooks (.ipynb), and SQL files and detect Spark execution anti-patterns and performance risks.
+
+Perform the following analysis:
+
+------------------------------------------------------------
+SECTION 1 — Count Spark Actions (These Trigger Spark Jobs)
+------------------------------------------------------------
+
+Count occurrences of:
+- .collect(
+- .count(
+- .write
+- .save(
+- .saveAsTable(
+- .toPandas(
+- .display(
+- deltaTable.merge(
+- MERGE INTO (SQL)
+
+For each file:
+- Provide total count
+- Highlight if found inside loops (for/while)
+- Flag HIGH RISK if action appears inside loop
+
+------------------------------------------------------------
+SECTION 2 — Detect Fragmentation Patterns
+------------------------------------------------------------
+
+Detect:
+- dbutils.notebook.run calls
+- Multiple sequential writes in same file
+- Read → Write → Read patterns
+- Re-reading same dataset multiple times
+- Nested notebook chaining
+
+Flag HIGH RISK if:
+- notebook.run used > 3 times
+- Write operations > 5 per file
+- MERGE operations > 3 per file
+
+------------------------------------------------------------
+SECTION 3 — Detect Wide Transformations (Shuffle Sources)
+------------------------------------------------------------
+
+Count:
+- .groupBy(
+- .join(
+- .repartition(
+- .distinct(
+- .explode(
+- .orderBy(
+- .union(
+- window functions
+
+For each file:
+- Count occurrences
+- Estimate shuffle intensity (LOW / MEDIUM / HIGH)
+- Flag if repeated groupBy on same DF
+
+------------------------------------------------------------
+SECTION 4 — UDF and Non-Optimized Code
+------------------------------------------------------------
+
+Detect:
+- udf(
+- pandas_udf(
+- mapPartitions(
+- row-by-row loops over DF
+- Python loops performing Spark actions
+
+Flag:
+- UDF usage > 5 as MEDIUM risk
+- collect inside loop as CRITICAL
+
+------------------------------------------------------------
+SECTION 5 — Data Source & Write Pattern Analysis
+------------------------------------------------------------
+
+Detect:
+- format("delta")
+- format("parquet")
+- format("mongo")
+- merge operations
+- overwrite vs append mode
+- coalesce or repartition before write
+
+Flag:
+- Missing partition strategy before write
+- Excessive repartition before write
+- Writes inside group loops
+
+------------------------------------------------------------
+SECTION 6 — Generate Summary Table
+------------------------------------------------------------
+
+Produce final table with columns:
+
+| File | Metric | Count | Risk Level | Why Risky | Suggested Refactor |
+
+Risk Levels:
+- CRITICAL
+- HIGH
+- MEDIUM
+- LOW
+
+------------------------------------------------------------
+SECTION 7 — Generate Repository-Level Metrics Summary
+------------------------------------------------------------
+
+Provide summary:
+
+- Total Spark actions across repo
+- Total write operations
+- Total MERGE operations
+- Total notebook.run usage
+- Total groupBy and joins
+- Estimated Spark jobs per run (approximate based on actions)
+- Estimated fragmentation score (Low / Medium / High)
+
+------------------------------------------------------------
+SECTION 8 — Refactor Plan
+------------------------------------------------------------
+
+Provide a concrete optimization plan:
+
+1. How to reduce Spark job fragmentation
+2. How to consolidate notebooks
+3. How to remove write-in-loop patterns
+4. How to batch Mongo writes
+5. How to restructure 25 group calculations into single execution DAG
+6. Suggested shuffle partition setting
+7. Suggested cluster size for 200k–500k rows
+8. Estimated runtime improvement if refactored
+
+------------------------------------------------------------
+Important:
+- Do NOT provide theory.
+- Provide file-level findings.
+- Provide real counts.
+- Provide practical refactor suggestions.
+- Be precise.
+- Be strict.
+- Flag risky code clearly.
+
+Output format must be structured and readable.
