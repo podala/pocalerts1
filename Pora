@@ -1,0 +1,300 @@
+You are a senior distributed systems architect and Spark performance engineer.
+
+Audit this entire repository and produce a Production-Grade Spark Execution, SQL Performance, Shuffle, Storage, Concurrency, and Architecture Optimization Report.
+
+CONTEXT:
+- Spark 3.x (Databricks compatible)
+- ~10k base rows per run
+- 20–25 logical groups generating ~200k intermediate rows
+- Final output = ~10k MongoDB documents (1 per base_id)
+- 400 jobs per day
+- Burst concurrency up to 20 jobs
+- Strict SLA: < 5 minutes per job
+- Intermediate Delta storage is NOT required and should be eliminated
+- Ideal design = single Spark DAG + single final write
+
+IMPORTANT:
+- Ignore comments, docstrings, and commented code
+- Analyze executable code only
+- Provide structured output
+- Provide numeric estimates
+- No generic advice
+- Act as production architect
+
+---------------------------------------------------------------------
+SECTION 1 — Spark Action & Job Fragmentation Analysis
+---------------------------------------------------------------------
+Detect and count executable occurrences of:
+.collect(
+.count(
+.write(
+.save(
+.saveAsTable(
+.insertInto(
+.foreach(
+.foreachBatch(
+.toPandas(
+.display(
+deltaTable.merge(
+MERGE INTO
+dbutils.notebook.run(
+
+For each file:
+- Count occurrences
+- Detect if inside loops
+- Detect nested invocation patterns
+- Flag CRITICAL if action inside loop
+- Estimate Spark jobs per run
+- Estimate scheduler overhead
+
+Provide fragmentation score.
+
+---------------------------------------------------------------------
+SECTION 2 — Wide Transformation & Shuffle Boundary Analysis
+---------------------------------------------------------------------
+Detect and count:
+.groupBy(
+.agg(
+.join(
+.crossJoin(
+.window(
+.repartition(
+.distinct(
+.orderBy(
+.sort(
+.explode(
+.union(
+.dropDuplicates(
+
+Estimate:
+- Shuffle boundaries per run
+- Shuffle stage count
+- Shuffle amplification factor
+
+Classify shuffle intensity.
+
+---------------------------------------------------------------------
+SECTION 3 — Spark SQL, Catalyst & CBO Optimization
+---------------------------------------------------------------------
+Check:
+- Statistics collected?
+- CBO enabled?
+- AQE enabled?
+- Broadcast joins used?
+- Join reordering possible?
+- Skew join handling enabled?
+
+Recommend enabling relevant Spark configs.
+
+---------------------------------------------------------------------
+SECTION 4 — Storage & I/O Optimization
+---------------------------------------------------------------------
+Detect:
+- Lack of predicate pushdown
+- Lack of partition pruning
+- Inefficient file sizes
+- Excessive metadata operations
+- Small file problem
+
+Provide recommendations.
+
+---------------------------------------------------------------------
+SECTION 5 — Expensive Delta Materialization & Format Conversion
+---------------------------------------------------------------------
+Detect:
+1) Delta write → immediate read
+2) Delta → Mongo conversion
+3) Delta → Pandas → Excel
+4) collect() before Mongo insert
+5) toPandas() before Excel
+6) JSON conversion on driver
+7) Writing intermediate results only for format conversion
+
+For each:
+- File
+- Pattern
+- Estimated data size
+- Risk level
+- Why expensive
+- Suggested alternative
+
+---------------------------------------------------------------------
+SECTION 6 — Row Explosion & Data Growth Modeling
+---------------------------------------------------------------------
+Detect:
+- explode
+- crossJoin
+- union inside loops
+- join without regroup
+
+Estimate:
+- Worst-case row growth
+- Max rows per run
+- Skew risk
+
+---------------------------------------------------------------------
+SECTION 7 — Memory & Serialization Optimization
+---------------------------------------------------------------------
+Detect:
+- Python UDF usage
+- pandas_udf usage
+- mapPartitions usage
+- collect to driver
+- Missing Kryo serializer
+
+Recommend:
+- Kryo serializer
+- Executor memory sizing
+- Driver memory sizing
+- Removing UDF where possible
+
+---------------------------------------------------------------------
+SECTION 8 — Partition & Shuffle Configuration Modeling
+---------------------------------------------------------------------
+Detect:
+- shuffle partition settings
+- repartition misuse
+- repartition + coalesce misuse
+
+Compute recommended partitions:
+Optimal partitions = shuffle_size_MB / 128MB
+
+Recommend:
+- Ideal shuffle partitions
+- Tasks per core
+- Cores per job
+
+---------------------------------------------------------------------
+SECTION 9 — Mongo Write Throughput & Burst Modeling
+---------------------------------------------------------------------
+Compute:
+Required docs/sec = (10k × 20) / 300
+
+Evaluate:
+- Partitioning before write
+- Batch size config
+- Write concurrency
+- Executor vs driver write
+
+---------------------------------------------------------------------
+SECTION 10 — 400 Jobs/Day Capacity Planning
+---------------------------------------------------------------------
+Estimate:
+- Runtime per job
+- Compute minutes/day
+- Required concurrency
+- Cluster sizing
+- Job vs shared clusters
+
+---------------------------------------------------------------------
+SECTION 11 — SLA Risk Scoring
+---------------------------------------------------------------------
+Score:
+- Spark jobs/run
+- Shuffle stages
+- Fragmentation
+- Row explosion
+- Delta round-trips
+- Mongo pressure
+
+Classify SLA risk.
+
+---------------------------------------------------------------------
+SECTION 12 — Spark Job Reduction Model
+---------------------------------------------------------------------
+Model improvements if:
+- Actions reduced
+- Shuffle reduced
+- Single DAG used
+- Delta intermediates removed
+
+Estimate:
+- New Spark jobs/run
+- Runtime reduction %
+- Resource savings
+
+---------------------------------------------------------------------
+SECTION 13 — Full Refactor Architecture Plan
+---------------------------------------------------------------------
+Provide steps:
+1. Merge 20–25 groups into single DAG
+2. Remove notebook chaining
+3. Eliminate intermediate Delta writes
+4. Replace Delta → Mongo round-trip with direct write
+5. Replace Delta → Excel with direct final export
+6. Broadcast lookup tables
+7. Combine aggregations
+8. Enable AQE
+9. Reduce shuffle partitions
+10. Repartition once before Mongo write
+11. Enable Kryo
+12. Optimize cluster sizing
+
+Provide numeric improvement estimates.
+
+---------------------------------------------------------------------
+SECTION 14 — Storage Round-Trip Cost Modeling
+---------------------------------------------------------------------
+For each Delta materialization:
+Estimate:
+- Data size written
+- Write time cost
+- Read time cost
+- Serialization overhead
+- Total latency added per run
+
+Estimate:
+- Daily wasted time (400 jobs)
+- Burst impact (20 concurrent)
+
+Provide summary table.
+
+---------------------------------------------------------------------
+SECTION 15 — Recommended Replacement Strategies
+---------------------------------------------------------------------
+For each expensive pattern:
+- Replace Delta intermediate with in-memory join
+- Replace Delta → Mongo with direct Spark write
+- Replace Delta → Excel with final DataFrame export
+- Avoid toPandas on >50k rows
+- Avoid collect for JSON conversion
+- Repartition once before Mongo write
+
+Provide concrete refactor code suggestions.
+
+---------------------------------------------------------------------
+SECTION 16 — Expensive Operation Risk Summary
+---------------------------------------------------------------------
+Produce summary:
+- # Delta intermediate writes
+- # Delta read-after-write
+- # Pandas conversions
+- # Driver collect for Mongo
+- Estimated runtime wasted
+- Estimated runtime improvement if removed (%)
+- Estimated Spark job reduction
+
+Classify overall expensive-operation risk.
+
+---------------------------------------------------------------------
+SECTION 17 — CI/CD Enforcement Rules
+---------------------------------------------------------------------
+Generate static analyzer rules:
+- Fail if collect inside loop
+- Warn if write >5 per file
+- Warn if join chain >3
+- Warn if shuffle partitions > recommended
+- Warn if UDF used instead of SQL
+- Warn if nested notebook.run
+- Warn if Delta write followed by read
+- Warn if toPandas() on large DF
+
+Provide sample regex patterns.
+
+---------------------------------------------------------------------
+
+Be strict.
+Provide structured tables.
+Provide numeric estimates.
+No generic advice.
+Act as production architect.
