@@ -1,0 +1,182 @@
+You are a senior Spark architecture auditor.
+
+Analyze this repository and generate a full Notebook Execution Flow and Delta Table Lineage Report.
+
+Context:
+- Multiple Databricks notebooks
+- Orchestrated via dbutils.notebook.run or job workflow
+- Delta tables used for intermediate storage
+- 25 logical groups involved
+- Jobs executed via Databricks workflows
+
+Ignore:
+- Comments
+- Docstrings
+- Commented-out code
+
+Analyze executable code only.
+
+---------------------------------------------------------------------
+SECTION 1 — Notebook Execution Graph
+---------------------------------------------------------------------
+
+Detect:
+
+- dbutils.notebook.run(...)
+- Any wrapper functions triggering notebooks
+- Job JSON workflow definitions (if present)
+- Orchestrator notebook patterns
+
+For each notebook:
+- List notebooks it calls
+- Identify execution order
+- Identify conditional execution patterns
+- Identify loops triggering notebooks
+- Detect parallel execution of notebooks
+
+Produce:
+
+Notebook Dependency Graph:
+| Parent Notebook | Child Notebook | Execution Type (Sequential/Parallel) | Loop? |
+
+Also provide:
+- Depth of execution chain
+- Total notebooks per job run
+- Potential fragmentation risk
+
+---------------------------------------------------------------------
+SECTION 2 — Data Passing Between Notebooks
+---------------------------------------------------------------------
+
+Detect how data is passed:
+
+- Notebook arguments
+- Return values
+- Delta tables
+- Temp views
+- Global variables
+- DBFS paths
+
+For each notebook call:
+- Identify parameters passed
+- Identify whether actual data or only config passed
+- Detect if Delta table path passed as argument
+
+Produce:
+
+| Notebook | Receives From | Data Passed | Mechanism (Arg/Delta/View/etc.) |
+
+---------------------------------------------------------------------
+SECTION 3 — Delta Table Creation Mapping
+---------------------------------------------------------------------
+
+Detect:
+
+- df.write.format("delta")
+- saveAsTable
+- mode("overwrite")
+- mode("append")
+
+For each Delta table:
+- Table name or path
+- Notebook where created
+- Whether inside loop
+- Whether overwritten or appended
+- Whether table name dynamic
+- Whether partitioned
+
+Produce:
+
+| Delta Table | Created In Notebook | Mode | Partitioned | Inside Loop? |
+
+---------------------------------------------------------------------
+SECTION 4 — Delta Table Usage Mapping
+---------------------------------------------------------------------
+
+For each Delta table found in SECTION 3:
+
+Detect where it is read:
+
+- spark.read.format("delta")
+- spark.read.table
+- DeltaTable.forPath
+
+Map:
+
+| Delta Table | Read In Notebook | Purpose (Aggregation/Mongo/Excel/etc.) |
+
+Flag:
+- Read-after-write in same job
+- Read by multiple notebooks
+- Read only for format conversion
+- Cross-job reuse
+
+---------------------------------------------------------------------
+SECTION 5 — Cross-Notebook Delta Reuse Risk
+---------------------------------------------------------------------
+
+Detect:
+
+- Same Delta table created in one job and reused in another job
+- Same Delta table name reused across multiple jobs
+- Multiple jobs writing to same Delta path
+- Overwrite vs append conflict risk
+- Non-isolated job design (shared intermediate table)
+
+Flag:
+
+CRITICAL if:
+- Shared Delta path across jobs
+- Overwrite without job-specific partitioning
+- Cross-job contamination possible
+
+---------------------------------------------------------------------
+SECTION 6 — Delta as Communication Layer Detection
+---------------------------------------------------------------------
+
+Determine if Delta is used primarily as:
+
+1. Temporary storage between notebooks
+2. Persistence layer for final results
+3. Cross-job communication
+4. Debugging/logging
+
+Classify each Delta table:
+REQUIRED / OPTIONAL / REDUNDANT
+
+---------------------------------------------------------------------
+SECTION 7 — Execution Efficiency Assessment
+---------------------------------------------------------------------
+
+Evaluate:
+
+- Whether multiple notebooks could be merged
+- Whether Delta round-trips are splitting execution DAG
+- Whether Delta is breaking Spark lineage unnecessarily
+- Whether groups are computed in separate notebooks but could run in single DAG
+
+Estimate:
+- Extra Spark jobs created due to notebook chaining
+- Extra shuffle boundaries created due to Delta write-read
+- Estimated time overhead per job
+
+---------------------------------------------------------------------
+SECTION 8 — Executive Summary
+---------------------------------------------------------------------
+
+Produce:
+
+1. Total notebooks per job execution
+2. Execution chain depth
+3. Total Delta tables created per job
+4. Total Delta read-after-write cases
+5. Delta tables shared across jobs
+6. Risk level:
+   LOW / MEDIUM / HIGH / CRITICAL
+7. Estimated runtime wasted due to notebook chaining
+8. Estimated runtime wasted due to Delta intermediate usage
+9. Recommendation:
+   - Merge notebooks?
+   - Remove Delta intermediates?
+   - Isolate job-specific Delta paths?
+   - Use in-memory DataFrame passing?
