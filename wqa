@@ -1,0 +1,158 @@
+You are a senior Spark performance architect.
+
+Analyze this repository and identify the ACTUAL Delta storage flow.
+
+Do not assume per-group writes.
+Discover the real behavior from the code.
+
+Context:
+- 25 logical groups
+- Each group produces ~10k rows
+- Total intermediate rows ≈ 250k
+- Final output ≈ 10k Mongo documents
+- 400 jobs per day
+- Burst concurrency = 20
+- SLA = 5 minutes
+- Spark 3.x
+
+Ignore comments and docstrings.
+Analyze executable code only.
+
+-------------------------------------------------------------------
+SECTION 1 — Identify All Delta Writes
+-------------------------------------------------------------------
+
+Find every occurrence of:
+
+- df.write.format("delta")
+- saveAsTable
+- mode("overwrite") / mode("append")
+- DeltaTable.forPath
+- MERGE INTO
+
+For each Delta write:
+- File
+- Line number
+- Dataset name or path
+- Estimated rows written
+- Estimated data size
+- Whether inside loop
+- Whether inside group execution
+
+Count:
+Total Delta writes per job execution path.
+
+-------------------------------------------------------------------
+SECTION 2 — Trace Delta Read-After-Write Patterns
+-------------------------------------------------------------------
+
+For each Delta write detected:
+
+Check if the same path or table is:
+
+- Read later in same notebook
+- Read in another notebook
+- Read for Mongo conversion
+- Read for Excel generation
+- Read only for final aggregation
+
+For each read-after-write:
+- Identify code location
+- Determine purpose (Mongo, Excel, aggregation, etc.)
+- Determine if data was already available in memory before write
+- Flag if write-read is unnecessary
+
+-------------------------------------------------------------------
+SECTION 3 — Determine Real Overhead Per Job
+-------------------------------------------------------------------
+
+For each Delta round-trip detected:
+
+Estimate:
+
+1. Data size (rows × estimated row size)
+2. Write time cost (seconds)
+3. Read time cost (seconds)
+4. Extra Spark job triggered?
+5. Extra shuffle stage introduced?
+6. Commit protocol overhead?
+7. Metadata overhead?
+
+Compute:
+Total Delta overhead per job (actual, not assumed).
+
+-------------------------------------------------------------------
+SECTION 4 — Detect Delta Used Only for Format Conversion
+-------------------------------------------------------------------
+
+Detect patterns where:
+
+- Delta written
+- Immediately read
+- Converted to JSON
+- Written to Mongo
+
+OR
+
+- Delta written
+- Read
+- Converted to Pandas
+- Written to Excel
+
+For each:
+- Flag as avoidable materialization
+- Estimate per-job overhead
+- Suggest direct in-memory alternative
+
+-------------------------------------------------------------------
+SECTION 5 — Delta Necessity Classification
+-------------------------------------------------------------------
+
+For each Delta write classify as:
+
+1. REQUIRED (true persistence needed)
+2. OPTIONAL (can be removed)
+3. REDUNDANT (clearly unnecessary)
+
+Provide justification for classification.
+
+-------------------------------------------------------------------
+SECTION 6 — Per-Job Savings If Removed
+-------------------------------------------------------------------
+
+For each OPTIONAL or REDUNDANT Delta write:
+
+Estimate:
+- Time saved per job
+- Shuffle reduction
+- Spark job reduction
+
+Compute:
+Total time saved per job.
+
+-------------------------------------------------------------------
+SECTION 7 — Daily & Burst Impact
+-------------------------------------------------------------------
+
+Given:
+400 jobs/day
+20 concurrent burst
+
+Calculate:
+- Total compute hours saved per day
+- Reduction in disk I/O pressure
+- Reduction in shuffle contention
+- SLA stability improvement
+
+-------------------------------------------------------------------
+SECTION 8 — Executive Quick Win Summary
+-------------------------------------------------------------------
+
+Produce:
+I
+note book | Delta Pattern | Required? | Time Saved/Job | Daily Savings | Risk | Recommendation |
+
+Provide:
+- Total seconds saved per job
+- % runtime reduction
+- Overall Delta optimization ROI
